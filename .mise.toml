@@ -1,2 +1,5 @@
 [tools]
 tuist = "4.156.0"
+swiftlint = "0.65.1"
+swiftformat = "0.63.0"
+xcbeautify = "3.2.1"
