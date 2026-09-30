@@ -1,0 +1,10 @@
+#!/bin/bash
+# 사람이 터미널에서 실수로 main 에 push 하는 것도 막는다 (make bootstrap 이 연결).
+# 우회가 꼭 필요하면: git push --no-verify
+while read -r _ _ remote_ref _; do
+  if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    echo "main 으로 직접 push 할 수 없습니다. PR 로 머지하세요." >&2
+    exit 1
+  fi
+done
+exit 0
