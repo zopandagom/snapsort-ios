@@ -1,0 +1,139 @@
+# 아키텍처
+
+두 가지 결정 위에 서 있다.
+
+1. **규칙 기반 단방향 MV.** SwiftUI 의 `@Observable` 모델을 View 에 직접 연결한다(Apple 샘플과 같은 방식). 단방향 흐름은 프레임워크가 아니라 규칙과 lint 로 강제한다.
+2. **모듈러 아키텍처.** 외부 시스템은 Client 모듈로 감싸고, 각 Client 를 Interface / Impl / Testing 으로 나눈다. Feature 는 Interface 에만 의존한다.
+
+## 1. 실행 흐름
+
+```mermaid
+flowchart TD
+    View["View<br/>state 를 읽어 렌더링만"]
+    Model["Model (@Observable @MainActor)<br/>private(set) 상태 · 이벤트 메서드"]
+    Client["Client protocol (Sendable)<br/>*Interface 모듈"]
+    Impl["Impl<br/>PhotoKit · Vision · FoundationModels · SwiftData"]
+    Fake["Fake<br/>*Testing 모듈 · 테스트/Example"]
+
+    View -- "① 이벤트: model.startButtonTapped()" --> Model
+    Model -- "② async 호출" --> Client
+    Client -. App 이 주입 .-> Impl
+    Client -. 테스트가 주입 .-> Fake
+    Client -- "Sendable 값 반환" --> Model
+    Model -- "③ 상태 변경 → ④ Observation 이 re-render" --> View
+```
+
+### 단방향 규칙
+| # | 규칙 | lint 로 강제 |
+|---|---|---|
+| 1 | Model 의 상태 프로퍼티는 모두 `public private(set) var` | 리뷰 |
+| 2 | View 는 Model 의 **이벤트 메서드**만 호출한다. 이름은 "무슨 일이 일어났는가"로 짓는다: `onAppear()`, `startButtonTapped()`, `queryChanged(_:)` | 리뷰 |
+| 3 | 입력 컨트롤은 `Binding(get: { model.query }, set: { model.queryChanged($0) })` 으로 연결한다. `$model.query` 금지 | `no_two_way_model_binding` |
+| 4 | 부수효과(권한, OCR, 저장, 알림)는 Model 메서드 안에서 Client 를 통해서만 실행한다. View 에서 `Task { PHPhotoLibrary… }` 금지 | `system_framework_only_in_impl` |
+| 5 | Model 은 `@MainActor`, Client 가 주고받는 값은 `Sendable`. `PHAsset` 같은 비 Sendable 객체는 식별자로 바꿔서 넘긴다 | 컴파일러 (Swift 6 strict) |
+| 6 | Model 끼리 직접 참조하지 않는다. 화면 간 흐름은 App 이 조립하거나 공유 Client 를 거친다 | 모듈 경계 |
+| 7 | View 전용 일시 상태(애니메이션, 포커스, 시트 표시 여부)는 View 의 `@State private var` 로 둬도 된다. 비즈니스 의미가 있으면 Model 로 옮긴다 | 리뷰 |
+
+### 예시 (LibraryFeature)
+```swift
+@MainActor
+@Observable
+public final class LibraryModel {
+  public private(set) var access: PhotoAccessState = .notDetermined
+  public private(set) var screenshotCount = 0
+
+  @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
+
+  public func onAppear() async { … }
+  public func startButtonTapped() async {
+    self.access = await self.photoLibrary.requestAccess()
+    await self.reloadScreenshots()
+  }
+}
+
+// View
+Button("스크린샷 정리 시작하기") { Task { await self.model.startButtonTapped() } }
+```
+
+## 2. 모듈 구조
+
+```mermaid
+flowchart TD
+    App["App (SnapSort)<br/>조립 지점"]
+    Widget["Widget extension (W4)<br/>저장소 Client Interface 만 의존"]
+    subgraph Features
+      Library["LibraryFeature"]
+      Other["…Feature"]
+    end
+    subgraph Clients
+      PI["PhotoLibraryInterface"]
+      PImpl["PhotoLibraryImpl"]
+      PT["PhotoLibraryTesting"]
+    end
+
+    App --> Library & Other
+    App --> PImpl
+    Library --> PI
+    PImpl --> PI
+    PT --> PI
+```
+
+### 모듈 종류와 타깃
+| 종류 | 위치 | 타깃 | 역할 |
+|---|---|---|---|
+| App | `Projects/App` | `SnapSort` | 유일한 조립 지점. Impl 을 생성해 Model 에 주입 |
+| Feature | `Projects/Features/<Name>` | `<Name>Feature` · `<Name>FeatureTests` · `<Name>FeatureExample` | 화면 하나 또는 흐름 하나. Model + View |
+| Client | `Projects/Clients/<Name>` | `<Name>Interface` · `<Name>Impl` · `<Name>Testing` · `<Name>Tests` | 외부 시스템 경계 |
+| Shared (예정) | `Projects/Shared/<Name>` | `Core`(W2), `DesignSystem`(W4) | 도메인 모델, 공용 UI |
+
+- **Interface**: 프로토콜과 값 타입(`PhotoAccessState` 등)만. Apple 데이터 프레임워크를 import 하지 않는다.
+- **Impl**: 프로토콜 구현. 구현 타입 이름은 `<Name>ClientImpl`. Apple 프레임워크 import 는 여기서만.
+- **Testing**: `<Name>ClientFake`. 고정 값을 돌려주는 `struct` 로 시작하고, 호출 기록이 필요해지면 그때 확장한다.
+- **Example**: Fake 로 Feature 를 단독 실행하는 데모 앱. **`#Preview` 도 여기에 둔다** (Feature 모듈이 Testing 에 의존하지 않도록).
+
+### 의존 규칙
+| from ↓ / to → | Feature | Interface | Impl | Testing |
+|---|---|---|---|---|
+| App | ✅ | ✅ | ✅ | ❌ |
+| Feature | ❌ | ✅ | ❌ | ❌ |
+| Feature Tests / Example | 자기 Feature | ✅ | ❌ | ✅ |
+| Client Impl | ❌ | 자기 Interface (+ 다른 Interface) | ❌ | ❌ |
+| Client Tests | ❌ | ✅ | 자기 Impl | 자기 Testing |
+
+### 빌드 설정
+- 모든 모듈은 static framework. iPhone 전용, iOS 26.0+, Swift 6 언어 모드, `SWIFT_STRICT_CONCURRENCY=complete`.
+- 설정은 `Tuist/ProjectDescriptionHelpers/Project+Templates.swift` 의 `Env` 에서만 바꾼다. 개별 매니페스트에서 덮어쓰지 않는다.
+
+## 3. 모듈 추가 방법
+
+### Client 추가 (예: OCR)
+1. `Tuist/ProjectDescriptionHelpers/Module.swift` 의 `Client` 에 `case ocr = "OCR"` 추가.
+2. 디렉터리 생성: `Projects/Clients/OCR/{Interface,Impl,Testing,Tests}` + `Project.swift`:
+   ```swift
+   import ProjectDescription
+   import ProjectDescriptionHelpers
+
+   let project = Project.client(.ocr)
+   ```
+3. Interface 에 `public protocol OCRClient: Sendable` 과 입출력 값 타입, Impl 에 `OCRClientImpl`, Testing 에 `OCRClientFake`, Tests 에 Impl 의 순수 로직 테스트.
+4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .ocr)` 추가.
+5. `make generate && make test`.
+
+### Feature 추가 (예: Onboarding)
+1. `Feature` 에 `case onboarding = "Onboarding"` 추가.
+2. `Projects/Features/Onboarding/{Sources,Tests,Example}` + `Project.swift`:
+   ```swift
+   let project = Project.feature(.onboarding, clients: [.photoLibrary])
+   ```
+3. `Sources` 에 `OnboardingModel`, `OnboardingView`. `Tests` 에 Model 테스트. `Example` 에 `@main` 데모 앱과 `#Preview`.
+4. App 매니페스트 dependencies 에 `.feature(.onboarding)` 추가, `SnapSortApp` 에서 Model 을 만들어 연결.
+
+## 4. 확정된 기술 결정
+| 결정 | 이유 |
+|---|---|
+| 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. StoreKit 2 는 기기에서 영수증 검증 |
+| 분류 2단 구조 | Vision OCR + 키워드 규칙은 모든 기기, Foundation Models 는 `SystemLanguageModel.default.availability == .available` 인 기기만 |
+| 스크린샷 조회 | `PHAsset.mediaSubtypes` 의 `.photoScreenshot` 필터. 전체 사진 순회 없음 |
+| 저장소 | SwiftData, App Group 컨테이너 (위젯과 공유) — W2 에서 Client 로 추가 |
+| 만료 알림 | `UNCalendarNotificationTrigger` 로컬 알림 — 서버 푸시 없음 |
+| TCA 등 외부 아키텍처 라이브러리 | 사용하지 않음. 외부 의존성 0 을 유지하고, 추가하려면 사전 합의 |
