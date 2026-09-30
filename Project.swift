@@ -11,7 +11,7 @@ let project = Project(
   settings: .settings(
     base: [
       "SWIFT_VERSION": "6.0",
-      "SWIFT_STRICT_CONCURRENCY": "complete"
+      "SWIFT_STRICT_CONCURRENCY": "complete",
     ]
   ),
   targets: [
@@ -24,7 +24,7 @@ let project = Project(
       infoPlist: .extendingDefault(with: [
         "UILaunchScreen": [:],
         "CFBundleDisplayName": "SnapSort",
-        "NSPhotoLibraryUsageDescription": "스크린샷을 기기 안에서 분석해 자동으로 정리합니다. 사진은 외부로 전송되지 않습니다."
+        "NSPhotoLibraryUsageDescription": "스크린샷을 기기 안에서 분석해 자동으로 정리합니다. 사진은 외부로 전송되지 않습니다.",
       ]),
       sources: ["SnapSort/Sources/**"],
       resources: ["SnapSort/Resources/**"]
@@ -37,6 +37,6 @@ let project = Project(
       deploymentTargets: .iOS("26.0"),
       sources: ["SnapSort/Tests/**"],
       dependencies: [.target(name: "SnapSort")]
-    )
+    ),
   ]
 )

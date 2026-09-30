@@ -1,0 +1,16 @@
+--swiftversion 6.0
+--exclude Derived,**/Derived,build,.build,*.xcodeproj,*.xcworkspace
+
+--indent 2
+--maxwidth 120
+--self insert
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--stripunusedargs closure-only
+--header strip
+--importgrouping testable-last
+
+# 한국어 주석·문자열을 건드리지 않도록 문서 주석 변환은 끈다
+--disable docComments,wrapPropertyBodies

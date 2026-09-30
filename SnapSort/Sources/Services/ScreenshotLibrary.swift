@@ -15,7 +15,7 @@ struct ScreenshotLibrary: Sendable {
   }
 
   func requestAccess() async -> AccessState {
-    Self.map(await PHPhotoLibrary.requestAuthorization(for: .readWrite))
+    await Self.map(PHPhotoLibrary.requestAuthorization(for: .readWrite))
   }
 
   /// 최신순 스크린샷 목록. PHAsset 은 Sendable 이 아니므로 식별자만 넘긴다.

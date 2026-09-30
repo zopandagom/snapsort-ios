@@ -1,0 +1,70 @@
+# included 를 두지 않고 레포 전체를 검사한다 (생성물만 제외).
+excluded:
+  - "**/Derived"
+  - build
+  - .build
+
+# SwiftFormat 과 겹치거나 충돌하는 규칙은 끈다 (포맷은 SwiftFormat 이 담당)
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - todo
+
+opt_in_rules:
+  - contains_over_first_not_nil
+  - empty_count
+  - empty_string
+  - explicit_init
+  - first_where
+  - flatmap_over_map_reduce
+  - last_where
+  - private_swiftui_state
+  - sorted_first_last
+  - toggle_bool
+  - unowned_variable_capture
+  - weak_delegate
+
+line_length:
+  warning: 120
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  excluded: [id, x, y]
+
+# ── 아키텍처 규칙 (docs/ARCHITECTURE.md) ─────────────────────────────
+custom_rules:
+  impl_import_only_in_app:
+    name: "Impl 은 App 에서만 import"
+    included: "Projects/(Features|Clients/[^/]+/(Interface|Testing))/"
+    regex: "^\\s*import\\s+\\w+Impl\\s*$"
+    message: "Client Impl 은 App 모듈에서만 import 합니다. Feature 는 Interface 에 의존하세요."
+    severity: error
+
+  testing_import_not_in_production:
+    name: "Testing 모듈은 테스트/Example 에서만"
+    included: "Projects/(App/Sources|Features/[^/]+/Sources|Clients/[^/]+/(Interface|Impl))/"
+    regex: "^\\s*import\\s+\\w+Testing\\s*$"
+    message: "Fake 가 든 Testing 모듈은 Tests 와 Example 타깃에서만 import 합니다."
+    severity: error
+
+  system_framework_only_in_impl:
+    name: "Apple 데이터 프레임워크는 Client Impl 에서만"
+    included: "Projects/(App|Features|Clients/[^/]+/(Interface|Testing))/"
+    regex: "^\\s*import\\s+(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)\\s*$"
+    message: "사진·OCR·AI·저장소·결제·알림 프레임워크는 Client Impl 안에서만 사용합니다. Interface 에 값 타입을 정의하세요."
+    severity: error
+
+  no_two_way_model_binding:
+    name: "Model 양방향 바인딩 금지"
+    included: "Projects/Features/"
+    regex: "\\$(self\\.)?model\\."
+    message: "Model 상태는 private(set) 입니다. Binding(get:set:) 으로 이벤트 메서드를 호출하세요."
+    severity: error
+
+  no_network:
+    name: "네트워크 호출 금지"
+    included: "Projects/"
+    regex: "\\b(URLSession|URLRequest|NWConnection)\\b"
+    message: "'사진이 기기 밖으로 나가지 않는다'가 제품의 핵심 약속입니다. 네트워크 코드는 사전 합의 후 별도 모듈로 추가합니다."
+    severity: error
