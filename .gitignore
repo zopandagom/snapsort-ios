@@ -3,6 +3,7 @@
 *.xcworkspace
 Derived/
 .build/
+build/
 
 # Xcode
 xcuserdata/
