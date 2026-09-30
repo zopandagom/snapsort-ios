@@ -1,0 +1,13 @@
+# Tuist 가 생성하는 파일 (Project.swift 가 SSOT)
+*.xcodeproj
+*.xcworkspace
+Derived/
+.build/
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcresult
+
+# macOS
+.DS_Store
