@@ -39,9 +39,18 @@ jobs:
                Impl/Testing import 위치, Apple 프레임워크 사용 위치
             3. 개인정보: 사진·OCR 텍스트가 기기 밖으로 나가거나 로그에 남는 코드
             4. 테스트 누락: Model 의 새 이벤트 메서드와 Client Impl 의 순수 로직
+            5. 하네스·빌드 설정(.claude/**, .githooks/**, .github/**, Makefile, Tuist/): 스크립트 정확성,
+               실패해도 통과하는 경로(fail-open), 문서와 실제 동작의 불일치
 
             lint/format 으로 잡히는 스타일 지적은 하지 마세요 (CI 가 담당).
-            구체적인 문제는 mcp__github_inline_comment__create_inline_comment 로 해당 줄에 인라인 코멘트를 남기고,
-            마지막에 `gh pr comment` 로 한국어 요약(문제 없으면 "LGTM" 한 줄)을 남기세요.
+            구체적인 문제는 mcp__github_inline_comment__create_inline_comment 로 해당 줄에 인라인 코멘트를 남기세요.
+            마지막에 `gh pr comment` 로 아래 형식의 한국어 요약을 남기세요. 문제가 없어도 형식을 지킵니다.
+
+            ## Claude 리뷰
+            **결론**: 필수 N · 권장 N (문제 없으면 "문제 없음")
+            **확인한 범위**: 바뀐 파일 종류와 위 중점 중 적용한 항목
+            **지적 사항**: 표(심각도 🔴 필수 / 🟡 권장 · 위치 · 문제 · 수정 방향). 없으면 "없음"
+            **문제 없다고 본 근거**: 위험해 보일 수 있지만 괜찮다고 판단한 부분과 이유 1~3줄
           claude_args: |
+            --model opus
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"
