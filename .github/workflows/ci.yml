@@ -62,11 +62,27 @@ jobs:
     needs: lint
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
       - name: Build & Test
         run: make test
+      # 테스트 성공·실패와 관계없이 결과를 요약해 PR 코멘트 하나를 push 마다 갱신한다.
+      - name: 테스트 결과 요약
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p build
+          .github/scripts/test-summary.sh build/TestResults.xcresult > build/test-summary.md
+          cat build/test-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: 테스트 결과 PR 코멘트
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          path: build/test-summary.md
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v7
