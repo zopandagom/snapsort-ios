@@ -1,6 +1,6 @@
 ---
 name: micro-commit
-description: 커밋되지 않은 SnapSort 변경을 docs/CONVENTIONS.md §5 의 역할(build / feat·fix·refactor / test / style / ci / docs / chore)별 마이크로 커밋으로 나누고, 각 커밋 시점이 빌드·테스트를 통과하는지 임시 worktree 에서 검증한다. 역할 단위 작업을 마쳤거나, 사용자가 "커밋", "커밋 나눠"를 요청할 때 사용한다. 인자로 검증 기준(기본 origin/main)을 줄 수 있다.
+description: 커밋되지 않은 SnapSort 변경을 docs/CONVENTIONS.md §5 의 역할(build / feat·fix·refactor / test / style / ci / docs / chore)별 마이크로 커밋으로 나누고, 각 커밋 시점이 빌드·테스트를 통과하는지 임시 worktree 에서 검증한다. 사용자가 "커밋", "커밋 나눠", /micro-commit 을 명시적으로 지시할 때만 사용한다. 인자로 검증 기준(기본 origin/main)을 줄 수 있다.
 argument-hint: "[base-ref]"
 context: fork
 agent: general-purpose
