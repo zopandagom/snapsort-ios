@@ -39,18 +39,19 @@ jobs:
           mkdir -p build
           docker run --rm -v "$PWD:/work" -w /work --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.1 \
             lint --strict --quiet --reporter json > build/swiftlint.json || true
+      # Dependabot PR 은 GITHUB_TOKEN 이 읽기 전용이라 코멘트를 달 수 없으므로 main push 와 같이 jq 로 판정한다.
       - uses: ruby/setup-ruby@v1
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         with:
           ruby-version: "3.4"
           bundler-cache: true
       - name: Danger
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         run: bundle exec danger --fail-on-errors=true
         env:
           DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: SwiftLint 결과 확인 (main push)
-        if: github.event_name == 'push'
+      - name: SwiftLint 결과 확인 (Danger 를 쓰지 않을 때)
+        if: github.event_name == 'push' || github.actor == 'dependabot[bot]'
         run: |
           jq -e 'length == 0' build/swiftlint.json > /dev/null || {
             jq -r '.[] | "\(.file):\(.line): \(.rule_id) \(.reason)"' build/swiftlint.json
