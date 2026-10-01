@@ -61,7 +61,7 @@
 | `feat` / `fix` / `refactor` | 코드 구현 (**해당 테스트 포함**) | `Projects/**` | `make lint && make test` |
 | `test` | 기존 코드에 테스트만 추가 | `Projects/**/Tests` | `make test` |
 | `style` | 포맷·lint 설정과 그에 따른 일괄 포맷 | `.swiftformat`, `.swiftlint.yml` | `make lint` |
-| `ci` | GitHub Actions, PR 템플릿, dependabot | `.github/**` | YAML 문법, 참조하는 make 타깃·경로 존재 |
+| `ci` | GitHub Actions, PR 템플릿, dependabot, Danger | `.github/**`, `Gemfile*`, `Dangerfile` | YAML 문법, 참조하는 make 타깃·경로 존재 |
 | `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
 | `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
 
