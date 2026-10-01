@@ -1,0 +1,24 @@
+#!/bin/bash
+# 커밋 전에 스테이지된 Swift 파일만 lint 한다 (make bootstrap 이 연결). 규칙은 CI lint 잡과 같다.
+# lint 설정이 바뀌면 결과가 레포 전체에 영향을 주므로 make lint 로 전체를 검사한다.
+# 고치려면: make format / 우회가 꼭 필요하면: git commit --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+if git diff --cached --name-only | grep -qxE '\.swiftlint\.yml|\.swiftformat'; then
+  make lint || { echo "lint 실패. make format 으로 고치세요." >&2; exit 1; }
+  exit 0
+fi
+
+files=()
+while IFS= read -r -d '' file; do files+=("$file"); done \
+  < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.swift')
+[[ ${#files[@]} -eq 0 ]] && exit 0
+
+status=0
+mise exec -- swiftformat --lint --quiet "${files[@]}" || status=1
+mise exec -- swiftlint lint --strict --quiet --force-exclude "${files[@]}" || status=1
+if [[ $status -ne 0 ]]; then
+  echo "lint 실패. make format 으로 고친 뒤 다시 스테이지하세요." >&2
+fi
+exit $status
