@@ -30,7 +30,10 @@ public final class LibraryModel {
   // MARK: - Private
 
   private func reloadScreenshots() async {
-    guard self.access.canRead else { return }
+    guard self.access.canRead else {
+      self.screenshotCount = 0
+      return
+    }
     self.screenshotCount = await self.photoLibrary.fetchScreenshotIdentifiers().count
   }
 }

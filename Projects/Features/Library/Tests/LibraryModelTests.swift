@@ -67,4 +67,22 @@ struct LibraryModelTests {
     #expect(model.access == result)
     #expect(model.screenshotCount == expectedCount)
   }
+
+  @Test("읽을 수 있던 권한이 거부로 바뀌면 스크린샷 수를 0으로 되돌린다")
+  func accessRevokedResetsCount() async {
+    let model = LibraryModel(
+      photoLibrary: PhotoLibraryClientFake(
+        currentState: .authorized,
+        stateAfterRequest: .denied,
+        screenshotIdentifiers: ["a", "b"]
+      )
+    )
+    await model.onAppear()
+    #expect(model.screenshotCount == 2)
+
+    await model.startButtonTapped()
+
+    #expect(model.access == .denied)
+    #expect(model.screenshotCount == 0)
+  }
 }
