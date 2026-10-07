@@ -9,9 +9,10 @@ RESULT_BUNDLE := build/TestResults.xcresult
 
 .PHONY: bootstrap generate build test lint format clean
 
-## 최초 1회: 도구 설치
+## 최초 1회: 도구 설치 + git 훅 연결
 bootstrap:
 	mise install
+	git config core.hooksPath .githooks
 
 generate:
 	$(MISE) tuist generate --no-open
