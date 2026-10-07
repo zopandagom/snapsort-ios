@@ -47,7 +47,7 @@
 |---|---|---|
 | 작업 하나 = 브랜치 하나: `feat/w1-photo-onboarding`, `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) | 여러 작업을 한 PR 에 섞기 | |
-| 커밋 전에 수정한 Swift 파일(스테이지 여부 무관) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI Danger |
+| 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI Danger |
 | PR 전에 `make lint && make test` (또는 `/verify`) | CI 실패 상태로 머지 | |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | 머지는 **Rebase merge** (마이크로 커밋 이력을 main 에 그대로 남긴다) | Squash merge (커밋 단위가 사라진다) | |
