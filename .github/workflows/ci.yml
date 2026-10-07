@@ -57,6 +57,15 @@ jobs:
             jq -r '.[] | "\(.file):\(.line): \(.rule_id) \(.reason)"' build/swiftlint.json
             exit 1
           }
+      # lint 가 실패하면 test 잡이 돌지 않으므로, 이전 push 의 테스트 결과 코멘트를 "미수행"으로 바꾼다.
+      - name: 테스트 미수행 PR 코멘트
+        if: ${{ failure() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          message: |
+            ### ⏭️ 테스트 미수행
+            lint 가 실패해 테스트를 돌리지 않았습니다. [실행 로그](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})에서 lint 오류를 확인하세요.
 
   test:
     needs: lint
@@ -71,6 +80,7 @@ jobs:
       - name: Build & Test
         run: make test
       # 테스트 성공·실패와 관계없이 결과를 요약해 PR 코멘트 하나를 push 마다 갱신한다.
+      # lint 가 실패한 push 는 lint 잡이 같은 코멘트를 "테스트 미수행"으로 바꾼다.
       - name: 테스트 결과 요약
         if: ${{ !cancelled() }}
         run: |
