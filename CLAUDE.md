@@ -6,7 +6,7 @@
 ## 먼저 읽을 문서
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 규칙 기반 단방향 MV, 모듈 구조, 모듈 추가 방법
 - [docs/CONVENTIONS.md](docs/CONVENTIONS.md) — 해야 할 것 / 하지 말아야 할 것 (코드·테스트·git·개인정보)
-- [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) — 6주 로드맵, 이슈 진행 방식, 완료 기준
+- [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) — 6주 로드맵, 작업 진행 방식, 완료 기준
 
 ## 명령
 | 명령 | 용도 |
@@ -23,7 +23,7 @@
 | 2 | `/verify` | lint → 빌드 → 테스트, 실패 원인 요약 |
 | 3 | `/arch-review [base]` | 규칙 문서 기준 읽기 전용 리뷰. 🔴 필수 항목은 커밋 전에 고친다 |
 | 4 | `/micro-commit [base]` | **사용자가 지시할 때만.** 역할별 커밋 + 커밋마다 worktree 검증 |
-| 5 | `/pr [이슈번호] [draft]` | **사용자가 지시할 때만.** 전체 리뷰 → PR 생성(유형 라벨). 스크린샷은 선택, 필요하면 사용자가 직접 첨부 |
+| 5 | `/pr [draft]` | **사용자가 지시할 때만.** 전체 리뷰 → PR 생성(유형 라벨). 스크린샷은 선택, 필요하면 사용자가 직접 첨부 |
 
 ## 구조 한눈에
 ```
