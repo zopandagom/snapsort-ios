@@ -25,7 +25,8 @@ jobs:
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
         run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 --lint --verbose .
       - name: SwiftLint
-        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/realm/swiftlint:0.65.1 swiftlint lint --strict --quiet
+        # 이미지가 swiftlint 를 실행하므로 인자로 swiftlint 를 다시 넘기면 경로로 읽힌다. 실행 파일을 명시한다.
+        run: docker run --rm -v "$PWD:/work" -w /work --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.1 lint --strict --quiet
 
   test:
     needs: lint
