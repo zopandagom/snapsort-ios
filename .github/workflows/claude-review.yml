@@ -1,0 +1,47 @@
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Dependabot 이 연 PR 은 Actions 시크릿을 읽을 수 없어 항상 실패하므로 제외한다.
+    if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            이 PR 을 리뷰하세요. 기준 문서는 CLAUDE.md, docs/ARCHITECTURE.md, docs/CONVENTIONS.md 입니다.
+            먼저 세 문서를 읽고 `gh pr diff` 로 변경분을 확인하세요.
+
+            중점:
+            1. 정확성 버그, Swift 6 동시성 문제(데이터 레이스, 잘못된 actor 격리)
+            2. 아키텍처 규칙 위반: 단방향 MV(상태 private(set), 이벤트 메서드), 모듈 의존 방향,
+               Impl/Testing import 위치, Apple 프레임워크 사용 위치
+            3. 개인정보: 사진·OCR 텍스트가 기기 밖으로 나가거나 로그에 남는 코드
+            4. 테스트 누락: Model 의 새 이벤트 메서드와 Client Impl 의 순수 로직
+
+            lint/format 으로 잡히는 스타일 지적은 하지 마세요 (CI 가 담당).
+            구체적인 문제는 mcp__github_inline_comment__create_inline_comment 로 해당 줄에 인라인 코멘트를 남기고,
+            마지막에 `gh pr comment` 로 한국어 요약(문제 없으면 "LGTM" 한 줄)을 남기세요.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"

@@ -10,28 +10,21 @@
 - 홈 화면 위젯
 
 ## 기술 스택
-- SwiftUI, SwiftData, Swift 6 (strict concurrency)
-- PhotoKit, Vision (OCR), Foundation Models (Apple Intelligence 기기)
+- SwiftUI (규칙 기반 단방향 MV), Swift 6 strict concurrency
+- PhotoKit, Vision (OCR), Foundation Models (Apple Intelligence 기기), SwiftData
 - WidgetKit, StoreKit 2
-- Tuist
-
-## 분류 파이프라인
-1. PhotoKit `mediaSubtypes` 필터로 스크린샷만 조회
-2. Vision OCR → 키워드 규칙 기반 1차 분류 (모든 기기)
-3. Foundation Models `@Generable` 구조화 추출 (Apple Intelligence 지원 기기만)
+- Tuist 모듈러 아키텍처 (Feature / Client Interface·Impl·Testing)
 
 ## 시작하기
 ```bash
-mise install          # tuist 설치
-tuist generate
+make bootstrap   # mise 로 tuist·swiftlint·swiftformat·xcbeautify 설치, git 훅 연결
+make generate    # SnapSort.xcworkspace 생성
+make test        # 전체 모듈 빌드 + 테스트
+make lint        # 포맷·아키텍처 규칙 검사 (make format 으로 자동 수정)
 ```
 
-## 로드맵
-| 주차 | 목표 |
-|---|---|
-| 1 | 프로젝트 뼈대, CI, 사진 권한, 스크린샷 조회 |
-| 2 | OCR + 규칙 기반 분류 파이프라인, SwiftData 저장 |
-| 3 | Foundation Models 분류, 기프티콘 추출, 만료 알림 |
-| 4 | 메인 UI, 검색, 일괄 삭제, 위젯 |
-| 5 | StoreKit 2 결제, 온보딩, TestFlight |
-| 6 | ASO, 스토어 에셋, 출시 |
+## 문서
+- [아키텍처](docs/ARCHITECTURE.md)
+- [개발 규칙: 해야 할 것 / 하지 말아야 할 것](docs/CONVENTIONS.md)
+- [개발 계획과 로드맵](docs/DEVELOPMENT_PLAN.md)
+- [Claude Code 작업 안내](CLAUDE.md)

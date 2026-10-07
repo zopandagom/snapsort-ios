@@ -2,25 +2,41 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore: ["**.md", "docs/**", ".claude/**"]
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**", ".claude/**"]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: macos-26
+  # 비공개 레포의 macOS 러너는 분당 10배 과금이라 lint 는 Ubuntu 컨테이너에서 먼저 돌린다.
+  # 버전은 .mise.toml 과 맞춘다.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
-      - name: Generate project
-        run: tuist generate --no-open
+      - uses: actions/checkout@v7
+      - name: SwiftFormat
+        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 --lint .
+      - name: SwiftLint
+        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/realm/swiftlint:0.65.1 swiftlint lint --strict --quiet
+
+  test:
+    needs: lint
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
       - name: Build & Test
-        run: |
-          xcodebuild test \
-            -workspace SnapSort.xcworkspace \
-            -scheme SnapSort \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            CODE_SIGNING_ALLOWED=NO
+        run: make test
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TestResults
+          path: build/TestResults.xcresult
+          retention-days: 7
