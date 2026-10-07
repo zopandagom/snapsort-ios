@@ -32,6 +32,8 @@ jobs:
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
         run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 --lint --verbose .
       - name: SwiftLint
+        # SwiftFormat 이 실패해도 SwiftLint 위반을 함께 보고하도록 이후 단계는 !cancelled() 로 돈다.
+        if: ${{ !cancelled() }}
         # 위반이 있으면 0 이 아닌 코드로 끝나므로 판정은 아래 단계에 맡긴다.
         # 설정 오류로 JSON 이 비면 Dangerfile·jq 가 실패시킨다.
         # 이미지가 swiftlint 를 실행하므로 인자로 swiftlint 를 다시 넘기면 경로로 읽힌다. 실행 파일을 명시한다.
@@ -39,19 +41,19 @@ jobs:
           mkdir -p build
           docker run --rm -v "$PWD:/work" -w /work --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.1 \
             lint --strict --quiet --reporter json > build/swiftlint.json || true
-      # Dependabot PR 은 GITHUB_TOKEN 이 읽기 전용이라 코멘트를 달 수 없으므로 main push 와 같이 jq 로 판정한다.
+      # Dependabot PR 은 GITHUB_TOKEN 이 읽기 전용이라 코멘트를 달 수 없으므로 main push·수동 실행과 같이 jq 로 판정한다.
       - uses: ruby/setup-ruby@v1
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
         with:
           ruby-version: "3.4"
           bundler-cache: true
       - name: Danger
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
         run: bundle exec danger --fail-on-errors=true
         env:
           DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: SwiftLint 결과 확인 (Danger 를 쓰지 않을 때)
-        if: github.event_name == 'push' || github.actor == 'dependabot[bot]'
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.actor == 'dependabot[bot]') }}
         run: |
           jq -e 'length == 0' build/swiftlint.json > /dev/null || {
             jq -r '.[] | "\(.file):\(.line): \(.rule_id) \(.reason)"' build/swiftlint.json
