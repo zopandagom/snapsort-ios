@@ -29,6 +29,22 @@ struct LibraryModelTests {
     #expect(model.screenshotCount == 0)
   }
 
+  @Test("권한을 아직 묻지 않았으면 화면 진입 시 권한을 요청하지 않고 스크린샷도 조회하지 않는다")
+  func onAppearWhenNotDeterminedDoesNotRequestAccess() async {
+    let model = LibraryModel(
+      photoLibrary: PhotoLibraryClientFake(
+        currentState: .notDetermined,
+        stateAfterRequest: .authorized,
+        screenshotIdentifiers: ["a"]
+      )
+    )
+
+    await model.onAppear()
+
+    #expect(model.access == .notDetermined)
+    #expect(model.screenshotCount == 0)
+  }
+
   @Test(
     "시작 버튼을 누르면 권한 요청 결과를 반영하고, 읽을 수 있을 때만 스크린샷을 불러온다",
     arguments: [
