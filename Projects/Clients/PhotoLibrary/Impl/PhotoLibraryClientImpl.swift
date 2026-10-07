@@ -1,25 +1,22 @@
+import PhotoLibraryInterface
 import Photos
 
-/// 사진 보관함에서 스크린샷만 조회한다.
+/// PhotoKit 기반 구현.
 /// 전체 사진을 훑지 않고 mediaSubtypes 필터를 PhotoKit 쿼리에 넘겨 인덱싱 비용을 줄인다.
-struct ScreenshotLibrary: Sendable {
-  enum AccessState: Sendable {
-    case authorized
-    case limited
-    case denied
-    case notDetermined
-  }
+public struct PhotoLibraryClientImpl: PhotoLibraryClient {
+  public init() {}
 
-  func accessState() -> AccessState {
+  public func accessState() -> PhotoAccessState {
     Self.map(PHPhotoLibrary.authorizationStatus(for: .readWrite))
   }
 
-  func requestAccess() async -> AccessState {
+  public func requestAccess() async -> PhotoAccessState {
     await Self.map(PHPhotoLibrary.requestAuthorization(for: .readWrite))
   }
 
-  /// 최신순 스크린샷 목록. PHAsset 은 Sendable 이 아니므로 식별자만 넘긴다.
-  func fetchScreenshotIdentifiers() -> [String] {
+  /// 보관함이 크면 조회가 수백 ms 걸리므로 메인 스레드 밖에서 실행한다.
+  @concurrent
+  public func fetchScreenshotIdentifiers() async -> [String] {
     let options = PHFetchOptions()
     options.predicate = NSPredicate(
       format: "(mediaSubtypes & %d) != 0",
@@ -36,7 +33,7 @@ struct ScreenshotLibrary: Sendable {
     return identifiers
   }
 
-  private static func map(_ status: PHAuthorizationStatus) -> AccessState {
+  static func map(_ status: PHAuthorizationStatus) -> PhotoAccessState {
     switch status {
     case .authorized: .authorized
     case .limited: .limited
