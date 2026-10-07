@@ -6,15 +6,15 @@
 - **출시 목표:** 2026-11-11 (6주, 풀타임).
 
 ## 로드맵
-| 주차 | 기간 | 이슈 | 목표 | 완료 기준 |
-|---|---|---|---|---|
-| 0 | 9/30 | — | 모듈러 아키텍처, CI, 하네스, 문서 | 이 문서 세트 머지, CI 통과 |
-| 1 | 10/1 – 10/7 | #1 | 사진 권한 온보딩 + 스크린샷 조회 | 전체/제한/거부 흐름, 신규 스크린샷 감지, Onboarding Feature |
-| 2 | 10/8 – 10/14 | #2 | OCR + 규칙 기반 분류, SwiftData 저장 | OCR·Storage Client, Core 모듈, 픽스처 정확도 테스트 |
-| 3 | 10/15 – 10/21 | #3 | Foundation Models 분류 + 기프티콘 추출, 만료 알림 | Classifier·Notification Client, 미지원 기기 폴백 |
-| 4 | 10/22 – 10/28 | #4 | 메인 UI, 검색, 일괄 삭제, 위젯 | DesignSystem, 위젯 익스텐션(App Group) |
-| 5 | 10/29 – 11/4 | #5 | StoreKit 2 결제, 온보딩 마감, TestFlight | 결제 Client, 외부 테스터 배포 |
-| 6 | 11/5 – 11/11 | #6 | ASO, 스토어 에셋, 출시 | 심사 제출 |
+| 주차 | 기간 | 목표 | 완료 기준 |
+|---|---|---|---|
+| 0 | 9/30 | 모듈러 아키텍처, CI, 하네스, 문서 | 이 문서 세트 머지, CI 통과 |
+| 1 | 10/1 – 10/7 | 사진 권한 온보딩 + 스크린샷 조회 | 전체/제한/거부 흐름, 신규 스크린샷 감지, Onboarding Feature |
+| 2 | 10/8 – 10/14 | OCR + 규칙 기반 분류, SwiftData 저장 | OCR·Storage Client, Core 모듈, 픽스처 정확도 테스트 |
+| 3 | 10/15 – 10/21 | Foundation Models 분류 + 기프티콘 추출, 만료 알림 | Classifier·Notification Client, 미지원 기기 폴백 |
+| 4 | 10/22 – 10/28 | 메인 UI, 검색, 일괄 삭제, 위젯 | DesignSystem, 위젯 익스텐션(App Group) |
+| 5 | 10/29 – 11/4 | StoreKit 2 결제, 온보딩 마감, TestFlight | 결제 Client, 외부 테스터 배포 |
+| 6 | 11/5 – 11/11 | ASO, 스토어 에셋, 출시 | 심사 제출 |
 
 ### 주차별 예상 모듈
 | 주차 | 새 Client | 새 Feature / Shared |
@@ -25,12 +25,12 @@
 | 4 | — | DesignSystem, Library 확장, Widget |
 | 5 | Purchase(StoreKit) | Paywall |
 
-## 이슈 진행 방식
-1. `gh issue view N` 으로 체크리스트 확인 → 필요하면 작업 단위로 쪼갠다.
+## 작업 진행 방식
+1. 로드맵의 주차 목표와 완료 기준을 확인 → 작업 단위로 쪼갠다.
 2. `feat/wN-<요약>` 브랜치 생성.
 3. Client 가 필요하면 **Interface 먼저** 설계(프로토콜 + 값 타입) → Fake → Feature Model + 테스트 → Impl 순서. Impl 없이도 Example 앱으로 화면을 확인할 수 있다.
 4. 역할 단위로 구현 → `/verify` → `/arch-review`. 커밋은 사용자 지시로 `/micro-commit` (CONVENTIONS §5).
-5. 사용자 지시로 `/pr` (전체 `/arch-review` → PR 생성, 유형 라벨, `Closes #N`) → CI + Claude 리뷰 → Rebase merge.
+5. 사용자 지시로 `/pr` (전체 `/arch-review` → PR 생성, 유형 라벨) → CI + Claude 리뷰 → Rebase merge.
 6. 결정이 바뀌었으면 docs 갱신을 같은 PR 에 포함 (별도 `docs:` 커밋).
 
 ## 완료 기준 (Definition of Done)

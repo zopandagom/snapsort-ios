@@ -45,10 +45,10 @@
 ## 5. Git / PR
 | ✅ | ❌ | 강제 |
 |---|---|---|
-| 이슈 하나 = 브랜치 하나: `feat/w1-photo-onboarding`, `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
-| 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) | 여러 이슈를 한 PR 에 섞기 | |
+| 작업 하나 = 브랜치 하나: `feat/w1-photo-onboarding`, `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
+| 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) | 여러 작업을 한 PR 에 섞기 | |
 | PR 전에 `make lint && make test` (또는 `/verify`) | CI 실패 상태로 머지 | |
-| PR 본문에 `Closes #N`, UI 변경은 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
+| UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | 머지는 **Rebase merge** (마이크로 커밋 이력을 main 에 그대로 남긴다) | Squash merge (커밋 단위가 사라진다) | |
 | | `.xcodeproj` / `.xcworkspace` 커밋 | `.gitignore` |
 
@@ -72,10 +72,10 @@
 - 기능 코드도 잘게 나눈다: Client Interface + Fake → Feature Model + 테스트 → View·Example → Impl + 테스트 → App 연결.
 
 ## 6. Claude Code 작업 방식
-- 작업 시작 전 관련 이슈(`gh issue view N`)와 이 문서들을 확인한다.
+- 작업 시작 전 DEVELOPMENT_PLAN 의 해당 주차 목표와 이 문서들을 확인한다.
 - 구조를 바꾸는 결정(새 외부 의존성, 모듈 종류 추가, 네트워크, 아키텍처 규칙 변경)은 먼저 제안하고 합의한 뒤 진행한다. 합의되면 이 문서와 ARCHITECTURE.md 를 같은 PR 에서 갱신한다.
 - 로컬 빌드·테스트는 자유롭게 실행한다 (`make test`).
 - 역할 하나를 마칠 때마다 `/verify` → `/arch-review` 로 검증하고 멈춘다. **커밋(`/micro-commit`)과 PR(`/pr`)은 사용자가 지시할 때만** 실행한다.
 - `/arch-review` 의 🔴 필수 항목을 남긴 채 커밋하거나 PR 을 만들지 않는다.
 - lint 오류를 `// swiftlint:disable` 로 숨기지 않는다.
-- 사용자가 요청하지 않은 리팩터링이나 범위 확장은 하지 않는다. 발견한 문제는 보고하거나 이슈로 남긴다.
+- 사용자가 요청하지 않은 리팩터링이나 범위 확장은 하지 않는다. 발견한 문제는 보고한다.
