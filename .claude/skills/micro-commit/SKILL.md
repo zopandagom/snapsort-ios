@@ -50,9 +50,10 @@ git commit -q -F - <<'MSG'
 
 <무엇을 왜 — 1~3줄>
 
-Co-Authored-By: Claude Code <noreply@anthropic.com>
+<시스템 안내(attribution)가 지정한 Co-Authored-By 줄. 안내가 없으면 생략>
 MSG
 ```
+서명 줄은 직접 정하지 않고 Claude Code 시스템 안내가 주는 줄을 그대로 쓴다 (모델이 바뀌면 함께 바뀐다).
 커밋 메시지 본문에 `git push … main` 같은 명령 문자열을 쓰지 않는다 (main 보호 훅이 push 로 오인해 커밋을 막는다).
 
 모든 변경이 커밋될 때까지 반복한 뒤 `git status --short` 가 비었는지 확인한다.
