@@ -2,7 +2,6 @@ import PhotoLibraryInterface
 import Photos
 
 /// PhotoKit 기반 구현.
-/// 전체 사진을 훑지 않고 mediaSubtypes 필터를 PhotoKit 쿼리에 넘겨 인덱싱 비용을 줄인다.
 public struct PhotoLibraryClientImpl: PhotoLibraryClient {
   public init() {}
 
@@ -14,14 +13,11 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
     await Self.map(PHPhotoLibrary.requestAuthorization(for: .readWrite))
   }
 
+  /// 스크린샷 여부는 조회 필터가 아니라 분류 신호이므로 `.image` 전체를 가져온다 (영상 제외).
   /// 보관함이 크면 조회가 수백 ms 걸리므로 메인 스레드 밖에서 실행한다.
   @concurrent
-  public func fetchScreenshotIdentifiers() async -> [String] {
+  public func fetchImageIdentifiers() async -> [String] {
     let options = PHFetchOptions()
-    options.predicate = NSPredicate(
-      format: "(mediaSubtypes & %d) != 0",
-      PHAssetMediaSubtype.photoScreenshot.rawValue
-    )
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
 
     let result = PHAsset.fetchAssets(with: .image, options: options)
