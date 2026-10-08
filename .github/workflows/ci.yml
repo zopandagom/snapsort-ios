@@ -28,6 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # 어노테이션을 PR head 커밋에 붙이므로 merge 커밋이 아닌 head 를 lint 해 줄 번호를 맞춘다. push 에서는 비어 기본값을 쓴다.
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false # 레포를 서드파티 lint 이미지에 마운트하므로 토큰을 .git/config 에 남기지 않는다
       - name: SwiftFormat
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
