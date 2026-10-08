@@ -138,4 +138,3 @@ flowchart TD
 | 저장소 | SwiftData, App Group 컨테이너 (위젯과 공유) — W2 에서 Client 로 추가 |
 | 만료 알림 | `UNCalendarNotificationTrigger` 로컬 알림 — 서버 푸시 없음 |
 | TCA 등 외부 아키텍처 라이브러리 | 사용하지 않음. 외부 의존성 0 을 유지하고, 추가하려면 사전 합의 |
-| CI 전용 도구 (Danger, `Gemfile`) | 외부 의존성 0 의 예외. 앱 바이너리에 들어가지 않고 CI lint 잡에서만 PR 코멘트에 쓴다 |
