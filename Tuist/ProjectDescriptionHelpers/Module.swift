@@ -19,6 +19,7 @@ public enum Client: String, CaseIterable {
 /// 각 Feature 는 Feature / Tests / Example 세 타깃으로 나뉜다.
 public enum Feature: String, CaseIterable {
   case library = "Library"
+  case onboarding = "Onboarding"
 
   public var name: String { "\(self.rawValue)Feature" }
   public var tests: String { "\(self.name)Tests" }
