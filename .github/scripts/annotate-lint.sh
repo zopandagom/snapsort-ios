@@ -57,14 +57,20 @@ check_id=$(
     | gh api "repos/$GITHUB_REPOSITORY/check-runs" --input - --jq '.id' 2>/dev/null
 )
 
-if [[ -z $check_id ]]; then
+# gh api 는 HTTP 오류일 때 --jq 를 건너뛰고 오류 본문을 그대로 내므로, 숫자인지로 성공을 판정한다.
+if [[ ! $check_id =~ ^[0-9]+$ ]]; then
   echo "체크를 만들지 못해 워크플로 명령으로 대신 표시합니다 (단계당 10개까지)." >&2
   jq -r '.[] | "::error file=\(.path),line=\(.start_line),title=\(.title)::\(.message)"' <<<"$annotations"
   exit 0
 fi
 
+uploaded=$((count < batch ? count : batch))
 for ((from = batch; from < count; from += batch)); do
-  jq -n --argjson output "$(output "$from")" '{output: $output}' \
-    | gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$check_id" --input - > /dev/null
+  if ! jq -n --argjson output "$(output "$from")" '{output: $output}' \
+    | gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$check_id" --input - > /dev/null; then
+    echo "::warning title=lint 어노테이션 일부 누락::${count}건 중 ${uploaded}건만 체크에 올렸습니다. 전체 목록은 실행 로그에 있습니다."
+    break
+  fi
+  uploaded=$((from + batch < count ? from + batch : count))
 done
-echo "체크 \"$check_name\" 에 어노테이션 ${count}건을 올렸습니다."
+echo "체크 \"$check_name\" 에 어노테이션 ${uploaded}/${count}건을 올렸습니다."
