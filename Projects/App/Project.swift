@@ -8,6 +8,7 @@ let project = Project.app(
   ],
   dependencies: [
     .feature(.library),
+    .feature(.onboarding),
     .client(impl: .photoLibrary),
   ]
 )
