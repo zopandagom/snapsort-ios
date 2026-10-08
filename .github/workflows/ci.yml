@@ -16,12 +16,14 @@ concurrency:
 jobs:
   # 비공개 레포의 macOS 러너는 분당 10배 과금이라 lint 는 Ubuntu 컨테이너에서 먼저 돌린다.
   # 버전은 .mise.toml 과 맞춘다.
-  # 위반은 GitHub Actions 어노테이션으로 출력해 PR 의 Files changed 에서 해당 줄에 표시한다.
+  # 위반은 Checks API 로 "lint 결과" 체크에 어노테이션으로 올려 PR 의 Files changed 에서 해당 줄에 전부 표시한다.
+  # 판정은 SwiftFormat·SwiftLint 단계의 종료 코드가 한다.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+      checks: write # lint 결과 어노테이션
       pull-requests: write # 테스트 미수행 코멘트
     steps:
       - uses: actions/checkout@v7
@@ -29,25 +31,27 @@ jobs:
           persist-credentials: false # 레포를 서드파티 lint 이미지에 마운트하므로 토큰을 .git/config 에 남기지 않는다
       - name: SwiftFormat
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
-        # 어노테이션 경로가 컨테이너 절대 경로(/work/…)로 나오므로 레포 상대 경로로 바꾸고, 위반은 error 로 올린다.
-        # 어노테이션이 stdout·stderr 양쪽에 같은 내용으로 나오므로 합친 뒤 어노테이션 줄만 중복을 지운다.
-        shell: bash # pipefail 로 swiftformat 의 종료 코드를 유지한다
         run: |
+          mkdir -p build
           docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 \
-            --lint --verbose --reporter github-actions-log . 2>&1 \
-            | sed -u 's|^::warning file=/work/|::error file=|' \
-            | awk '!/^::/ || !seen[$0]++ { print; fflush() }'
+            --lint --verbose --reporter json --report build/swiftformat.json .
       - name: SwiftLint
         # SwiftFormat 이 실패해도 SwiftLint 위반을 함께 보고한다.
         if: ${{ !cancelled() }}
         # 이미지가 swiftlint 를 실행하므로 인자로 swiftlint 를 다시 넘기면 경로로 읽힌다. 실행 파일을 명시한다.
         run: |
           docker run --rm -v "$PWD:/work" -w /work --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.1 \
-            lint --strict --quiet --reporter github-actions-logging
+            lint --strict --quiet --reporter json > build/swiftlint.json
+      - name: lint 결과 어노테이션
+        if: ${{ !cancelled() }}
+        run: .github/scripts/annotate-lint.sh build/swiftformat.json build/swiftlint.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       # lint 가 실패하면 test 잡이 돌지 않으므로, 이전 push 의 테스트 결과 코멘트를 "미수행"으로 바꾼다.
       - name: 테스트 미수행 PR 코멘트
         if: ${{ failure() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
         with:
           header: test-results
           message: |
@@ -78,7 +82,7 @@ jobs:
           cat build/test-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: 테스트 결과 PR 코멘트
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
         with:
           header: test-results
           path: build/test-summary.md
