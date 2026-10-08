@@ -47,7 +47,7 @@
 |---|---|---|
 | 작업 하나 = 브랜치 하나: `feat/w1-photo-onboarding`, `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) | 여러 작업을 한 PR 에 섞기 | |
-| 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI Danger |
+| 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
 | PR 전에 `make lint && make test` (또는 `/verify`) | CI 실패 상태로 머지 | |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | 머지는 **Rebase merge** (마이크로 커밋 이력을 main 에 그대로 남긴다) | Squash merge (커밋 단위가 사라진다) | |
@@ -62,7 +62,7 @@
 | `feat` / `fix` / `refactor` | 코드 구현 (**해당 테스트 포함**) | `Projects/**` | `make lint && make test` |
 | `test` | 기존 코드에 테스트만 추가 | `Projects/**/Tests` | `make test` |
 | `style` | 포맷·lint 설정과 그에 따른 일괄 포맷 | `.swiftformat`, `.swiftlint.yml` | `make lint` |
-| `ci` | GitHub Actions, PR 템플릿, dependabot, Danger | `.github/**`, `Gemfile*`, `Dangerfile` | YAML 문법, 참조하는 make 타깃·경로 존재 |
+| `ci` | GitHub Actions, PR 템플릿, dependabot | `.github/**` | YAML 문법, 참조하는 make 타깃·경로 존재 |
 | `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
 | `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
 
