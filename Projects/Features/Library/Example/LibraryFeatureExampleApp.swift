@@ -19,10 +19,21 @@ extension PhotoLibraryClientFake {
     currentState: .authorized,
     imageIdentifiers: (0 ..< 128).map { "image-\($0)" }
   )
+
+  /// "사진 더 선택"을 누르면 고른 사진이 늘어난 것처럼 보이게 한다.
+  static let previewLimited = PhotoLibraryClientFake(
+    currentState: .limited,
+    imageIdentifiers: (0 ..< 12).map { "image-\($0)" },
+    imageIdentifiersAfterPicker: (0 ..< 30).map { "image-\($0)" }
+  )
 }
 
 #Preview("이미지 있음") {
   LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized))
+}
+
+#Preview("제한 접근") {
+  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewLimited))
 }
 
 #Preview("이미지 없음") {
