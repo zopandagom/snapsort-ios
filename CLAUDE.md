@@ -13,7 +13,7 @@
 | 명령 | 용도 |
 |---|---|
 | `make bootstrap` | 최초 1회: mise 도구 설치, git 훅 연결 |
-| `make generate` | Tuist 로 워크스페이스 생성 (`.xcodeproj` 는 커밋하지 않는다) |
+| `make generate` | Tuist 로 워크스페이스 생성 후 Xcode 로 열기 (`.xcodeproj` 는 커밋하지 않는다). 열지 않으려면 `make project` |
 | `make lint` / `make format` | SwiftFormat + SwiftLint (아키텍처 규칙 포함) |
 | `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) |
 
