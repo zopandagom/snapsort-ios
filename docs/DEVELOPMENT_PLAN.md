@@ -33,9 +33,9 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 주차 | 새 Client | 새 Feature / Shared |
 |---|---|---|
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
-| 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData) | Core |
-| 3 | Classifier(FoundationModels), Notification | Gifticon |
-| 4 | — | DesignSystem, Library 확장, Widget |
+| 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터) | Core |
+| 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | Gifticon |
+| 4 | 지오코딩·지도 앱 열기 Client (이름은 구현 PR 에서 확정), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장, Widget |
 | 5 | Purchase(StoreKit) | Paywall |
 
 ## 작업 진행 방식
