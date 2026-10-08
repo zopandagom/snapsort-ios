@@ -16,50 +16,32 @@ concurrency:
 jobs:
   # 비공개 레포의 macOS 러너는 분당 10배 과금이라 lint 는 Ubuntu 컨테이너에서 먼저 돌린다.
   # 버전은 .mise.toml 과 맞춘다.
-  # SwiftLint 결과는 PR 에서 Danger(Dangerfile)가 위반 줄에 코멘트로 단다.
+  # 위반은 GitHub Actions 어노테이션으로 출력해 PR 의 Files changed 에서 해당 줄에 표시한다.
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: read # Danger 가 PR 정보를 issues API 로 읽는다
-      pull-requests: write
-      statuses: write
+      pull-requests: write # 테스트 미수행 코멘트
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0 # Danger 가 base 와의 diff 를 계산한다
       - name: SwiftFormat
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
-        run: docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 --lint --verbose .
+        # 어노테이션 경로가 컨테이너 절대 경로(/work/…)로 나오므로 레포 상대 경로로 바꾸고, 위반은 error 로 올린다.
+        # 어노테이션이 stdout·stderr 양쪽에 같은 내용으로 나오므로 합친 뒤 어노테이션 줄만 중복을 지운다.
+        shell: bash # pipefail 로 swiftformat 의 종료 코드를 유지한다
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work ghcr.io/nicklockwood/swiftformat:0.63.0 \
+            --lint --verbose --reporter github-actions-log . 2>&1 \
+            | sed -u 's|^::warning file=/work/|::error file=|' \
+            | awk '!/^::/ || !seen[$0]++ { print; fflush() }'
       - name: SwiftLint
-        # SwiftFormat 이 실패해도 SwiftLint 위반을 함께 보고하도록 이후 단계는 !cancelled() 로 돈다.
+        # SwiftFormat 이 실패해도 SwiftLint 위반을 함께 보고한다.
         if: ${{ !cancelled() }}
-        # 위반이 있으면 0 이 아닌 코드로 끝나므로 판정은 아래 단계에 맡긴다.
-        # 설정 오류로 JSON 이 비면 Dangerfile·jq 가 실패시킨다.
         # 이미지가 swiftlint 를 실행하므로 인자로 swiftlint 를 다시 넘기면 경로로 읽힌다. 실행 파일을 명시한다.
         run: |
-          mkdir -p build
           docker run --rm -v "$PWD:/work" -w /work --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.1 \
-            lint --strict --quiet --reporter json > build/swiftlint.json || true
-      # Dependabot PR 은 GITHUB_TOKEN 이 읽기 전용이라 코멘트를 달 수 없으므로 main push·수동 실행과 같이 jq 로 판정한다.
-      - uses: ruby/setup-ruby@v1
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
-        with:
-          ruby-version: "3.4"
-          bundler-cache: true
-      - name: Danger
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
-        run: bundle exec danger --fail-on-errors=true
-        env:
-          DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: SwiftLint 결과 확인 (Danger 를 쓰지 않을 때)
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.actor == 'dependabot[bot]') }}
-        run: |
-          jq -e 'length == 0' build/swiftlint.json > /dev/null || {
-            jq -r '.[] | "\(.file):\(.line): \(.rule_id) \(.reason)"' build/swiftlint.json
-            exit 1
-          }
+            lint --strict --quiet --reporter github-actions-logging
       # lint 가 실패하면 test 잡이 돌지 않으므로, 이전 push 의 테스트 결과 코멘트를 "미수행"으로 바꾼다.
       - name: 테스트 미수행 PR 코멘트
         if: ${{ failure() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
