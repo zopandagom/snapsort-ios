@@ -1,5 +1,7 @@
 import PhotoLibraryInterface
 import Photos
+import PhotosUI
+import UIKit
 
 /// PhotoKit 기반 구현.
 public struct PhotoLibraryClientImpl: PhotoLibraryClient {
@@ -27,6 +29,26 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
       identifiers.append(asset.localIdentifier)
     }
     return identifiers
+  }
+
+  /// 시스템 선택 화면은 UIKit 화면 위에 띄워야 하므로, 활성 창에서 가장 위에 떠 있는 화면을 찾아 그 위에 띄운다.
+  /// 고른 식별자는 Interface 계약대로 버린다. 호출한 쪽이 다시 조회한다.
+  @MainActor
+  public func presentLimitedLibraryPicker() async {
+    guard let presenter = Self.topViewController() else { return }
+    _ = await PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: presenter)
+  }
+
+  @MainActor
+  private static func topViewController() -> UIViewController? {
+    let scene = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .first { $0.activationState == .foregroundActive }
+    var top = scene?.keyWindow?.rootViewController
+    while let presented = top?.presentedViewController {
+      top = presented
+    }
+    return top
   }
 
   static func map(_ status: PHAuthorizationStatus) -> PhotoAccessState {
