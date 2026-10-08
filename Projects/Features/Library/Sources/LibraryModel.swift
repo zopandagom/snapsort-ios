@@ -22,17 +22,24 @@ public final class LibraryModel {
 
   // MARK: - Events
 
+  /// 보관함 변경 구독을 먼저 시작하고 처음 불러온다. 그래야 처음 불러오는 동안 생긴 변경도 놓치지 않는다.
+  /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 끝난다.
   public func onAppear() async {
+    let changes = await self.photoLibrary.imageChanges()
     await self.reloadImages()
+    for await _ in changes {
+      await self.reloadImages()
+    }
   }
 
+  /// 고른 사진이 바뀌면 보관함 변경 알림이 오므로 여기서 따로 다시 불러오지 않는다.
   public func selectMorePhotosTapped() async {
     await self.photoLibrary.presentLimitedLibraryPicker()
-    await self.reloadImages()
   }
 
   // MARK: - Private
 
+  /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
   private func reloadImages() async {
     self.isLimited = self.photoLibrary.accessState() == .limited
     self.imageCount = await self.photoLibrary.fetchImageIdentifiers().count
