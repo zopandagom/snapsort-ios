@@ -16,11 +16,11 @@ public struct OnboardingView: View {
     switch self.model.access {
     case .notDetermined:
       ContentUnavailableView {
-        Label("스크린샷, 알아서 정리해 드릴게요", systemImage: "photo.stack")
+        Label("사진 보관함, 알아서 정리해 드릴게요", systemImage: "photo.stack")
       } description: {
-        Text("스크린샷을 기기 안에서 분석해 분류합니다.\n사진과 사진 속 글자는 기기 밖으로 나가지 않아요.")
+        Text("보관함의 이미지를 기기 안에서 분석해 분류합니다.\n사진과 사진 속 글자는 기기 밖으로 나가지 않아요.")
       } actions: {
-        Button("스크린샷 정리 시작하기") {
+        Button("정리 시작하기") {
           Task { await self.model.startButtonTapped() }
         }
         .buttonStyle(.borderedProminent)
