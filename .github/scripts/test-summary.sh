@@ -2,6 +2,7 @@
 # xcresult 를 PR 코멘트용 마크다운으로 요약해 stdout 으로 낸다. CI test 잡이 쓴다.
 # 사용: .github/scripts/test-summary.sh build/TestResults.xcresult
 # 결과 번들이 없거나 테스트가 하나도 돌지 않았으면 빌드 실패로 본다.
+# 실패 메시지에 ``` 가 들어 있어도 깨지지 않도록 코드 블록은 백틱 4개, 테스트 이름은 이중 백틱으로 감싼다.
 set -uo pipefail
 
 bundle="${1:?xcresult 경로가 필요합니다}"
@@ -33,10 +34,10 @@ jq -r --arg run_url "$run_url" --argjson max_failures "$max_failures" --argjson 
     "<details open><summary>실패한 테스트 (\(.testFailures | length))</summary>",
     "",
     (.testFailures[:$max_failures][] |
-      "**\(.targetName)** › `\(.testName)`",
-      "```",
+      "**\(.targetName)** › `` \(.testName) ``",
+      "````",
       (.failureText // "" | clip),
-      "```",
+      "````",
       ""),
     (if (.testFailures | length) > $max_failures then "외 \((.testFailures | length) - $max_failures)건은 실행 로그를 확인하세요." else empty end),
     "</details>"
