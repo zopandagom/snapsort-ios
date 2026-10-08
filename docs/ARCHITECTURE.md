@@ -133,8 +133,11 @@ flowchart TD
 | 결정 | 이유 |
 |---|---|
 | 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. StoreKit 2 는 기기에서 영수증 검증 |
-| 분류 2단 구조 | Vision OCR + 키워드 규칙은 모든 기기, Foundation Models 는 `SystemLanguageModel.default.availability == .available` 인 기기만 |
-| 스크린샷 조회 | `PHAsset.mediaSubtypes` 의 `.photoScreenshot` 필터. 전체 사진 순회 없음 |
+| 분류 대상 | 보관함의 모든 이미지(영상 제외). 스크린샷 여부(`.photoScreenshot`)는 조회 필터가 아니라 분류 신호로 쓴다 |
+| 분류 3단 파이프라인 | ① 메타데이터(스크린샷 여부·위치·날짜·크기, 픽셀을 읽지 않음) → ② Vision 이미지 분류(`VNClassifyImageRequest`) 라벨 → ③ 스크린샷이거나 문서 계열 라벨인 이미지만 OCR + 키워드 규칙. ①~③은 모든 기기에서 동작하고, Foundation Models 는 ③의 텍스트 해석(기프티콘 브랜드·만료일 등)에만 `SystemLanguageModel.default.availability == .available` 인 기기에서 쓴다 |
+| 썸네일 분석 | 기기에 있는 썸네일로만 분석한다(`isNetworkAccessAllowed = false`). iCloud 원본을 내려받지 않는다 |
+| 카테고리 | 정보형(기프티콘·영수증·대화 캡처·쇼핑·지도·문서/메모), 사진형(여행·음식·인물·반려동물·풍경), 기타. 한 이미지가 여러 카테고리에 속할 수 있다 |
+| 여행 판정 | 이미지 라벨이 아니라 위치·날짜로 판단한다. 생활권(촬영 위치가 가장 많이 모인 곳)에서 먼 곳의 사진이 연속된 날짜에 모여 있으면 여행으로 묶는다 |
 | 저장소 | SwiftData, App Group 컨테이너 (위젯과 공유) — W2 에서 Client 로 추가 |
 | 만료 알림 | `UNCalendarNotificationTrigger` 로컬 알림 — 서버 푸시 없음 |
 | TCA 등 외부 아키텍처 라이브러리 | 사용하지 않음. 외부 의존성 0 을 유지하고, 추가하려면 사전 합의 |

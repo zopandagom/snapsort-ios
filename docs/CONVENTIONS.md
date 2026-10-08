@@ -30,7 +30,7 @@
 | Swift Testing(`import Testing`, `@Test("한국어 설명")`, `#expect`) | 새 테스트를 XCTest 로 작성 |
 | Model 의 모든 public 이벤트 메서드에 테스트: Fake 주입 → 이벤트 호출 → 상태 검증 | View 를 스냅샷/UI 테스트로만 검증 |
 | Client Impl 은 순수 로직(매핑, 파싱, 규칙 분류)을 분리해 `@testable` 로 테스트 | 실제 사진 보관함·권한 팝업에 의존하는 테스트 |
-| OCR·분류 정확도는 `Fixtures/` 의 샘플 스크린샷으로 회귀 테스트 (W2) | 개인 사진을 픽스처로 커밋 (직접 만든 샘플만) |
+| OCR·분류 정확도는 `Fixtures/` 의 샘플 이미지로 회귀 테스트 (W2) | 개인 사진을 픽스처로 커밋 (직접 만든 샘플만) |
 | Foundation Models 테스트는 `.enabled(if: SystemLanguageModel.default.isAvailable)` 로 조건부 | CI 에서 모델 없다고 실패하는 테스트 |
 | 실패하는 테스트는 고친다 | 테스트 삭제·`.disabled` 로 통과시키기 (필요하면 먼저 합의) |
 
