@@ -16,7 +16,28 @@ public struct LibraryView: View {
         description: Text("자동 분류는 곧 추가됩니다.")
       )
       .navigationTitle("SnapSort")
+      .safeAreaInset(edge: .top) {
+        if self.model.isLimited {
+          self.limitedAccessBanner
+        }
+      }
     }
     .task { await self.model.onAppear() }
+  }
+
+  private var limitedAccessBanner: some View {
+    HStack(spacing: 12) {
+      Label("선택한 사진만 분류합니다", systemImage: "photo.badge.checkmark")
+        .font(.subheadline)
+      Spacer()
+      Button("사진 더 선택") {
+        Task { await self.model.selectMorePhotosTapped() }
+      }
+      .buttonStyle(.bordered)
+      .font(.subheadline)
+    }
+    .padding()
+    .background(.thinMaterial, in: .rect(cornerRadius: 12))
+    .padding(.horizontal)
   }
 }
