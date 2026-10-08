@@ -25,6 +25,8 @@ jobs:
       pull-requests: write # 테스트 미수행 코멘트
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # 레포를 서드파티 lint 이미지에 마운트하므로 토큰을 .git/config 에 남기지 않는다
       - name: SwiftFormat
         # Linux static 빌드가 파일이 많을 때 세그폴트(exit 139)로 죽는다. --verbose 로 돌리면 재현되지 않는다.
         # 어노테이션 경로가 컨테이너 절대 경로(/work/…)로 나오므로 레포 상대 경로로 바꾸고, 위반은 error 로 올린다.
@@ -61,6 +63,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false # checkout 뒤에 git 인증이 필요 없다
       - uses: jdx/mise-action@v5
       - name: Build & Test
         run: make test
