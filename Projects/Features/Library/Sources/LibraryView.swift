@@ -11,7 +11,7 @@ public struct LibraryView: View {
   public var body: some View {
     NavigationStack {
       ContentUnavailableView(
-        "스크린샷 \(self.model.screenshotCount)장",
+        "이미지 \(self.model.imageCount)장",
         systemImage: "photo.stack",
         description: Text("자동 분류는 곧 추가됩니다.")
       )

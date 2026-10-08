@@ -4,16 +4,16 @@ import PhotoLibraryInterface
 public struct PhotoLibraryClientFake: PhotoLibraryClient {
   public var currentState: PhotoAccessState
   public var stateAfterRequest: PhotoAccessState
-  public var screenshotIdentifiers: [String]
+  public var imageIdentifiers: [String]
 
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
-    screenshotIdentifiers: [String] = []
+    imageIdentifiers: [String] = []
   ) {
     self.currentState = currentState
     self.stateAfterRequest = stateAfterRequest
-    self.screenshotIdentifiers = screenshotIdentifiers
+    self.imageIdentifiers = imageIdentifiers
   }
 
   public func accessState() -> PhotoAccessState {
@@ -24,7 +24,7 @@ public struct PhotoLibraryClientFake: PhotoLibraryClient {
     self.stateAfterRequest
   }
 
-  public func fetchScreenshotIdentifiers() async -> [String] {
-    self.screenshotIdentifiers
+  public func fetchImageIdentifiers() async -> [String] {
+    self.imageIdentifiers
   }
 }

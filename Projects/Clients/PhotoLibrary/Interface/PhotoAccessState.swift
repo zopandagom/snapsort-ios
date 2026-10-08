@@ -5,7 +5,7 @@ public enum PhotoAccessState: Sendable, Equatable {
   case denied
   case notDetermined
 
-  /// 스크린샷을 읽을 수 있는 상태인지. 제한 접근도 사용자가 고른 사진은 읽을 수 있다.
+  /// 이미지를 읽을 수 있는 상태인지. 제한 접근도 사용자가 고른 사진은 읽을 수 있다.
   public var canRead: Bool {
     self == .authorized || self == .limited
   }

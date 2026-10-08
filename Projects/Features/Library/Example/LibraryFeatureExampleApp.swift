@@ -17,14 +17,14 @@ struct LibraryFeatureExampleApp: App {
 extension PhotoLibraryClientFake {
   static let previewAuthorized = PhotoLibraryClientFake(
     currentState: .authorized,
-    screenshotIdentifiers: (0 ..< 128).map { "screenshot-\($0)" }
+    imageIdentifiers: (0 ..< 128).map { "image-\($0)" }
   )
 }
 
-#Preview("스크린샷 있음") {
+#Preview("이미지 있음") {
   LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized))
 }
 
-#Preview("스크린샷 없음") {
+#Preview("이미지 없음") {
   LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: .authorized)))
 }
