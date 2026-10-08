@@ -32,6 +32,10 @@ done < <(git diff --cached --name-only --diff-filter=ACMR -z -- '*.swift')
 
 [[ ${#files[@]} -eq 0 && ${#staged[@]} -eq 0 ]] && exit 0
 
+if ! command -v mise > /dev/null; then
+  echo "pre-commit: mise 를 찾지 못했습니다. 터미널에서 make bootstrap 을 실행했는지, GUI git 클라이언트라면 PATH 에 mise 가 있는지 확인하세요." >&2
+  exit 1
+fi
 swiftformat=$(mise which swiftformat)
 swiftlint=$(mise which swiftlint)
 
