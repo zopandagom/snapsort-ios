@@ -32,11 +32,24 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
   }
 
   /// 시스템 선택 화면은 UIKit 화면 위에 띄워야 하므로, 활성 창에서 가장 위에 떠 있는 화면을 찾아 그 위에 띄운다.
-  /// 고른 식별자는 Interface 계약대로 버린다. 호출한 쪽이 다시 조회한다.
+  /// 고른 식별자는 Interface 계약대로 버린다. 고른 사진이 바뀌면 PhotoKit 변경 알림으로 전달된다.
   @MainActor
   public func presentLimitedLibraryPicker() async {
     guard let presenter = Self.topViewController() else { return }
     _ = await PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: presenter)
+  }
+
+  /// 비교 기준 조회와 등록은 보관함 크기에 따라 비용이 있으므로 메인 스레드 밖에서 실행한다.
+  /// 관찰 객체는 스트림이 끝날 때(onTermination) 등록을 해제하므로, 그때까지 이 클로저가 붙잡아 둔다.
+  @concurrent
+  public func imageChanges() async -> AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+    let observer = ImageChangeObserver(continuation: continuation)
+    PHPhotoLibrary.shared().register(observer)
+    continuation.onTermination = { _ in
+      PHPhotoLibrary.shared().unregisterChangeObserver(observer)
+    }
+    return stream
   }
 
   @MainActor
