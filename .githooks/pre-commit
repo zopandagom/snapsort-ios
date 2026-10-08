@@ -16,7 +16,8 @@ changed() {
   git ls-files --others --exclude-standard -z -- "$@"
 }
 
-if changed '.swiftlint.yml' '.swiftformat' | grep -qz .; then
+# grep -q 로 일찍 끝내면 앞 명령이 SIGPIPE 로 죽어 pipefail 아래에서 조건이 거짓이 되므로, 출력을 끝까지 받아 비교한다.
+if [[ -n $(changed '.swiftlint.yml' '.swiftformat' | tr -d '\0') ]]; then
   make lint || { echo "lint 실패. make format 으로 고치세요." >&2; exit 1; }
   exit 0
 fi
