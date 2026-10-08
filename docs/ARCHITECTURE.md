@@ -35,25 +35,29 @@ flowchart TD
 | 7 | Model 은 App(또는 Example 앱)이 `@State` 로 **소유**하고, View 는 `let model: XxxModel` 로 **참조**만 한다. View 안에서 Model 을 생성하거나 `@State` 로 다시 감싸지 않는다 | 리뷰 |
 | 8 | View 전용 일시 상태(애니메이션, 포커스, 시트 표시 여부)는 View 의 `@State private var` 로 둬도 된다. 비즈니스 의미가 있으면 Model 로 옮긴다 | 리뷰 |
 
-### 예시 (LibraryFeature)
+### 예시 (OnboardingFeature)
 ```swift
 @MainActor
 @Observable
-public final class LibraryModel {
-  public private(set) var access: PhotoAccessState = .notDetermined
-  public private(set) var screenshotCount = 0
+public final class OnboardingModel {
+  public private(set) var access: PhotoAccessState
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
 
-  public func onAppear() async { … }
   public func startButtonTapped() async {
     self.access = await self.photoLibrary.requestAccess()
-    await self.reloadScreenshots()
   }
 }
 
 // View
 Button("스크린샷 정리 시작하기") { Task { await self.model.startButtonTapped() } }
+
+// App: 화면 간 흐름은 App 이 정한다 (규칙 6)
+if self.onboardingModel.access.canRead {
+  LibraryView(model: self.libraryModel)
+} else {
+  OnboardingView(model: self.onboardingModel)
+}
 ```
 
 ## 2. 모듈 구조
