@@ -21,14 +21,10 @@ extension PhotoLibraryClientFake {
   )
 }
 
-#Preview("권한 허용") {
+#Preview("스크린샷 있음") {
   LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized))
 }
 
-#Preview("권한 거부") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: .denied)))
-}
-
-#Preview("권한 요청 전") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake()))
+#Preview("스크린샷 없음") {
+  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: .authorized)))
 }
