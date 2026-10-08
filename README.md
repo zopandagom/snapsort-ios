@@ -26,7 +26,7 @@
 ## 시작하기
 ```bash
 make bootstrap   # mise 로 tuist·swiftlint·swiftformat·xcbeautify 설치, git 훅(pre-commit lint, pre-push main 차단) 연결
-make generate    # SnapSort.xcworkspace 생성
+make generate    # SnapSort.xcworkspace 생성 후 Xcode 로 열기
 make test        # 전체 모듈 빌드 + 테스트
 make lint        # 포맷·아키텍처 규칙 검사 (make format 으로 자동 수정)
 ```

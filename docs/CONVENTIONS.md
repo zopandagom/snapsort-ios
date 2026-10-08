@@ -60,7 +60,7 @@
 
 | type | 역할 | 예 | 커밋 전 검증 |
 |---|---|---|---|
-| `build` | 도구 버전, Tuist 템플릿, Makefile | `.mise.toml`, `Tuist/`, `Makefile` | `make generate` (+ `make test` 영향 시) |
+| `build` | 도구 버전, Tuist 템플릿, Makefile | `.mise.toml`, `Tuist/`, `Makefile` | `make project` (+ `make test` 영향 시) |
 | `feat` / `fix` / `refactor` | 코드 구현 (**해당 테스트 포함**) | `Projects/**` | `make lint && make test` |
 | `test` | 기존 코드에 테스트만 추가 | `Projects/**/Tests` | `make test` |
 | `style` | 포맷·lint 설정과 그에 따른 일괄 포맷 | `.swiftformat`, `.swiftlint.yml` | `make lint` |

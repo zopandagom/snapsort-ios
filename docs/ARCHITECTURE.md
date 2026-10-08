@@ -122,7 +122,7 @@ flowchart TD
    ```
 3. Interface 에 `public protocol ImageAnalysisClient: Sendable` 과 입출력 값 타입, Impl 에 `ImageAnalysisClientImpl`, Testing 에 `ImageAnalysisClientFake`, Tests 에 Impl 의 순수 로직 테스트.
 4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .imageAnalysis)` 추가.
-5. `make generate && make test`.
+5. `make project && make test`.
 
 ### Feature 추가 (예: Onboarding)
 1. `Feature` 에 `case onboarding = "Onboarding"` 추가.
