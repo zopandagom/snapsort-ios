@@ -23,7 +23,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 |---|---|---|---|
 | 0 | 9/30 | 모듈러 아키텍처, CI, 하네스, 문서 | 이 문서 세트 머지, CI 통과 |
 | 1 | 10/1 – 10/7 | 사진 권한 온보딩 + 이미지 조회 | 전체/제한/거부 흐름, 신규 이미지 감지, Onboarding Feature |
-| 2 | 10/8 – 10/14 | Vision 이미지 분류 + OCR + 규칙 기반 분류, 여행 판정, SwiftData 저장 | Vision·Storage Client, Core 모듈, 픽스처 정확도 테스트 |
+| 2 | 10/8 – 10/14 | Vision 이미지 분류 + OCR + 규칙 기반 분류, 여행 판정, SwiftData 저장 | ImageAnalysis·PhotoStore Client, Core 모듈, 픽스처 정확도 테스트 |
 | 3 | 10/15 – 10/21 | Foundation Models 분류 + 기프티콘 추출, 만료 알림, 캡처 정보 추출(바코드·주소·송장·계좌) | Classifier·Notification Client, 미지원 기기 폴백 |
 | 4 | 10/22 – 10/28 | 메인 UI(카테고리별 묶음, 여행 폴더), 검색, 정리 도우미, 위젯 | DesignSystem, 위젯 익스텐션(App Group) |
 | 5 | 10/29 – 11/4 | StoreKit 2 결제, 온보딩 마감, TestFlight | 결제 Client, 외부 테스터 배포 |
@@ -62,6 +62,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 분류 정확도용 샘플 이미지 세트 (카테고리별 20장+, 직접 찍거나 만든 것만) | W2 시작 전 | ☐ |
 | 가격 정책 결정 (유료 일회성 vs 무료 + 인앱) | W5 전 | ☐ |
 | `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 | W5 | ☐ |
+| 사진 권한 문구(`NSPhotoLibraryUsageDescription`)를 전체 이미지 분류·정리(삭제) 용도로 수정 | 전체 이미지 조회 PR | ☐ |
 | App Store Connect API 키 (TestFlight 자동 업로드) | W5 | ☐ |
 | 스토어 스크린샷·설명·키워드 (ASO) | W6 | ☐ |
 
