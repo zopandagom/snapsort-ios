@@ -18,7 +18,7 @@
 
 ## 기술 스택
 - SwiftUI (규칙 기반 단방향 MV), Swift 6 strict concurrency
-- PhotoKit, Vision (OCR), Foundation Models (Apple Intelligence 기기), SwiftData
+- PhotoKit, Vision (이미지 분류·OCR·바코드·유사 이미지), Foundation Models (Apple Intelligence 기기), SwiftData
 - WidgetKit, StoreKit 2
 - Tuist 모듈러 아키텍처 (Feature / Client Interface·Impl·Testing)
 
