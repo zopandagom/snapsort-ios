@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      issues: read # Danger 가 PR 정보를 issues API 로 읽는다
       pull-requests: write
       statuses: write
     steps:
