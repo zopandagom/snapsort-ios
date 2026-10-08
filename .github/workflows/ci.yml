@@ -51,8 +51,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       # lint 가 실패하면 test 잡이 돌지 않으므로, 이전 push 의 테스트 결과 코멘트를 "미수행"으로 바꾼다.
+      # PR 코멘트는 쓰기 토큰을 받는 같은 레포의 사람 PR 에서만 단다. fork·dependabot PR 은 토큰이 읽기 전용이다.
+      # github.actor 는 run 을 일으킨 사람이라 PR 작성자(pull_request.user)로 거른다. 표시용이라 실패해도 잡을 깨지 않는다.
       - name: 테스트 미수행 PR 코멘트
-        if: ${{ failure() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+        if: ${{ failure() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' }}
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
         with:
           header: test-results
@@ -83,7 +86,9 @@ jobs:
           .github/scripts/test-summary.sh build/TestResults.xcresult > build/test-summary.md
           cat build/test-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: 테스트 결과 PR 코멘트
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+        # 조건은 lint 잡의 "테스트 미수행 PR 코멘트"와 같다.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' }}
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
         with:
           header: test-results
