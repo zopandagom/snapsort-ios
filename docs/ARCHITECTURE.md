@@ -107,17 +107,17 @@ flowchart TD
 
 ## 3. 모듈 추가 방법
 
-### Client 추가 (예: OCR)
-1. `Tuist/ProjectDescriptionHelpers/Module.swift` 의 `Client` 에 `case ocr = "OCR"` 추가.
-2. 디렉터리 생성: `Projects/Clients/OCR/{Interface,Impl,Testing,Tests}` + `Project.swift`:
+### Client 추가 (예: ImageAnalysis)
+1. `Tuist/ProjectDescriptionHelpers/Module.swift` 의 `Client` 에 `case imageAnalysis = "ImageAnalysis"` 추가.
+2. 디렉터리 생성: `Projects/Clients/ImageAnalysis/{Interface,Impl,Testing,Tests}` + `Project.swift`:
    ```swift
    import ProjectDescription
    import ProjectDescriptionHelpers
 
-   let project = Project.client(.ocr)
+   let project = Project.client(.imageAnalysis)
    ```
-3. Interface 에 `public protocol OCRClient: Sendable` 과 입출력 값 타입, Impl 에 `OCRClientImpl`, Testing 에 `OCRClientFake`, Tests 에 Impl 의 순수 로직 테스트.
-4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .ocr)` 추가.
+3. Interface 에 `public protocol ImageAnalysisClient: Sendable` 과 입출력 값 타입, Impl 에 `ImageAnalysisClientImpl`, Testing 에 `ImageAnalysisClientFake`, Tests 에 Impl 의 순수 로직 테스트.
+4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .imageAnalysis)` 추가.
 5. `make generate && make test`.
 
 ### Feature 추가 (예: Onboarding)
@@ -134,7 +134,7 @@ flowchart TD
 |---|---|
 | 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. StoreKit 2 는 기기에서 영수증 검증 |
 | 분류 대상 | 보관함의 모든 이미지(영상 제외). 스크린샷 여부(`.photoScreenshot`)는 조회 필터가 아니라 분류 신호로 쓴다. 현재 `PhotoLibraryClientImpl` 은 아직 스크린샷 필터로 조회하며, 전체 이미지 조회 PR 에서 바꾼다 |
-| 분류 3단 파이프라인 | ① 메타데이터(스크린샷 여부·위치·날짜·크기, 픽셀을 읽지 않음) → ② Vision 이미지 분류(`VNClassifyImageRequest`) 라벨 → ③ 스크린샷이거나 문서 계열 라벨인 이미지만 OCR + 키워드 규칙. ①~③은 모든 기기에서 동작하고, Foundation Models 는 ③의 텍스트 해석(기프티콘 브랜드·만료일 등)에만 `SystemLanguageModel.default.availability == .available` 인 기기에서 쓴다 |
+| 분류 3단 파이프라인 | ① 메타데이터(스크린샷 여부·위치·날짜·크기, 픽셀을 읽지 않음) → ② Vision 이미지 분류(`VNClassifyImageRequest`) 라벨 → ③ 스크린샷, 문서 계열 라벨, 카메라 촬영 정보(EXIF)가 없는 저장 이미지(앨범에 저장한 기프티콘·쿠폰 등)만 OCR·바코드 인식(`VNDetectBarcodesRequest`) + 키워드 규칙. 정확한 대상 조건은 OCR 파이프라인 작업에서 픽스처(저장한 기프티콘 포함)로 확정한다. ①~③은 모든 기기에서 동작하고, Foundation Models 는 ③의 텍스트 해석(기프티콘 브랜드·만료일 등)에만 `SystemLanguageModel.default.availability == .available` 인 기기에서 쓴다 |
 | 분석 이미지 크기 | 이미지 분류·유사 이미지는 썸네일로, OCR·바코드는 기기에 있는 가장 큰 버전으로 분석한다. 어느 경우든 `isNetworkAccessAllowed = false` 로 iCloud 원본을 내려받지 않는다. 크기 기준은 OCR 파이프라인 작업에서 측정해 확정한다 |
 | 카테고리 | 정보형(기프티콘·영수증·대화 캡처·쇼핑·지도·문서/메모), 사진형(여행·음식·인물·반려동물·풍경), 기타. 한 이미지가 여러 카테고리에 속할 수 있다 |
 | 여행 판정 | 이미지 라벨이 아니라 위치·날짜로 판단한다. 생활권(촬영 위치가 가장 많이 모인 곳)에서 먼 곳의 사진이 연속된 날짜에 모여 있으면 여행으로 묶는다. 제한 접근(`.limited`)이면 사용자가 고른 사진만으로 판정하고, 정확도가 낮을 수 있다고 화면에 안내한다 |
