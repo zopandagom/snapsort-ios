@@ -131,13 +131,14 @@ flowchart TD
 4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .imageAnalysis)` 추가.
 5. `make project && make test`.
 
-### Shared 추가 (예: DesignSystem)
-1. `Module.swift` 의 `Shared` 에 `case designSystem = "DesignSystem"` 추가.
-2. `Projects/Shared/DesignSystem/{Sources,Tests}` + `Project.swift`:
+### Shared 추가 (예: Core)
+1. `Module.swift` 의 `Shared` 에 `case core = "Core"` 추가.
+2. `Projects/Shared/Core/{Sources,Tests}` + `Project.swift`:
    ```swift
-   let project = Project.shared(.designSystem)
+   let project = Project.shared(.core)
    ```
-3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.designSystem])`, Client 는 `interfaceDependencies: [.shared(.designSystem)]`, App 은 `dependencies` 에 `.shared(.designSystem)`.
+3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.core])`, Client 는 `interfaceDependencies: [.shared(.core)]`, App 은 `dependencies` 에 `.shared(.core)`.
+   DesignSystem 같은 공용 UI 모듈은 Feature 와 App 에서만 쓴다 (Interface 는 프로토콜과 값 타입만).
 
 ### Feature 추가 (예: Onboarding)
 1. `Feature` 에 `case onboarding = "Onboarding"` 추가.

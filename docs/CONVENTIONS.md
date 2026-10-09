@@ -12,7 +12,7 @@
 | Fake 는 Testing 모듈에 두고 Tests·Example 에서만 사용 | 프로덕션 코드에서 `import …Testing` | `testing_import_not_in_production` |
 | `#Preview` 는 Feature 의 Example 타깃에 | Feature Sources 에 Fake 를 만들어 Preview 작성 | |
 | Feature 끼리 필요한 공유는 Client 나 Shared(Core) 로 | Feature 가 다른 Feature 에 의존 | 템플릿 |
-| Shared 는 Client 와 Apple 데이터 프레임워크 없이 (Core 는 Foundation 만) | Shared 에서 Client 모듈이나 Apple 데이터 프레임워크 import | `shared_independent_of_clients`, `system_framework_only_in_impl` |
+| Shared 는 Client 와 Apple 데이터 프레임워크 없이 (Core 는 Foundation 만) | Shared 에서 Client 모듈이나 Apple 데이터 프레임워크 import | `shared_independent_of_clients`, `system_framework_only_in_impl`, `core_foundation_only` |
 | 새 모듈은 `Module.swift` 의 enum 과 `Project.client/feature/shared` 템플릿으로 | 매니페스트에서 `Target` 을 직접 만들거나 빌드 설정을 덮어쓰기 | |
 
 ## 2. Swift / 동시성
