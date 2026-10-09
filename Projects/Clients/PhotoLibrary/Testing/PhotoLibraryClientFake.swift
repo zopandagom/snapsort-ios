@@ -97,6 +97,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   // MARK: - 변경 흉내
 
   /// 이미지가 추가·삭제된 것처럼 조회 결과(와 권한 상태)를 바꾸고 증분 변경을 보낸다. 추가된 이미지는 최신순 맨 앞에 붙인다.
+  /// 실제 보관함처럼 조회 결과에 이미 있는 식별자는 다시 붙이지 않는다. 보내는 변경은 받은 그대로 둔다.
   public func sendIncrementalChange(
     inserted: [ImageAsset] = [],
     removed: [ImageAsset.ID] = [],
@@ -104,7 +105,9 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   ) {
     let removedIDs = Set(removed)
     self.send { state in
-      state.imageAssets = inserted + state.imageAssets.filter { !removedIDs.contains($0.id) }
+      let remaining = state.imageAssets.filter { !removedIDs.contains($0.id) }
+      let remainingIDs = Set(remaining.map(\.id))
+      state.imageAssets = inserted.filter { !remainingIDs.contains($0.id) } + remaining
       if let accessState {
         state.accessState = accessState
       }
