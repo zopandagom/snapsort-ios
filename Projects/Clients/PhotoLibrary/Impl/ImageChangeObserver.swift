@@ -20,9 +20,8 @@ final class ImageChangeObserver: NSObject, PHPhotoLibraryChangeObserver, Sendabl
     let change = self.fetchResult.withLock { fetchResult -> ImageChange? in
       guard let details = changeInstance.changeDetails(for: fetchResult) else { return nil }
       fetchResult = details.fetchResultAfterChanges
-      // 증분 정보가 없으면 무엇이 바뀌었는지 알 수 없으므로, 추가된 이미지를 변환하지 않고 전체 다시 조회를 알린다.
-      guard details.hasIncrementalChanges else { return .reloadAll }
       return Self.imageChange(
+        hasIncrementalChanges: details.hasIncrementalChanges,
         inserted: details.insertedObjects.map(PhotoLibraryClientImpl.imageAsset(from:)),
         removed: details.removedObjects.map(\.localIdentifier)
       )
@@ -33,7 +32,15 @@ final class ImageChangeObserver: NSObject, PHPhotoLibraryChangeObserver, Sendabl
   }
 
   /// 추가·삭제가 있을 때만 그 차이를 알린다. 즐겨찾기·편집 같은 내용 변경만 있으면 nil.
-  static func imageChange(inserted: [ImageAsset], removed: [ImageAsset.ID]) -> ImageChange? {
+  /// 증분 정보가 없으면 무엇이 바뀌었는지 알 수 없으므로, 추가된 이미지를 변환하지 않고 전체 다시 조회를 알린다.
+  static func imageChange(
+    hasIncrementalChanges: Bool,
+    inserted: @autoclosure () -> [ImageAsset],
+    removed: @autoclosure () -> [ImageAsset.ID]
+  ) -> ImageChange? {
+    guard hasIncrementalChanges else { return .reloadAll }
+    let inserted = inserted()
+    let removed = removed()
     guard !inserted.isEmpty || !removed.isEmpty else { return nil }
     return .incremental(inserted: inserted, removed: removed)
   }
