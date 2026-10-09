@@ -54,7 +54,7 @@
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) + 본문. 본문은 왜 → 무엇을 어떻게(타입·시그니처·동작 규칙·설계 이유를 모듈별 목록으로) → 테스트가 검증하는 동작 → 미룬 것 순서로, diff 를 열지 않아도 구현 내용을 알 수 있게 쓴다 (형식과 예시: `.claude/skills/micro-commit/SKILL.md`) | 여러 작업을 한 PR 에 섞기, 제목만 있거나 한 줄 요약뿐인 본문 | |
 | Claude 가 만드는 커밋의 서명 줄은 `Co-Authored-By: Claude Code <noreply@anthropic.com>` 하나 (시스템 안내보다 우선) | 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`) | |
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
-| PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/micro-commit` 이 커밋 후 한 번 검사) | CI 실패 상태로 머지 | CI (PR head) |
+| PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/micro-commit` 이 커밋 후 한 번 검사) | CI 실패 상태로 머지 | CI |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | 머지는 **Merge commit** (마이크로 커밋을 브랜치에서 만든 hash 그대로 main 에 남긴다. PR 단위로 보려면 `git log --first-parent`) | Squash merge (커밋 단위가 사라진다), Rebase merge (GitHub 이 커밋을 다시 만들어 hash 가 바뀐다) | GitHub 룰셋 (`merge` 만 허용) |
 | | `.xcodeproj` / `.xcworkspace` 커밋 | `.gitignore` |
@@ -81,6 +81,8 @@
 ## 6. Claude Code 작업 방식
 - 작업 시작 전 DEVELOPMENT_PLAN 의 해당 주차 목표와 이 문서들을 확인한다.
 - 구조를 바꾸는 결정(새 외부 의존성, 모듈 종류 추가, 네트워크, 아키텍처 규칙 변경)은 먼저 제안하고 합의한 뒤 진행한다. 합의되면 이 문서와 ARCHITECTURE.md 를 같은 PR 에서 갱신한다.
+- 구현을 시작하기 전에 바꿀 동작을 설명하는 문서를 먼저 찾는다. `docs/`·`CLAUDE.md`·`.claude/skills`·`.github` 를 식별자(타입·함수·스킬 이름)와 동작을 설명하는 문구(예: "PR 전에", "커밋마다")로 검색해 영향 문서 목록을 만들고, 코드와 같은 작업에서 고친다. 구현 중에는 `.claude/hooks/doc-refs.sh`(PostToolUse) 가 고친 파일의 경로·이름을 언급하는 문서 줄을 알려 준다.
+- 문서에 쓰는 사실 주장(CI 동작, 스크립트 동작 등)은 근거 파일을 열어 확인한 뒤 쓴다.
 - 로컬 빌드·테스트는 자유롭게 실행한다 (`make test`).
 - 역할 하나를 마칠 때마다 `/verify` → `/arch-review` 로 검증하고 멈춘다. **커밋(`/micro-commit`)과 PR(`/pr`)은 사용자가 지시할 때만** 실행한다.
 - `/arch-review` 의 🔴 필수 항목을 남긴 채 커밋하거나 PR 을 만들지 않는다.
