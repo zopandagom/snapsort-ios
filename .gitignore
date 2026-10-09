@@ -12,3 +12,6 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Claude Code 개인 설정 (레포 설정은 .claude/settings.json)
+.claude/settings.local.json
