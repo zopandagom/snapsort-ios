@@ -95,11 +95,11 @@ flowchart TD
 | Client | `Projects/Clients/<Name>` | `<Name>Interface` · `<Name>Impl` · `<Name>Testing` · `<Name>Tests` | 외부 시스템 경계 |
 | Shared | `Projects/Shared/<Name>` | `<Name>` · `<Name>Tests` | 여러 모듈이 함께 쓰는 코드. `Core`(도메인 값 타입·규칙), `DesignSystem`(W4, 공용 UI) |
 
-- **Interface**: 프로토콜과 값 타입(`PhotoAccessState` 등)만. Apple 데이터 프레임워크와 CoreLocation·MapKit 을 import 하지 않는다(CoreLocation·MapKit 은 lint 추가 전까지 리뷰 기준).
-- **Impl**: 프로토콜 구현. 구현 타입 이름은 `<Name>ClientImpl`. Apple 데이터 프레임워크(Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications) import 는 여기서만. 예외: Feature View 의 MapKit `Map` 렌더링(§4).
+- **Interface**: 프로토콜과 값 타입(`PhotoAccessState` 등)만. Apple 데이터 프레임워크와 CoreLocation·MapKit 을 import 하지 않는다.
+- **Impl**: 프로토콜 구현. 구현 타입 이름은 `<Name>ClientImpl`. Apple 데이터 프레임워크(Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications) import 는 여기서만. 예외: Feature View 의 MapKit `Map` 렌더링(§4). 이 목록과 CoreLocation·MapKit(§4 경계) 밖의 iOS 프레임워크(CoreGraphics·ImageIO 등)는 Core 를 포함한 모든 레이어에서 쓸 수 있다. 제한은 권한·저장·외부 서비스 같은 부수효과를 Impl 에 가두기 위한 것이므로, 부수효과 없는 프레임워크를 피하려고 실행 비용을 들이지 않는다.
 - **Testing**: `<Name>ClientFake`. 고정 값을 돌려주는 `struct` 로 시작하고, 호출 기록이 필요해지면 그때 확장한다.
 - **Example**: Fake 로 Feature 를 단독 실행하는 데모 앱. **`#Preview` 도 여기에 둔다** (Feature 모듈이 Testing 에 의존하지 않도록).
-- **Shared**: Apple 데이터 프레임워크와 Client 모듈을 import 하지 않는다. Core 는 Foundation 만 쓰는 순수 코드이고, 좌표처럼 여러 Client 의 Interface 가 함께 쓰는 값 타입을 둔다. DesignSystem 은 SwiftUI 까지 쓴다.
+- **Shared**: Apple 데이터 프레임워크, CoreLocation·MapKit, Client 모듈을 import 하지 않는다. Core 는 부수효과 없는 순수 코드이고, 좌표·분석 이미지처럼 여러 Client 의 Interface 가 함께 쓰는 값 타입을 둔다. DesignSystem 은 SwiftUI 까지 쓴다.
 
 ### 의존 규칙
 | from ↓ / to → | Feature | Interface | Impl | Testing | Shared |
@@ -155,10 +155,10 @@ flowchart TD
 | 결정 | 이유 |
 |---|---|
 | 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. StoreKit 2 는 기기에서 영수증 검증 |
-| 위치·지도는 Apple 시스템 서비스 | 장소 이름 변환은 MapKit `MKReverseGeocodingRequest`(`CLGeocoder` 는 iOS 26 에서 deprecated. 요청 수 제한이 있으므로 사진마다가 아니라 위치 묶음마다), 지도 핀은 MapKit `Map`. 모듈 경계: ① Feature View 는 `Map` 렌더링만을 위해 MapKit 을 import 할 수 있다 ② 지오코딩과 지도 앱 열기는 부수효과이므로 Client Impl 에서 한다 ③ Interface 의 좌표는 자체 `Sendable` 값 타입으로 둔다(`CLLocationCoordinate2D` 노출 금지). lint 규칙 추가 여부는 구현 PR 에서 정한다. 이때 **위치 좌표만** Apple 로 가고 사진과 OCR 텍스트는 보내지 않는다. OCR 로 읽은 주소를 지도 앱으로 넘기는 것은 사용자가 누를 때만. 개인정보 처리방침에 명시한다. 지오코딩 요청 원칙: ① 사용자가 장소가 필요한 화면(여행 폴더, 지역별 묶음, 지도)을 열 때만 요청하고 결과는 기기에 캐시한다. 백그라운드 일괄 지오코딩 금지 ② 생활권 묶음은 지오코딩하지 않는다("생활권"으로 표시) ③ 보내는 좌표는 묶음 중심점을 소수점 2자리(약 1km)로 반올림한 값. 구체적인 수치는 구현 PR 에서 조정할 수 있다 |
+| 위치·지도는 Apple 시스템 서비스 | 장소 이름 변환은 MapKit `MKReverseGeocodingRequest`(`CLGeocoder` 는 iOS 26 에서 deprecated. 요청 수 제한이 있으므로 사진마다가 아니라 위치 묶음마다), 지도 핀은 MapKit `Map`. 모듈 경계: ① Feature View 는 `Map` 렌더링만을 위해 MapKit 을 import 할 수 있다 ② 지오코딩과 지도 앱 열기는 부수효과이므로 Client Impl 에서 한다 ③ Interface 의 좌표는 자체 `Sendable` 값 타입으로 둔다(`CLLocationCoordinate2D` 노출 금지). Shared·Interface·Testing 의 CoreLocation·MapKit import 는 lint(`location_map_only_outside_shared_interface`)가 막고, Feature 의 `Map` 렌더링 외 사용은 리뷰로 잡는다. 이때 **위치 좌표만** Apple 로 가고 사진과 OCR 텍스트는 보내지 않는다. OCR 로 읽은 주소를 지도 앱으로 넘기는 것은 사용자가 누를 때만. 개인정보 처리방침에 명시한다. 지오코딩 요청 원칙: ① 사용자가 장소가 필요한 화면(여행 폴더, 지역별 묶음, 지도)을 열 때만 요청하고 결과는 기기에 캐시한다. 백그라운드 일괄 지오코딩 금지 ② 생활권 묶음은 지오코딩하지 않는다("생활권"으로 표시) ③ 보내는 좌표는 묶음 중심점을 소수점 2자리(약 1km)로 반올림한 값. 구체적인 수치는 구현 PR 에서 조정할 수 있다 |
 | 분류 대상 | 보관함의 모든 이미지(영상 제외). 스크린샷 여부(`.photoScreenshot`)는 조회 필터가 아니라 분류 신호로 쓴다 |
 | 분류 3단 파이프라인 | ① 메타데이터(스크린샷 여부·위치·날짜·크기, 픽셀을 읽지 않음) → ② Vision 이미지 분류(`VNClassifyImageRequest`) 라벨 → ③ 스크린샷, 문서 계열 라벨, 카메라 촬영 정보(EXIF)가 없는 저장 이미지(앨범에 저장한 기프티콘·쿠폰 등)만 OCR·바코드 인식(`VNDetectBarcodesRequest`) + 키워드 규칙. 정확한 대상 조건은 OCR 파이프라인 작업에서 픽스처(저장한 기프티콘 포함)로 확정한다. ①~③은 모든 기기에서 동작하고, Foundation Models 는 ③의 텍스트 해석(기프티콘 브랜드·만료일 등)에만 `SystemLanguageModel.default.availability == .available` 인 기기에서 쓴다 |
-| 분석 이미지 크기 | 이미지 분류·유사 이미지는 썸네일로, OCR·바코드는 기기에 있는 가장 큰 버전으로 분석한다. 어느 경우든 `isNetworkAccessAllowed = false` 로 iCloud 원본을 내려받지 않는다. 크기 기준은 OCR 파이프라인 작업에서 측정해 확정한다 |
+| 분석 이미지 크기 | 이미지 분류·유사 이미지는 썸네일(`ImageSize.thumbnail`)로, OCR·바코드는 기기에 있는 가장 큰 버전(`.largestAvailable`)으로 분석한다. PhotoLibrary 가 Core 의 `AnalysisImage`(디코딩된 `CGImage` + 방향)로 읽어 주고, 분석 Client 는 이것만 받는다(Photos import 는 PhotoLibrary Impl 한 곳). 어느 경우든 `isNetworkAccessAllowed = false` 로 iCloud 원본을 내려받지 않는다. 원본이 iCloud 에만 있으면 기기에 남은 버전을 쓰고, 그것도 없으면 `ImageLoadError.notAvailableLocally` 로 알려 받는 쪽이 나중에 다시 시도한다. 크기 기준(썸네일 긴 변 임시 512px)은 OCR 파이프라인 작업에서 측정해 확정한다 |
 | 카테고리 | 정보형(기프티콘·영수증·대화 캡처·쇼핑·지도·문서/메모), 사진형(여행·음식·인물·반려동물·풍경), 기타. 한 이미지가 여러 카테고리에 속할 수 있다 |
 | 여행 판정 | 이미지 라벨이 아니라 위치·날짜로 판단한다. 생활권(촬영 위치가 가장 많이 모인 곳)에서 먼 곳의 사진이 연속된 날짜에 모여 있으면 여행으로 묶는다. 제한 접근(`.limited`)이면 사용자가 고른 사진만으로 판정하고, 정확도가 낮을 수 있다고 화면에 안내한다 |
 | 저장소 | SwiftData, App Group 컨테이너 (위젯과 공유) — W2 에서 Client 로 추가 |
