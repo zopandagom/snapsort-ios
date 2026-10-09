@@ -62,7 +62,7 @@
 ### 마이크로 커밋
 작업은 **역할별로 구현 → 검증**하고, 커밋은 **사용자가 지시할 때** 역할별로 나눠서 한다. 한 번에 몰아서 커밋하지 않는다.
 
-| type | 역할 | 예 | 커밋 전 검증 |
+| type | 역할 | 예 | 검증 항목 |
 |---|---|---|---|
 | `build` | 도구 버전, Tuist 템플릿, Makefile | `.mise.toml`, `Tuist/`, `Makefile` | `make project` (+ `make test` 영향 시) |
 | `feat` / `fix` / `refactor` | 코드 구현 (**해당 테스트 포함**) | `Projects/**` | `make lint && make test` |
@@ -71,6 +71,8 @@
 | `ci` | GitHub Actions, PR 템플릿, dependabot | `.github/**` | YAML 문법, 참조하는 make 타깃·경로 존재 |
 | `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
 | `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
+
+검증 항목 중 `make lint`·`make test`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 이 커밋을 모두 만든 뒤 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 링크·경로 일치, 훅 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
 
 - 커밋 하나 = 목적 하나. 요약에 "그리고"가 들어가면 나눈다.
 - **중간 커밋도 빌드가 깨지지 않게 의존 순서대로 나눈다.** 중간 커밋이 깨지면 `git bisect` 와 되돌리기가 불가능해진다. 다만 커밋마다 빌드하면 프로젝트가 커질수록 너무 오래 걸리므로, 자동 검증(`make lint && make test`)은 마지막 커밋에서만 한다.
