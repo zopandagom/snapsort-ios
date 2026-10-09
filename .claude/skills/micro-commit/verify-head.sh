@@ -1,5 +1,5 @@
 #!/bin/bash
-# base..HEAD 에서 바뀐 파일을 보고, 마지막 커밋(HEAD) 시점만 한 번 검사한다.
+# base...HEAD(base 와 갈라진 지점 이후)에서 바뀐 파일을 보고, 마지막 커밋(HEAD) 시점만 한 번 검사한다.
 # 중간 커밋은 검사하지 않는다 (커밋마다 빌드하면 프로젝트가 커질수록 너무 오래 걸린다).
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test

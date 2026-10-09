@@ -102,7 +102,7 @@ feat: 보관함 변경 알림을 추가·삭제 증분으로 전달
 .claude/skills/micro-commit/verify-head.sh <base>   # base = 인자 "$ARGUMENTS", 비어 있으면 origin/main
 ```
 - 중간 커밋은 검사하지 않고 HEAD 만 한 번 검사한다 (프로젝트가 커질수록 커밋마다 빌드하면 너무 오래 걸린다). 그래서 중간 커밋이 깨지지 않게 하는 것은 "## 2" 의 의존 순서로 지킨다.
-- `base..HEAD` 에서 빌드에 영향이 있는 파일이 바뀌었으면 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 문서·하네스만 바뀌었으면 SKIP 이다 (timeout 20분).
+- `base...HEAD`(base 와 갈라진 지점 이후)에서 빌드에 영향이 있는 파일이 바뀌었으면 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 문서·하네스만 바뀌었으면 SKIP 이다 (timeout 20분).
 - **FAIL 이 나오면** 되돌리지 말고 원인을 보고한다. 커밋을 나눈 방식은 마지막 시점의 결과를 바꾸지 않으므로, 실패는 코드 자체의 문제다.
 
 ## 5. 보고 형식
