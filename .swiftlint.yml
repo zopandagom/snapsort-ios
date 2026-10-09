@@ -50,9 +50,16 @@ custom_rules:
 
   system_framework_only_in_impl:
     name: "Apple 데이터 프레임워크는 Client Impl 에서만"
-    included: "Projects/(App|Features|Clients/[^/]+/(Interface|Testing))/"
+    included: "Projects/(App|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
     regex: "^\\s*import\\s+(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)\\s*$"
     message: "사진·OCR·AI·저장소·결제·알림 프레임워크는 Client Impl 안에서만 사용합니다. Interface 에 값 타입을 정의하세요."
+    severity: error
+
+  shared_independent_of_clients:
+    name: "Shared 는 Client 에 의존하지 않음"
+    included: "Projects/Shared/[^/]+/Sources/"
+    regex: "^\\s*import\\s+\\w+(Interface|Impl|Testing)\\s*$"
+    message: "Shared 모듈은 여러 모듈이 함께 쓰는 순수 코드입니다. Client 가 Shared 에 의존하고, 그 반대는 하지 않습니다."
     severity: error
 
   no_two_way_model_binding:
