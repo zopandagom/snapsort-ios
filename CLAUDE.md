@@ -32,9 +32,10 @@ Projects/
   App/                      조립 지점. Client Impl 을 만들어 Feature Model 에 주입
   Features/<Name>/          Sources(Model+View) · Tests · Example(Fake 로 도는 데모 앱)
   Clients/<Name>/           Interface(프로토콜) · Impl(Apple 프레임워크) · Testing(Fake) · Tests
+  Shared/<Name>/            Sources · Tests. Core(도메인 값 타입·규칙, Foundation 만)
 Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플릿
 ```
-의존 방향: `App → Feature → Client Interface`, `App → Client Impl → Client Interface`.
+의존 방향: `App → Feature → Client Interface`, `App → Client Impl → Client Interface`. 모두 Shared 를 쓸 수 있고, Shared 는 아무것도 의존하지 않는다.
 
 ## 반드시 지킬 것 (요약, 상세는 CONVENTIONS)
 - Model 상태는 `private(set)`, View 는 이벤트 메서드(`onAppear()`, `xxxTapped()`)만 호출한다. `$model.x` 바인딩 금지.
