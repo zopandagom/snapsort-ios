@@ -35,7 +35,11 @@ jobs:
         run: |
           case "$EVENT" in
             pull_request) files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename') || files="(조회 실패)" ;;
-            push) files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq '.files[].filename') || files="(조회 실패)" ;;
+            # compare API 는 파일을 최대 300개까지만 돌려주므로, 300개면 목록이 잘렸다고 보고 검사한다.
+            push)
+              files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq '.files[].filename') || files="(조회 실패)"
+              [[ $(wc -l <<<"$files") -lt 300 ]] || files="(목록 잘림: 300개 이상)"
+              ;;
             *) files="(수동 실행)" ;;
           esac
           echo "$files"
