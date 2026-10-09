@@ -75,12 +75,16 @@ flowchart TD
       PImpl["PhotoLibraryImpl"]
       PT["PhotoLibraryTesting"]
     end
+    subgraph Shared
+      Core["Core<br/>도메인 값 타입·규칙"]
+    end
 
     App --> Library & Other
     App --> PImpl
     Library --> PI
     PImpl --> PI
     PT --> PI
+    Library & PI & PImpl --> Core
 ```
 
 ### 모듈 종류와 타깃
@@ -89,21 +93,24 @@ flowchart TD
 | App | `Projects/App` | `SnapSort` | 유일한 조립 지점. Impl 을 생성해 Model 에 주입 |
 | Feature | `Projects/Features/<Name>` | `<Name>Feature` · `<Name>FeatureTests` · `<Name>FeatureExample` | 화면 하나 또는 흐름 하나. Model + View |
 | Client | `Projects/Clients/<Name>` | `<Name>Interface` · `<Name>Impl` · `<Name>Testing` · `<Name>Tests` | 외부 시스템 경계 |
-| Shared (예정) | `Projects/Shared/<Name>` | `Core`(W2), `DesignSystem`(W4) | 도메인 모델, 공용 UI |
+| Shared | `Projects/Shared/<Name>` | `<Name>` · `<Name>Tests` | 여러 모듈이 함께 쓰는 코드. `Core`(도메인 값 타입·규칙), `DesignSystem`(W4, 공용 UI) |
 
 - **Interface**: 프로토콜과 값 타입(`PhotoAccessState` 등)만. Apple 데이터 프레임워크와 CoreLocation·MapKit 을 import 하지 않는다(CoreLocation·MapKit 은 lint 추가 전까지 리뷰 기준).
 - **Impl**: 프로토콜 구현. 구현 타입 이름은 `<Name>ClientImpl`. Apple 데이터 프레임워크(Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications) import 는 여기서만. 예외: Feature View 의 MapKit `Map` 렌더링(§4).
 - **Testing**: `<Name>ClientFake`. 고정 값을 돌려주는 `struct` 로 시작하고, 호출 기록이 필요해지면 그때 확장한다.
 - **Example**: Fake 로 Feature 를 단독 실행하는 데모 앱. **`#Preview` 도 여기에 둔다** (Feature 모듈이 Testing 에 의존하지 않도록).
+- **Shared**: Apple 데이터 프레임워크와 Client 모듈을 import 하지 않는다. Core 는 Foundation 만 쓰는 순수 코드이고, 좌표처럼 여러 Client 의 Interface 가 함께 쓰는 값 타입을 둔다. DesignSystem 은 SwiftUI 까지 쓴다.
 
 ### 의존 규칙
-| from ↓ / to → | Feature | Interface | Impl | Testing |
-|---|---|---|---|---|
-| App | ✅ | ✅ | ✅ | ❌ |
-| Feature | ❌ | ✅ | ❌ | ❌ |
-| Feature Tests / Example | 자기 Feature | ✅ | ❌ | ✅ |
-| Client Impl | ❌ | 자기 Interface (+ 다른 Interface) | ❌ | ❌ |
-| Client Tests | ❌ | ✅ | 자기 Impl | 자기 Testing |
+| from ↓ / to → | Feature | Interface | Impl | Testing | Shared |
+|---|---|---|---|---|---|
+| App | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Feature | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Feature Tests / Example | 자기 Feature | ✅ | ❌ | ✅ | ✅ |
+| Client Interface | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Client Impl | ❌ | 자기 Interface (+ 다른 Interface) | ❌ | ❌ | ✅ |
+| Client Tests | ❌ | ✅ | 자기 Impl | 자기 Testing | ✅ |
+| Shared | ❌ | ❌ | ❌ | ❌ | ❌ (필요해지면 템플릿에 인자를 추가하고 연다) |
 
 ### 빌드 설정
 - 모든 모듈은 static framework. iPhone 전용, iOS 26.0+, Swift 6 언어 모드, `SWIFT_STRICT_CONCURRENCY=complete`.
@@ -123,6 +130,14 @@ flowchart TD
 3. Interface 에 `public protocol ImageAnalysisClient: Sendable` 과 입출력 값 타입, Impl 에 `ImageAnalysisClientImpl`, Testing 에 `ImageAnalysisClientFake`, Tests 에 Impl 의 순수 로직 테스트.
 4. 사용하는 Feature 매니페스트의 `clients:` 에 추가하고, App 매니페스트에 `.client(impl: .imageAnalysis)` 추가.
 5. `make project && make test`.
+
+### Shared 추가 (예: DesignSystem)
+1. `Module.swift` 의 `Shared` 에 `case designSystem = "DesignSystem"` 추가.
+2. `Projects/Shared/DesignSystem/{Sources,Tests}` + `Project.swift`:
+   ```swift
+   let project = Project.shared(.designSystem)
+   ```
+3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.designSystem])`, Client 는 `interfaceDependencies: [.shared(.designSystem)]`, App 은 `dependencies` 에 `.shared(.designSystem)`.
 
 ### Feature 추가 (예: Onboarding)
 1. `Feature` 에 `case onboarding = "Onboarding"` 추가.
