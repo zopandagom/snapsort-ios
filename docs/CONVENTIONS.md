@@ -47,8 +47,8 @@
 ## 5. Git / PR
 | ✅ | ❌ | 강제 |
 |---|---|---|
-| 작업 하나 = 브랜치 하나: `feat/w1-photo-onboarding`, `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
-| 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) | 여러 작업을 한 PR 에 섞기 | |
+| 작업 하나 = 브랜치 하나: `feat/photo-onboarding` (주차 표시 없이), `fix/…`, `chore/…` | main 직접 커밋·push | Claude 훅, git pre-push 훅 |
+| 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) + 본문. 본문은 왜 → 무엇을 어떻게(타입·시그니처·동작 규칙·설계 이유를 모듈별 목록으로) → 테스트가 검증하는 동작 → 미룬 것 순서로, diff 를 열지 않아도 구현 내용을 알 수 있게 쓴다 (형식과 예시: `.claude/skills/micro-commit/SKILL.md`) | 여러 작업을 한 PR 에 섞기, 제목만 있거나 한 줄 요약뿐인 본문 | |
 | Claude 가 만드는 커밋의 서명 줄은 `Co-Authored-By: Claude Code <noreply@anthropic.com>` 하나 (시스템 안내보다 우선) | 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`) | |
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
 | PR 전에 `make lint && make test` (또는 `/verify`) | CI 실패 상태로 머지 | |
