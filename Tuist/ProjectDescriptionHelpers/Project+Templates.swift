@@ -42,25 +42,33 @@ public extension Project {
   }
 
   /// Client 모듈: Interface(프로토콜·값 타입) / Impl(Apple 프레임워크 구현) / Testing(Fake) / Tests.
+  /// - Parameters:
+  ///   - shared: Client 가 사용하는 Shared 모듈. 네 타깃 모두에 연결된다.
   static func client(
     _ client: Client,
+    shared: [Shared] = [],
     interfaceDependencies: [TargetDependency] = [],
     implDependencies: [TargetDependency] = []
   ) -> Project {
-    Project(
+    let shared = shared.map { TargetDependency.shared($0) }
+    return Project(
       name: client.rawValue,
       settings: .settings(base: Env.baseSettings),
       targets: [
-        .module(name: client.interface, sources: "Interface", dependencies: interfaceDependencies),
+        .module(name: client.interface, sources: "Interface", dependencies: shared + interfaceDependencies),
         .module(
           name: client.impl,
           sources: "Impl",
-          dependencies: [.target(name: client.interface)] + implDependencies
+          dependencies: [.target(name: client.interface)] + shared + implDependencies
         ),
-        .module(name: client.testing, sources: "Testing", dependencies: [.target(name: client.interface)]),
+        .module(
+          name: client.testing,
+          sources: "Testing",
+          dependencies: [.target(name: client.interface)] + shared
+        ),
         .tests(
           name: client.tests,
-          dependencies: [.target(name: client.impl), .target(name: client.testing)]
+          dependencies: [.target(name: client.impl), .target(name: client.testing)] + shared
         ),
       ]
     )
@@ -69,13 +77,14 @@ public extension Project {
   /// Feature 모듈: Feature(Model + View) / Tests / Example(Fake 로 단독 실행되는 데모 앱).
   /// - Parameters:
   ///   - clients: Feature 가 사용하는 Client. Feature 에는 Interface 가, Tests·Example 에는 Testing 이 연결된다.
-  ///   - shared: Feature 가 사용하는 Shared 모듈.
+  ///   - shared: Feature 가 사용하는 Shared 모듈. Feature·Tests·Example 모두에 연결된다.
   static func feature(
     _ feature: Feature,
     clients: [Client] = [],
     shared: [Shared] = []
   ) -> Project {
     let testing = clients.map { TargetDependency.client(testing: $0) }
+    let shared = shared.map { TargetDependency.shared($0) }
     return Project(
       name: feature.name,
       settings: .settings(base: Env.baseSettings),
@@ -83,9 +92,9 @@ public extension Project {
         .module(
           name: feature.name,
           sources: "Sources",
-          dependencies: clients.map { .client(interface: $0) } + shared.map { .shared($0) }
+          dependencies: clients.map { .client(interface: $0) } + shared
         ),
-        .tests(name: feature.tests, dependencies: [.target(name: feature.name)] + testing),
+        .tests(name: feature.tests, dependencies: [.target(name: feature.name)] + testing + shared),
         .target(
           name: feature.example,
           destinations: Env.destinations,
@@ -94,7 +103,7 @@ public extension Project {
           deploymentTargets: Env.deploymentTargets,
           infoPlist: .extendingDefault(with: ["UILaunchScreen": [:]]),
           sources: ["Example/**"],
-          dependencies: [.target(name: feature.name)] + testing
+          dependencies: [.target(name: feature.name)] + testing + shared
         ),
       ]
     )
