@@ -24,16 +24,33 @@ struct PhotoLibraryClientImplTests {
   func notifiesInsertedAndRemoved() {
     let inserted = [Self.asset(id: "new")]
 
-    let change = ImageChangeObserver.imageChange(inserted: inserted, removed: ["old"])
+    let change = ImageChangeObserver.imageChange(hasIncrementalChanges: true, inserted: inserted, removed: ["old"])
 
     #expect(change == .incremental(inserted: inserted, removed: ["old"]))
   }
 
   @Test("추가·삭제가 없는 변경은 알리지 않는다")
   func ignoresChangeWithoutInsertOrRemove() {
-    let change = ImageChangeObserver.imageChange(inserted: [], removed: [])
+    let change = ImageChangeObserver.imageChange(hasIncrementalChanges: true, inserted: [], removed: [])
 
     #expect(change == nil)
+  }
+
+  @Test("증분 정보가 없으면 추가된 이미지를 변환하지 않고 전체 다시 조회를 알린다")
+  func reloadsAllWithoutIncrementalChanges() {
+    var convertedInserted = false
+
+    let change = ImageChangeObserver.imageChange(
+      hasIncrementalChanges: false,
+      inserted: {
+        convertedInserted = true
+        return [Self.asset(id: "new")]
+      }(),
+      removed: []
+    )
+
+    #expect(change == .reloadAll)
+    #expect(!convertedInserted)
   }
 
   @Test("CLLocation 의 좌표를 Coordinate 로 옮긴다")
