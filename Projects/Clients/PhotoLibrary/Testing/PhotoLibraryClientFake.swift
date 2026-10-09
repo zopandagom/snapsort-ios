@@ -98,6 +98,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   /// 이미지가 추가·삭제된 것처럼 조회 결과(와 권한 상태)를 바꾸고 증분 변경을 보낸다. 추가된 이미지는 최신순 맨 앞에 붙인다.
   /// 실제 보관함처럼 조회 결과에 이미 있는 식별자는 다시 붙이지 않는다. 보내는 변경은 받은 그대로 둔다.
+  /// 추가·삭제가 모두 비면 실제 보관함처럼 알리지 않는다 (권한 상태는 바꾼다).
   public func sendIncrementalChange(
     inserted: [ImageAsset] = [],
     removed: [ImageAsset.ID] = [],
@@ -111,6 +112,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
       if let accessState {
         state.accessState = accessState
       }
+      guard !inserted.isEmpty || !removed.isEmpty else { return nil }
       return .incremental(inserted: inserted, removed: removed)
     }
   }
@@ -139,14 +141,14 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   // MARK: - Private
 
-  /// 상태 변경과 보낼 변경 계산을 한 번의 잠금 안에서 해, 그 사이에 다른 변경이 끼어들지 않게 한다. nil 이면 보내지 않는다.
+  /// 상태 변경, 보낼 변경 계산, 보내기를 한 번의 잠금 안에서 해, 구독자가 받는 순서가 상태가 바뀐 순서와 같게 한다. nil 이면 보내지 않는다.
+  /// `yield` 는 `.unbounded` 버퍼라 막히지 않고 `onTermination` 도 부르지 않으므로 잠금 안에서 불러도 교착이 없다.
   private func send(_ update: (inout State) -> ImageChange?) {
-    let (change, subscriptions) = self.state.withLock { state in
-      (update(&state), Array(state.subscriptions.values))
-    }
-    guard let change else { return }
-    for continuation in subscriptions {
-      continuation.yield(change)
+    self.state.withLock { state in
+      guard let change = update(&state) else { return }
+      for continuation in state.subscriptions.values {
+        continuation.yield(change)
+      }
     }
   }
 }
