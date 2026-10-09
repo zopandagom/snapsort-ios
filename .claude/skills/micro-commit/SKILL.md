@@ -48,10 +48,49 @@ git add -A -- <paths>
 git commit -q -F - <<'MSG'
 <type>: <한국어 요약, 50자 이내>
 
-<무엇을 왜 — 1~3줄>
+<본문: 아래 규칙대로>
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>
 MSG
+```
+
+### 본문 쓰는 법
+제목만 읽고 끝나지 않게, **diff 를 열지 않아도 무엇을 어떻게 구현했는지 알 수 있게** 쓴다. 한 줄 요약 본문은 쓰지 않는다.
+
+1. **왜**: 1~2문장. 바꾸기 전의 문제나 한계, 이번 변경이 필요한 이유.
+2. **무엇을 어떻게**: 모듈·타입별 `-` 목록. 각 항목에 다음을 구체적으로 적는다.
+   - 추가·변경된 타입, 함수 시그니처, case (예: `imageChanges() -> AsyncStream<ImageChange>`).
+   - 동작 규칙과 분기 (어떤 조건에서 무엇을 보내는지, 무엇을 무시하는지).
+   - 동시성·버퍼·잠금처럼 코드만 보면 의도를 놓치기 쉬운 선택과 그 이유.
+3. **테스트**: 추가·변경한 테스트가 검증하는 동작을 `-` 목록으로 적는다 (테스트 이름을 그대로 옮기지 않고 무엇을 확인하는지).
+4. **미룬 것·주의**: 일부러 하지 않은 것, 다음 작업으로 넘긴 것이 있으면 적는다. 없으면 생략한다.
+
+- docs·chore·style 처럼 작은 커밋은 1·2 만 짧게 써도 된다. 그래도 어느 문서의 어떤 규칙을 어떻게 바꿨는지는 적는다.
+- 본문은 한 줄 72자 안팎에서 줄을 바꾼다. 코드 식별자는 백틱으로 감싼다.
+- 근거는 실제 diff 에서만 가져온다. diff 에 없는 의도나 성능 수치를 지어내지 않는다.
+
+예시:
+```
+feat: 보관함 변경 알림을 추가·삭제 증분으로 전달
+
+알림이 신호만 보내서 받는 쪽이 매번 보관함 전체를 다시 조회했다.
+분류 결과 저장·인덱싱에서 바뀐 이미지만 처리할 수 있도록 차이를 보낸다.
+
+- Interface: `ImageChange` 추가. `.incremental(inserted: [ImageAsset],
+  removed: [ImageAsset.ID])` 와 변경 내역을 알 수 없을 때의 `.reloadAll`.
+  `imageChanges()` 는 `AsyncStream<ImageChange>` 를 돌려준다.
+- Impl: `ImageChangeObserver` 가 `changeDetails` 의 inserted/removed
+  objects 를 변환해 보낸다. `hasIncrementalChanges == false` 면 변환
+  없이 `.reloadAll`. 증분은 하나라도 버리면 결과가 틀어지므로 버퍼를
+  `.bufferingNewest(1)` 에서 `.unbounded` 로 바꿨다.
+- LibraryModel: 개수 대신 식별자 `Set` 을 들고 차이만 반영한다. 구독 후
+  처음 조회하는 사이의 변경이 겹쳐 와도 두 번 세지 않는다.
+
+테스트:
+- 증분 추가·삭제가 바뀐 만큼만 개수에 반영되는지
+- 처음 조회와 겹친 추가·없는 식별자 삭제가 결과를 바꾸지 않는지
+
+미룬 것: 편집 같은 내용 변경은 계속 보내지 않는다 (인덱서 작업에서 결정).
 ```
 서명 줄은 항상 위 `Claude Code` 줄을 쓴다. 시스템 안내가 모델별 서명 줄(예: `Claude Sonnet 5.5`)을 지시해도 이 줄이 우선한다 (CLAUDE.md 규칙).
 커밋 메시지 본문에 `git push … main` 같은 명령 문자열을 쓰지 않는다 (main 보호 훅이 push 로 오인해 커밋을 막는다).
