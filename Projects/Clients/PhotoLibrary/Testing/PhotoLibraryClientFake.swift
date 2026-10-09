@@ -2,18 +2,20 @@ import Core
 import PhotoLibraryInterface
 import Synchronization
 
-/// 테스트와 Example 앱용 대역. 정해 둔 값을 돌려주고, 제한 접근 선택 화면 호출을 기록한다.
+/// 테스트와 Example 앱용 대역. 정해 둔 값을 돌려주고, 제한 접근 선택 화면 호출과 이미지 읽기 요청을 기록한다.
 /// 실제 보관함처럼 권한 요청·선택 화면 뒤에 상태가 바뀌어야 하므로 상태를 Mutex 로 보호하는 class 다.
 /// 변경 알림은 실제처럼 구독마다 새 스트림을 만들고, 구독 중인 스트림에만 보낸다 (구독 전 변경은 버린다).
 public final class PhotoLibraryClientFake: PhotoLibraryClient {
   public let stateAfterRequest: PhotoAccessState
   private let imageAssetsAfterPicker: [ImageAsset]?
+  private let loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>]
   private let state: Mutex<State>
 
   private struct State {
     var accessState: PhotoAccessState
     var imageAssets: [ImageAsset]
     var limitedPickerPresentCount = 0
+    var loadImageRequests: [LoadImageRequest] = []
     var nextSubscriptionID = 0
     var subscriptions: [Int: AsyncStream<ImageChange>.Continuation] = [:]
     var changesFinished = false
@@ -21,20 +23,29 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   /// `requestAccess()` 뒤에는 `accessState()` 도 `stateAfterRequest` 를 돌려준다.
   /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 달라진 만큼 증분 변경을 보낸다.
+  /// `loadImageResults` 는 식별자별 `loadImage` 결과다. 크기와 관계없이 같은 결과를 주고, 없는 식별자는 `.notFound`, 취소된 Task 에는 `.cancelled` 를
+  /// 던진다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
     imageAssets: [ImageAsset] = [],
-    imageAssetsAfterPicker: [ImageAsset]? = nil
+    imageAssetsAfterPicker: [ImageAsset]? = nil,
+    loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
   ) {
     self.stateAfterRequest = stateAfterRequest
     self.imageAssetsAfterPicker = imageAssetsAfterPicker
+    self.loadImageResults = loadImageResults
     self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
   }
 
   /// 제한 접근 선택 화면을 띄운 횟수.
   public var limitedPickerPresentCount: Int {
     self.state.withLock { $0.limitedPickerPresentCount }
+  }
+
+  /// `loadImage` 를 부른 순서대로의 요청.
+  public var loadImageRequests: [LoadImageRequest] {
+    self.state.withLock { $0.loadImageRequests }
   }
 
   /// 지금 변경 알림을 구독 중인 수. 테스트가 구독이 시작된 뒤에 변경을 보내도록 기다리는 데 쓴다.
@@ -55,6 +66,15 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   public func fetchImageAssets() async -> [ImageAsset] {
     self.state.withLock { $0.imageAssets }
+  }
+
+  public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {
+    self.state.withLock { $0.loadImageRequests.append(LoadImageRequest(id: id, size: size)) }
+    if Task.isCancelled {
+      throw .cancelled
+    }
+    guard let result = self.loadImageResults[id] else { throw .notFound }
+    return try result.get()
   }
 
   @MainActor
@@ -150,5 +170,16 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
         continuation.yield(change)
       }
     }
+  }
+}
+
+/// `loadImage` 요청 한 건.
+public struct LoadImageRequest: Sendable, Equatable {
+  public let id: ImageAsset.ID
+  public let size: ImageSize
+
+  public init(id: ImageAsset.ID, size: ImageSize) {
+    self.id = id
+    self.size = size
   }
 }

@@ -12,6 +12,10 @@ public protocol PhotoLibraryClient: Sendable {
   /// 최신순 이미지(영상 제외)와 메타데이터. 픽셀은 읽지 않는다.
   func fetchImageAssets() async -> [ImageAsset]
 
+  /// 분석에 쓸 이미지를 읽는다. iCloud 원본은 내려받지 않고 기기에 있는 버전만 쓴다 (docs/ARCHITECTURE.md §4).
+  /// 호출한 Task 가 취소되면 읽기 요청도 취소하고 `.cancelled` 를 던진다.
+  func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage
+
   /// 제한 접근(`.limited`)일 때 허용할 사진을 더 고르는 시스템 화면을 띄우고, 닫힐 때까지 기다린다.
   /// 고른 결과는 돌려주지 않는다. 고른 사진이 바뀌면 `imageChanges()` 가 알린다.
   @MainActor
