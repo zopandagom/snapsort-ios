@@ -1,6 +1,6 @@
 ---
 name: verify
-description: SnapSort 변경 사항을 lint → 빌드 → 테스트 순서로 로컬 검증하고 실패 원인을 요약한다. 코드 수정을 마쳤을 때, 커밋이나 PR 을 만들기 전에, 또는 사용자가 "검증", "테스트 돌려", "빌드 확인"을 요청할 때 사용한다.
+description: SnapSort 변경 사항을 lint → 빌드 → 테스트 순서로 로컬 검증하고 실패 원인을 요약한다. 코드 수정을 마쳤을 때, 커밋하기 전에, 또는 사용자가 "검증", "테스트 돌려", "빌드 확인"을 요청할 때 사용한다.
 context: fork
 agent: general-purpose
 model: sonnet

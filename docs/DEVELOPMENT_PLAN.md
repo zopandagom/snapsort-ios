@@ -43,7 +43,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 2. `feat/wN-<요약>` 브랜치 생성.
 3. Client 가 필요하면 **Interface 먼저** 설계(프로토콜 + 값 타입) → Fake → Feature Model + 테스트 → Impl 순서. Impl 없이도 Example 앱으로 화면을 확인할 수 있다.
 4. 역할 단위로 구현 → `/verify` → `/arch-review`. 커밋은 사용자 지시로 `/micro-commit` (CONVENTIONS §5).
-5. 사용자 지시로 `/pr` (전체 `/arch-review` → PR 생성, 유형 라벨) → CI + Claude 리뷰 → Rebase merge.
+5. 사용자 지시로 `/pr` (전체 `/arch-review` → PR 생성, 유형 라벨) → CI + Claude 리뷰 → Merge commit 으로 머지.
 6. 결정이 바뀌었으면 docs 갱신을 같은 PR 에 포함 (별도 `docs:` 커밋).
 
 ## 완료 기준 (Definition of Done)

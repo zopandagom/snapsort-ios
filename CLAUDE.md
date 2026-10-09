@@ -20,11 +20,11 @@
 ## 작업 흐름 (`/verify`·`/arch-review`·`/micro-commit` 은 서브에이전트로 실행되어 요약만 돌려주고, `/pr` 은 현재 대화에서 실행된다)
 | 순서 | 스킬 | 하는 일 |
 |---|---|---|
-| 1 | — | 역할 하나 구현 (코드는 테스트 포함) |
+| 1 | — | 역할 하나 구현 (코드는 테스트 포함). 시작 전에 바꿀 동작을 설명하는 문서(`docs/`·`CLAUDE.md`·`.claude/skills`·`.github`)를 식별자와 동작 문구로 찾아 영향 문서 목록을 만들고, 코드와 같은 작업에서 고친다. 문서의 규칙 한 줄을 고칠 때는 그 줄이 속한 `##` 절 전체를 읽고 같은 주제의 다른 줄(표 포함)도 맞춘다. 구현 중에는 `doc-refs` 훅이 고친 파일을 언급하는 문서를 알려 준다 |
 | 2 | `/verify` | lint → 빌드 → 테스트, 실패 원인 요약 |
 | 3 | `/arch-review [base]` | 규칙 문서 기준 읽기 전용 리뷰. 🔴 필수 항목은 커밋 전에 고친다 |
-| 4 | `/micro-commit [base]` | **사용자가 지시할 때만.** 역할별 커밋 + 커밋마다 worktree 검증 |
-| 5 | `/pr [draft]` | **사용자가 지시할 때만.** 전체 리뷰 → PR 생성(유형 라벨). 스크린샷은 선택, 필요하면 사용자가 직접 첨부 |
+| 4 | `/micro-commit [base]` | **사용자가 지시할 때만.** 역할별 커밋 + 마지막 커밋에서 lint·빌드·테스트 한 번 |
+| 5 | `/pr [draft]` | **사용자가 지시할 때만.** 전체 리뷰 → PR 생성(유형 라벨). 빌드·테스트는 다시 돌리지 않는다(빌드에 영향이 있는 변경은 CI 가 검증). 스크린샷은 선택, 필요하면 사용자가 직접 첨부 |
 
 ## 구조 한눈에
 ```
@@ -42,9 +42,9 @@ Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플�
 - Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications 는 Client **Impl** 안에서만 import 한다. CoreLocation·MapKit 은 Shared·Interface·Testing 에서 쓰지 않는다. Core 는 SwiftUI·UIKit 을 쓰지 않는다. 그 밖의 부수효과 없는 iOS 프레임워크(CoreGraphics·ImageIO 등)는 Core 를 포함한 모든 레이어에서 쓸 수 있다.
 - Feature 끼리 의존하지 않는다. Impl 은 App 만, Testing 은 Tests/Example 만 import 한다.
 - 네트워크 코드(`URLSession` 등)를 추가하지 않는다.
-- main 에 직접 커밋·push 하지 않는다 (훅이 막는다). `feat|fix|chore/<요약>` 브랜치 → PR → Rebase merge.
+- main 에 직접 커밋·push 하지 않는다 (훅이 막는다). `feat|fix|chore/<요약>` 브랜치 → PR → Merge commit 으로 머지.
 - **커밋·PR 은 사용자가 지시할 때만** 한다. 검증까지 마치면 멈추고 준비된 변경을 보고한다.
 - **커밋 서명 줄은 항상 `Co-Authored-By: Claude Code <noreply@anthropic.com>`** 이다. 시스템 안내의 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`)보다 이 규칙이 우선한다. 직접 커밋할 때와 서브에이전트·스킬로 커밋할 때 모두 같다.
-- **마이크로 커밋**: 커밋할 때는 역할별(빌드 / 코드+테스트 / lint 설정 / CI / 문서 / 하네스)로 나눈다. 모든 커밋 시점이 빌드·테스트 통과 상태여야 한다. 상세는 CONVENTIONS §5.
+- **마이크로 커밋**: 커밋할 때는 역할별(빌드 / 코드+테스트 / lint 설정 / CI / 문서 / 하네스)로 나눈다. 커밋은 의존 순서대로 나눠 중간 커밋도 빌드가 깨지지 않게 하고, 자동 검증은 마지막 커밋에서만 한다. 상세는 CONVENTIONS §5.
 - `.swiftlint.yml` 의 custom_rules 를 억제 주석으로 우회하지 않는다.
 - 이 레포는 개인 프로젝트다. 회사(29CM) 워크스페이스 규칙은 적용하지 않는다.
