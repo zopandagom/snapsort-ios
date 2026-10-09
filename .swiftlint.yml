@@ -69,6 +69,13 @@ custom_rules:
     message: "좌표는 Core 의 Coordinate 로 넘깁니다. 지오코딩·지도 앱 열기는 Client Impl, Map 렌더링은 Feature View 에서 합니다 (docs/ARCHITECTURE.md §4)."
     severity: error
 
+  core_no_ui_framework:
+    name: "Core 는 UI 프레임워크를 쓰지 않음"
+    included: "Projects/Shared/Core/Sources/"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(SwiftUI|UIKit)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
+    message: "Core 는 부수효과 없는 도메인 값 타입·규칙입니다. 화면 코드는 Feature 나 DesignSystem 에, 앱 열기 같은 부수효과는 Client Impl 에 둡니다."
+    severity: error
+
   no_two_way_model_binding:
     name: "Model 양방향 바인딩 금지"
     included: "Projects/Features/"
