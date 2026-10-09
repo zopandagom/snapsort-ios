@@ -37,19 +37,58 @@ struct ImageLoaderTests {
     }
   }
 
-  @Test("이미지 데이터를 CGImage 로 디코딩한다")
+  @Test(
+    "픽셀 수가 상한을 넘으면 비율을 지켜 상한 이하가 되는 긴 변을 고른다",
+    arguments: [
+      (6, 2, 12, 6),
+      (8, 2, 4, 4),
+      (2, 8, 4, 4),
+      (1179, 20000, 4096 * 3072, 14609),
+    ]
+  )
+  func computesMaxPixelLength(width: Int, height: Int, maxPixelCount: Int, expected: CGFloat) {
+    #expect(ImageLoader.maxPixelLength(width: width, height: height, maxPixelCount: maxPixelCount) == expected)
+  }
+
+  @Test("원본 없이 요청할 크기는 상한을 지킨 긴 변이고, 픽셀 크기를 모르면 가장 큰 크기로 요청한다")
+  func computesLargestTargetSize() {
+    #expect(ImageLoader.largestTargetSize(width: 1179, height: 20000) == CGSize(width: 14609, height: 14609))
+    #expect(ImageLoader.largestTargetSize(width: 0, height: 0) == PHImageManagerMaximumSize)
+    #expect(ImageLoader.largestTargetSize(width: 0, height: 1000) == PHImageManagerMaximumSize)
+  }
+
+  @Test("상한보다 작은 이미지는 원래 크기로 디코딩한다")
   func decodesImageData() throws {
     let data = try Self.pngData(of: .stub(width: 6, height: 2))
 
-    let image = try #require(ImageLoader.decode(data))
+    let image = try #require(ImageLoader.decode(data, maxPixelCount: 12))
 
     #expect(image.width == 6)
     #expect(image.height == 2)
   }
 
+  @Test(
+    "상한보다 큰 이미지는 비율을 지켜 픽셀 수를 상한 이하로 줄인다",
+    arguments: [(8, 2, 4, 4, 1), (2, 8, 4, 1, 4), (40, 2, 20, 20, 1)]
+  )
+  func downsamplesLargeImage(
+    width: Int,
+    height: Int,
+    maxPixelCount: Int,
+    expectedWidth: Int,
+    expectedHeight: Int
+  ) throws {
+    let data = try Self.pngData(of: .stub(width: width, height: height))
+
+    let image = try #require(ImageLoader.decode(data, maxPixelCount: maxPixelCount))
+
+    #expect(image.width == expectedWidth)
+    #expect(image.height == expectedHeight)
+  }
+
   @Test("이미지가 아닌 데이터는 디코딩하지 않는다")
   func failsToDecodeInvalidData() {
-    #expect(ImageLoader.decode(Data("not an image".utf8)) == nil)
+    #expect(ImageLoader.decode(Data("not an image".utf8), maxPixelCount: ImageLoader.largestPixelCount) == nil)
   }
 
   @Test(

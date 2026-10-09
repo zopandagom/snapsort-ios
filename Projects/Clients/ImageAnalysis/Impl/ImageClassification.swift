@@ -1,6 +1,4 @@
 import Core
-import ImageAnalysisInterface
-import Vision
 
 /// Vision 이미지 분류 결과를 다듬는 규칙.
 enum ImageClassification {
@@ -15,16 +13,5 @@ enum ImageClassification {
       .sorted { lhs, rhs in
         lhs.confidence != rhs.confidence ? lhs.confidence > rhs.confidence : lhs.identifier < rhs.identifier
       }
-  }
-
-  /// Vision 이 던진 오류를 이유로 바꾼다. Task 가 취소된 뒤의 오류는 원인과 관계없이 취소로 본다.
-  static func analysisError(_ error: any Error, isTaskCancelled: Bool) -> ImageAnalysisError {
-    if isTaskCancelled || error is CancellationError {
-      return .cancelled
-    }
-    if case VisionError.requestCancelled = error {
-      return .cancelled
-    }
-    return .failed
   }
 }

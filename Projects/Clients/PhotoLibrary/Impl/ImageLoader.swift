@@ -11,6 +11,11 @@ enum ImageLoader {
   /// 분류용 썸네일의 긴 변(픽셀). 임시 값이고, 정확도·1만 장 측정 작업에서 확정한다.
   static let thumbnailLength: CGFloat = 512
 
+  /// OCR·바코드용 이미지의 픽셀 수 상한(약 12.6MP). 48MP 원본을 그대로 디코딩하면 한 장에 약 190MB 라 줄인다 (이 상한이면 약 50MB).
+  /// 긴 변이 아니라 픽셀 수로 제한해, 스크롤 캡처·긴 영수증처럼 세로로 긴 이미지도 폭이 지나치게 줄지 않게 한다.
+  /// 영수증의 작은 글자를 읽을 수 있는 크기로 둔 임시 값이고, 정확도·1만 장 측정 작업에서 확정한다.
+  static let largestPixelCount = 4096 * 3072
+
   /// 맞는 크기의 캐시가 있으면 PhotoKit 이 그것을 쓰고, 없으면 원본에서 줄일 수 있다. `.highQualityFormat` 이라 결과는 한 번만 온다.
   static func thumbnail(of asset: PHAsset) async throws(ImageLoadError) -> AnalysisImage {
     let targetSize = CGSize(width: self.thumbnailLength, height: self.thumbnailLength)
@@ -22,15 +27,16 @@ enum ImageLoader {
     }
   }
 
-  /// 원본 데이터가 기기에 있으면 그것을 디코딩한다. 원본이 iCloud 에만 있으면 기기에서 바로 줄 수 있는 버전으로 대신한다.
+  /// 원본 데이터가 기기에 있으면 픽셀 수를 `largestPixelCount` 이하로 줄여 디코딩한다. 원본이 iCloud 에만 있으면 기기에서 바로 줄 수 있는 버전으로 대신한다.
   /// `.fastFormat` 이라 기기에 더 큰 버전이 있어도 작은 버전이 올 수 있다.
   static func largestAvailable(of asset: PHAsset) async throws(ImageLoadError) -> AnalysisImage {
     try await self.fallingBackWhenInCloud { () async throws(ImageLoadError) -> AnalysisImage in
       let (data, orientation) = try await self.requestImageData(of: asset)
-      guard let cgImage = self.decode(data) else { throw .failed }
+      guard let cgImage = self.decode(data, maxPixelCount: self.largestPixelCount) else { throw .failed }
       return AnalysisImage(cgImage: cgImage, orientation: orientation)
     } to: { () async throws(ImageLoadError) -> AnalysisImage in
-      try await self.requestImage(of: asset, targetSize: PHImageManagerMaximumSize, deliveryMode: .fastFormat)
+      let targetSize = self.largestTargetSize(width: asset.pixelWidth, height: asset.pixelHeight)
+      return try await self.requestImage(of: asset, targetSize: targetSize, deliveryMode: .fastFormat)
     }
   }
 
@@ -69,12 +75,43 @@ enum ImageLoader {
     return .failed
   }
 
-  /// 주 이미지를 지금 디코딩해 둔다. 그대로 두면 Vision 이 처음 픽셀을 읽을 때 디코딩한다.
-  /// HEIC 처럼 이미지가 여러 장 든 파일은 주 이미지가 0번이 아닐 수 있다.
-  static func decode(_ data: Data) -> CGImage? {
+  /// 픽셀 수가 `maxPixelCount` 이하가 되도록 비율을 지켜 줄였을 때의 긴 변. 이미 작으면 원래 긴 변이다.
+  static func maxPixelLength(width: Int, height: Int, maxPixelCount: Int) -> CGFloat {
+    let longSide = CGFloat(max(width, height))
+    let pixelCount = width * height
+    guard pixelCount > maxPixelCount else { return longSide }
+    return (longSide * (CGFloat(maxPixelCount) / CGFloat(pixelCount)).squareRoot()).rounded(.down)
+  }
+
+  /// 원본 데이터 없이 요청할 때의 크기. 픽셀 수 상한을 지킨 긴 변의 정사각형이고, `.aspectFit` 으로 비율을 지킨다.
+  /// 에셋의 픽셀 크기를 모르면(0) 0 크기로 요청하지 않도록 `PHImageManagerMaximumSize` 를 쓴다.
+  static func largestTargetSize(width: Int, height: Int) -> CGSize {
+    guard width > 0, height > 0 else { return PHImageManagerMaximumSize }
+    let length = self.maxPixelLength(width: width, height: height, maxPixelCount: self.largestPixelCount)
+    return CGSize(width: length, height: length)
+  }
+
+  /// 주 이미지를 픽셀 수가 `maxPixelCount` 이하가 되게 줄여 지금 디코딩해 둔다. 더 작은 이미지는 키우지 않는다.
+  /// 원본 크기로 디코딩한 뒤 줄이지 않고 디코딩하면서 줄여 메모리를 아낀다. 그대로 두면 Vision 이 처음 픽셀을 읽을 때 디코딩한다.
+  /// 방향은 적용하지 않는다 (`AnalysisImage` 가 따로 담는다). HEIC 처럼 이미지가 여러 장 든 파일은 주 이미지가 0번이 아닐 수 있다.
+  static func decode(_ data: Data, maxPixelCount: Int) -> CGImage? {
     guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-    let options = [kCGImageSourceShouldCacheImmediately: true] as CFDictionary
-    return CGImageSourceCreateImageAtIndex(source, CGImageSourceGetPrimaryImageIndex(source), options)
+    let index = CGImageSourceGetPrimaryImageIndex(source)
+    guard
+      let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+      let width = properties[kCGImagePropertyPixelWidth] as? Int,
+      let height = properties[kCGImagePropertyPixelHeight] as? Int
+    else { return nil }
+    let options = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceThumbnailMaxPixelSize: self.maxPixelLength(
+        width: width,
+        height: height,
+        maxPixelCount: maxPixelCount
+      ),
+      kCGImageSourceShouldCacheImmediately: true,
+    ] as CFDictionary
+    return CGImageSourceCreateThumbnailAtIndex(source, index, options)
   }
 
   static func orientation(_ orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
