@@ -40,7 +40,7 @@ docs/CONVENTIONS.md §5 의 표로 파일을 분류한다.
   (Client Interface + Fake → Feature Model + 테스트 → View·Example → Impl + 테스트 → App 연결).
 - 한 역할 안에서도 목적이 둘이면 나눈다 (요약에 "그리고"가 들어가면 분리).
 - 한 파일에 여러 목적이 섞여 있으면 억지로 쪼개지 말고 한 커밋에 두고 보고에 적는다.
-- 커밋이 서로 컴파일 의존이 있으면 (예: Feature 가 새 Interface 를 사용) 반드시 Interface 쪽을 먼저 커밋한다.
+- **의미 단위를 우선한다. 중간 커밋은 빌드가 깨져도 된다.** 중간 커밋을 빌드되게 맞추려고 여러 의미(예: Interface + Fake 와 Impl)를 한 커밋에 합치지 않는다. 커밋이 서로 의존하면 순서만 의존 방향(Interface 먼저)으로 둔다.
 
 ## 3. 커밋
 ```bash
@@ -101,7 +101,7 @@ feat: 보관함 변경 알림을 추가·삭제 증분으로 전달
 ```bash
 .claude/skills/micro-commit/verify-head.sh <base>   # base = 인자 "$ARGUMENTS", 비어 있으면 origin/main
 ```
-- 중간 커밋은 검사하지 않고 HEAD 만 한 번 검사한다 (프로젝트가 커질수록 커밋마다 빌드하면 너무 오래 걸린다). 그래서 중간 커밋이 깨지지 않게 하는 것은 "## 2" 의 의존 순서로 지킨다.
+- 중간 커밋은 검사하지 않고 HEAD 만 한 번 검사한다. 중간 커밋은 의미 단위로 나눠 빌드가 깨질 수 있으므로 검사 대상이 아니다 (CONVENTIONS §5).
 - `base...HEAD`(base 와 갈라진 지점 이후)에서 빌드에 영향이 있는 파일이 바뀌었으면 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 문서·하네스만 바뀌었으면 SKIP 이다 (timeout 20분).
 - **FAIL 이 나오면** 되돌리지 말고 원인을 보고한다. 커밋을 나눈 방식은 마지막 시점의 결과를 바꾸지 않으므로, 실패는 코드 자체의 문제다.
 
