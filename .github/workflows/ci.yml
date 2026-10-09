@@ -1,11 +1,11 @@
 name: CI
 
+# 문서·하네스만 바뀐 변경도 워크플로는 시작한다. 워크플로 단계의 paths-ignore 로 거르면 체크가 아예 생기지 않아
+# 필수 체크(ci-result)가 대기 상태로 남는다. 건너뛰기는 changes 잡이 판단한다.
 on:
   pull_request:
-    paths-ignore: ["**.md", "docs/**", ".claude/**"]
   push:
     branches: [main]
-    paths-ignore: ["**.md", "docs/**", ".claude/**"]
   # PR 없이 브랜치에서 CI 를 돌릴 때: gh workflow run CI --ref <브랜치>
   workflow_dispatch:
 
@@ -14,11 +14,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 바뀐 파일이 전부 문서·하네스(*.md, docs/**, .claude/**)면 code=false 로 lint·test 를 건너뛴다.
+  # 체크아웃 없이 API 로 파일 목록만 본다. 수동 실행이거나 목록 조회에 실패하면 code=true 로 검사한다.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          case "$EVENT" in
+            pull_request) files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename') || files="(조회 실패)" ;;
+            push) files=$(gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$AFTER" --jq '.files[].filename') || files="(조회 실패)" ;;
+            *) files="(수동 실행)" ;;
+          esac
+          echo "$files"
+          if grep -Evq '(\.md$|^docs/|^\.claude/)' <<<"$files"; then code=true; else code=false; fi
+          echo "code=$code" | tee -a "$GITHUB_OUTPUT"
+
   # 비공개 레포의 macOS 러너는 분당 10배 과금이라 lint 는 Ubuntu 컨테이너에서 먼저 돌린다.
   # 버전은 .mise.toml 과 맞춘다.
   # 위반은 Checks API 로 "lint 결과" 체크에 어노테이션으로 올려 PR 의 Files changed 에서 해당 줄에 전부 표시한다.
   # 판정은 SwiftFormat·SwiftLint 단계의 종료 코드가 한다.
   lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -64,7 +94,8 @@ jobs:
             lint 가 실패해 테스트를 돌리지 않았습니다. [실행 로그](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})에서 lint 오류를 확인하세요.
 
   test:
-    needs: lint
+    needs: [changes, lint]
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: macos-26
     timeout-minutes: 30
     permissions:
@@ -100,3 +131,19 @@ jobs:
           name: TestResults
           path: build/TestResults.xcresult
           retention-days: 7
+
+  # main 룰셋의 필수 체크는 이 잡 하나다. 잡 이름이 바뀌거나 잡이 늘어도 룰셋을 고치지 않게 결과를 여기로 모은다.
+  # 앞 잡이 하나라도 실패·취소되면 실패하고, 건너뛴 것(문서·하네스만 바뀐 변경)은 통과로 본다.
+  # always() 를 쓰는 이유: 취소된 run 에서 이 잡이 건너뛰어지면 필수 체크가 통과로 처리된다.
+  ci-result:
+    needs: [changes, lint, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "changes·lint·test: $RESULTS"
+          [[ " $RESULTS " != *" failure "* && " $RESULTS " != *" cancelled "* ]]
