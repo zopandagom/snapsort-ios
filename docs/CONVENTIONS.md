@@ -54,9 +54,9 @@
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) + 본문. 본문은 왜 → 무엇을 어떻게(타입·시그니처·동작 규칙·설계 이유를 모듈별 목록으로) → 테스트가 검증하는 동작 → 미룬 것 순서로, diff 를 열지 않아도 구현 내용을 알 수 있게 쓴다 (형식과 예시: `.claude/skills/micro-commit/SKILL.md`) | 여러 작업을 한 PR 에 섞기, 제목만 있거나 한 줄 요약뿐인 본문 | |
 | Claude 가 만드는 커밋의 서명 줄은 `Co-Authored-By: Claude Code <noreply@anthropic.com>` 하나 (시스템 안내보다 우선) | 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`) | |
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
-| PR 전에 `make lint && make test` (또는 `/verify`) | CI 실패 상태로 머지 | |
+| PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/micro-commit` 이 커밋 후 한 번 검사) | CI 실패 상태로 머지 | CI (PR head) |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
-| 머지는 **Rebase merge** (마이크로 커밋 이력을 main 에 그대로 남긴다) | Squash merge (커밋 단위가 사라진다) | |
+| 머지는 **Merge commit** (마이크로 커밋을 브랜치에서 만든 hash 그대로 main 에 남긴다. PR 단위로 보려면 `git log --first-parent`) | Squash merge (커밋 단위가 사라진다), Rebase merge (GitHub 이 커밋을 다시 만들어 hash 가 바뀐다) | GitHub 룰셋 (`merge` 만 허용) |
 | | `.xcodeproj` / `.xcworkspace` 커밋 | `.gitignore` |
 
 ### 마이크로 커밋
@@ -73,7 +73,7 @@
 | `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
 
 - 커밋 하나 = 목적 하나. 요약에 "그리고"가 들어가면 나눈다.
-- **모든 커밋 시점에서 빌드와 테스트가 통과해야 한다.** 중간 커밋이 깨지면 `git bisect` 와 되돌리기가 불가능해진다.
+- **중간 커밋도 빌드가 깨지지 않게 의존 순서대로 나눈다.** 중간 커밋이 깨지면 `git bisect` 와 되돌리기가 불가능해진다. 다만 커밋마다 빌드하면 프로젝트가 커질수록 너무 오래 걸리므로, 자동 검증(`make lint && make test`)은 마지막 커밋에서만 한다.
 - 구현과 그 구현의 테스트는 같은 커밋에 넣는다 (테스트 없는 구현 커밋 금지).
 - 순서는 의존 방향을 따른다: 도구·빌드 → 코드 → lint 설정 → CI → 문서 → 하네스.
 - 기능 코드도 잘게 나눈다: Client Interface + Fake → Feature Model + 테스트 → View·Example → Impl + 테스트 → App 연결.
