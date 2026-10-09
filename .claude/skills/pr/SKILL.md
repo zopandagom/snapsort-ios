@@ -7,7 +7,7 @@ argument-hint: "[draft]"
 # pr
 
 현재 대화에서 실행된다. PR 본문의 "왜"는 이 대화의 맥락과 커밋을 바탕으로 쓴다. 코드리뷰는 서브에이전트 스킬(/arch-review)에 맡긴다.
-빌드·테스트는 돌리지 않는다. /micro-commit 이 마지막 커밋에서 이미 검증했고, 빌드에 영향이 있는 변경은 PR 을 열면 CI 가 다시 검증한다 (문서·하네스만 바뀐 PR 은 `ci.yml` 의 `paths-ignore` 로 CI 가 돌지 않는다).
+빌드·테스트는 돌리지 않는다. /micro-commit 이 마지막 커밋에서 이미 검증했고, 빌드에 영향이 있는 변경은 PR 을 열면 CI 가 다시 검증한다 (문서·하네스만 바뀐 PR 은 `ci.yml` 의 `changes` 잡이 lint·test 를 건너뛴다).
 
 인자: `$ARGUMENTS` — `draft` 가 있으면 초안 PR 로 만든다.
 
