@@ -69,9 +69,11 @@ public extension Project {
   /// Feature 모듈: Feature(Model + View) / Tests / Example(Fake 로 단독 실행되는 데모 앱).
   /// - Parameters:
   ///   - clients: Feature 가 사용하는 Client. Feature 에는 Interface 가, Tests·Example 에는 Testing 이 연결된다.
+  ///   - shared: Feature 가 사용하는 Shared 모듈.
   static func feature(
     _ feature: Feature,
-    clients: [Client] = []
+    clients: [Client] = [],
+    shared: [Shared] = []
   ) -> Project {
     let testing = clients.map { TargetDependency.client(testing: $0) }
     return Project(
@@ -81,7 +83,7 @@ public extension Project {
         .module(
           name: feature.name,
           sources: "Sources",
-          dependencies: clients.map { .client(interface: $0) }
+          dependencies: clients.map { .client(interface: $0) } + shared.map { .shared($0) }
         ),
         .tests(name: feature.tests, dependencies: [.target(name: feature.name)] + testing),
         .target(
@@ -94,6 +96,18 @@ public extension Project {
           sources: ["Example/**"],
           dependencies: [.target(name: feature.name)] + testing
         ),
+      ]
+    )
+  }
+
+  /// Shared 모듈: 모듈 / Tests. 다른 모듈에 의존하지 않는다.
+  static func shared(_ shared: Shared) -> Project {
+    Project(
+      name: shared.name,
+      settings: .settings(base: Env.baseSettings),
+      targets: [
+        .module(name: shared.name, sources: "Sources", dependencies: []),
+        .tests(name: shared.tests, dependencies: [.target(name: shared.name)]),
       ]
     )
   }
