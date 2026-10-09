@@ -11,7 +11,7 @@ enum ImageLoader {
   /// 분류용 썸네일의 긴 변(픽셀). 임시 값이고, 정확도·1만 장 측정 작업에서 확정한다.
   static let thumbnailLength: CGFloat = 512
 
-  /// PhotoKit 이 캐시해 둔 썸네일을 쓰므로 원본을 디코딩하지 않는다. `.highQualityFormat` 이라 결과는 한 번만 온다.
+  /// 맞는 크기의 캐시가 있으면 PhotoKit 이 그것을 쓰고, 없으면 원본에서 줄일 수 있다. `.highQualityFormat` 이라 결과는 한 번만 온다.
   static func thumbnail(of asset: PHAsset) async throws(ImageLoadError) -> AnalysisImage {
     let targetSize = CGSize(width: self.thumbnailLength, height: self.thumbnailLength)
     return try await self.fallingBackWhenInCloud {
@@ -22,7 +22,8 @@ enum ImageLoader {
     }
   }
 
-  /// 원본 데이터가 기기에 있으면 그것을 디코딩한다. 원본이 iCloud 에만 있으면 기기에 남은 가장 큰 버전으로 대신한다.
+  /// 원본 데이터가 기기에 있으면 그것을 디코딩한다. 원본이 iCloud 에만 있으면 기기에서 바로 줄 수 있는 버전으로 대신한다.
+  /// `.fastFormat` 이라 기기에 더 큰 버전이 있어도 작은 버전이 올 수 있다.
   static func largestAvailable(of asset: PHAsset) async throws(ImageLoadError) -> AnalysisImage {
     try await self.fallingBackWhenInCloud { () async throws(ImageLoadError) -> AnalysisImage in
       let (data, orientation) = try await self.requestImageData(of: asset)
