@@ -21,8 +21,13 @@ model: sonnet
 ```bash
 git branch --show-current
 git status --short
+git diff --cached --name-status -M   # 비어 있거나 모두 R100 이어야 한다 (아래)
 git diff --stat; git diff            # 새 파일은 Read 로 내용 확인
 ```
+- `git diff --cached --name-status -M` 출력으로 판단한다.
+  - 비어 있으면 그대로 진행한다.
+  - 모든 줄이 `R100`(내용 그대로의 이동. `git mv` 가 이름 변경을 곧바로 스테이징해서 생긴다)이면, 그 인덱스를 **맨 앞 커밋**으로 계획에 넣는다. 이동 커밋은 하나로 만들고, type 은 2단계 표에서 새 경로로 정한다(`Projects/**` 면 `refactor`. 여럿이면 2단계 순서에서 가장 앞의 type). `git add` 없이 바로 `git commit` 한다. 옮긴 뒤의 수정은 `git diff` 에 나오므로 이후 커밋에서 평소처럼 나눈다.
+  - 그 밖의 줄이 하나라도 있으면 아무것도 커밋하지 말고 "스테이지된 변경이 있음 (그 출력)"을 보고하고 멈춘다. 그대로 시작하면 그 내용이 계획에 나오지 않은 채 첫 커밋에 섞인다.
 
 ## 2. 역할별로 묶고 순서 정하기
 docs/CONVENTIONS.md §5 의 표로 파일을 분류한다.
