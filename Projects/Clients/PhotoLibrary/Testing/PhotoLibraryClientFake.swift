@@ -1,3 +1,4 @@
+import Core
 import PhotoLibraryInterface
 import Synchronization
 
@@ -6,12 +7,12 @@ import Synchronization
 /// 변경 알림은 실제처럼 구독마다 새 스트림을 만들고, 구독 중인 스트림에만 보낸다 (구독 전 변경은 버린다).
 public final class PhotoLibraryClientFake: PhotoLibraryClient {
   public let stateAfterRequest: PhotoAccessState
-  private let imageIdentifiersAfterPicker: [String]?
+  private let imageAssetsAfterPicker: [ImageAsset]?
   private let state: Mutex<State>
 
   private struct State {
     var accessState: PhotoAccessState
-    var imageIdentifiers: [String]
+    var imageAssets: [ImageAsset]
     var limitedPickerPresentCount = 0
     var nextSubscriptionID = 0
     var subscriptions: [Int: AsyncStream<Void>.Continuation] = [:]
@@ -19,16 +20,16 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   }
 
   /// `requestAccess()` 뒤에는 `accessState()` 도 `stateAfterRequest` 를 돌려준다.
-  /// `imageIdentifiersAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 변경 알림을 보낸다.
+  /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 변경 알림을 보낸다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
-    imageIdentifiers: [String] = [],
-    imageIdentifiersAfterPicker: [String]? = nil
+    imageAssets: [ImageAsset] = [],
+    imageAssetsAfterPicker: [ImageAsset]? = nil
   ) {
     self.stateAfterRequest = stateAfterRequest
-    self.imageIdentifiersAfterPicker = imageIdentifiersAfterPicker
-    self.state = Mutex(State(accessState: currentState, imageIdentifiers: imageIdentifiers))
+    self.imageAssetsAfterPicker = imageAssetsAfterPicker
+    self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
   }
 
   /// 제한 접근 선택 화면을 띄운 횟수.
@@ -52,8 +53,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     }
   }
 
-  public func fetchImageIdentifiers() async -> [String] {
-    self.state.withLock { $0.imageIdentifiers }
+  public func fetchImageAssets() async -> [ImageAsset] {
+    self.state.withLock { $0.imageAssets }
   }
 
   @MainActor
@@ -61,8 +62,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     self.state.withLock { state in
       state.limitedPickerPresentCount += 1
     }
-    if let identifiers = self.imageIdentifiersAfterPicker {
-      self.sendImageChange(imageIdentifiers: identifiers)
+    if let assets = self.imageAssetsAfterPicker {
+      self.sendImageChange(imageAssets: assets)
     }
   }
 
@@ -88,9 +89,9 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   // MARK: - 변경 흉내
 
   /// 보관함이 바뀐 것처럼 조회 결과(와 권한 상태)를 바꾸고 변경 알림을 보낸다.
-  public func sendImageChange(imageIdentifiers: [String], accessState: PhotoAccessState? = nil) {
+  public func sendImageChange(imageAssets: [ImageAsset], accessState: PhotoAccessState? = nil) {
     let subscriptions = self.state.withLock { state in
-      state.imageIdentifiers = imageIdentifiers
+      state.imageAssets = imageAssets
       if let accessState {
         state.accessState = accessState
       }

@@ -42,6 +42,6 @@ public final class LibraryModel {
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
   private func reloadImages() async {
     self.isLimited = self.photoLibrary.accessState() == .limited
-    self.imageCount = await self.photoLibrary.fetchImageIdentifiers().count
+    self.imageCount = await self.photoLibrary.fetchImageAssets().count
   }
 }

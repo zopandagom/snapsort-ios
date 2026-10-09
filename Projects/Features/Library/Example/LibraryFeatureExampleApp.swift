@@ -17,14 +17,14 @@ struct LibraryFeatureExampleApp: App {
 extension PhotoLibraryClientFake {
   static let previewAuthorized = PhotoLibraryClientFake(
     currentState: .authorized,
-    imageIdentifiers: (0 ..< 128).map { "image-\($0)" }
+    imageAssets: .stubs(count: 128)
   )
 
   /// "사진 더 선택"을 누르면 고른 사진이 늘어난 것처럼 보이게 한다.
   static let previewLimited = PhotoLibraryClientFake(
     currentState: .limited,
-    imageIdentifiers: (0 ..< 12).map { "image-\($0)" },
-    imageIdentifiersAfterPicker: (0 ..< 30).map { "image-\($0)" }
+    imageAssets: .stubs(count: 12),
+    imageAssetsAfterPicker: .stubs(count: 30)
   )
 }
 
