@@ -11,7 +11,7 @@ struct LibraryModelTests {
   func onAppearLoadsCount(count: Int) async {
     let photoLibrary = PhotoLibraryClientFake(
       currentState: .authorized,
-      imageIdentifiers: (0 ..< count).map { "image-\($0)" }
+      imageAssets: .stubs(count: count)
     )
     let model = LibraryModel(photoLibrary: photoLibrary)
     photoLibrary.finishImageChanges()
@@ -50,12 +50,12 @@ struct LibraryModelTests {
 
   @Test("보관함이 바뀌면 이미지 수를 다시 불러온다")
   func imageChangeReloadsCount() async {
-    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageIdentifiers: ["image-0"])
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 1))
     let model = LibraryModel(photoLibrary: photoLibrary)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
-    photoLibrary.sendImageChange(imageIdentifiers: ["image-0", "image-1"])
+    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2))
     photoLibrary.finishImageChanges()
     await appear.value
 
@@ -64,12 +64,12 @@ struct LibraryModelTests {
 
   @Test("보관함 변경과 함께 제한 접근이 풀리면 배너를 내린다")
   func imageChangeRereadsLimitedAccess() async {
-    let photoLibrary = PhotoLibraryClientFake(currentState: .limited, imageIdentifiers: ["image-0"])
+    let photoLibrary = PhotoLibraryClientFake(currentState: .limited, imageAssets: .stubs(count: 1))
     let model = LibraryModel(photoLibrary: photoLibrary)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
-    photoLibrary.sendImageChange(imageIdentifiers: ["image-0", "image-1"], accessState: .authorized)
+    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2), accessState: .authorized)
     photoLibrary.finishImageChanges()
     await appear.value
 
@@ -91,7 +91,7 @@ struct LibraryModelTests {
 
   @Test("화면에 다시 들어오면 변경을 다시 구독한다")
   func reappearResubscribes() async {
-    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageIdentifiers: ["image-0"])
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 1))
     let model = LibraryModel(photoLibrary: photoLibrary)
     let firstAppear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 }
@@ -99,10 +99,10 @@ struct LibraryModelTests {
     await firstAppear.value
 
     // 화면 밖에 있는 동안 바뀐 보관함은 다시 진입할 때 처음 불러오기로 읽는다.
-    photoLibrary.sendImageChange(imageIdentifiers: ["image-0", "image-1"])
+    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2))
     let secondAppear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 2 }
-    photoLibrary.sendImageChange(imageIdentifiers: ["image-0", "image-1", "image-2"])
+    photoLibrary.sendImageChange(imageAssets: .stubs(count: 3))
     photoLibrary.finishImageChanges()
     await secondAppear.value
 
@@ -113,8 +113,8 @@ struct LibraryModelTests {
   func selectMorePhotosReloadsCount() async {
     let photoLibrary = PhotoLibraryClientFake(
       currentState: .limited,
-      imageIdentifiers: ["image-0"],
-      imageIdentifiersAfterPicker: ["image-0", "image-1", "image-2"]
+      imageAssets: .stubs(count: 1),
+      imageAssetsAfterPicker: .stubs(count: 3)
     )
     let model = LibraryModel(photoLibrary: photoLibrary)
     let appear = Task { await model.onAppear() }
