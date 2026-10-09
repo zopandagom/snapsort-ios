@@ -24,7 +24,7 @@
 | Model 은 `@MainActor @Observable final class` | `ObservableObject` / `@Published` (구 방식) |
 | Client 프로토콜은 `Sendable`, 입출력도 `Sendable` 값 타입 | `@unchecked Sendable`, `nonisolated(unsafe)` 로 경고 숨기기 (불가피하면 이유를 주석으로) |
 | 무거운 동기 작업(PhotoKit 조회, OCR)은 Impl 에서 `@concurrent` 로 메인 밖에서 | Model 에서 `Task.detached` 로 우회 |
-| 에러는 Interface 에 도메인 에러 타입으로 정의해 던진다 | Feature 에 `PHPhotosError`, `VNError` 같은 프레임워크 에러가 새어 나오기 |
+| 에러는 Interface 에 도메인 에러 타입으로 정의해 던진다 | Feature 에 `PHPhotosError`, `VisionError` 같은 프레임워크 에러가 새어 나오기 |
 | 강제 언래핑 대신 `guard let` / 기본값 | `!`, `try!` (테스트 제외) |
 | 명시적 `self.` (SwiftFormat 이 자동 삽입) | |
 

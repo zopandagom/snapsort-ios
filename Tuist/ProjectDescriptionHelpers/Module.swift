@@ -7,6 +7,7 @@ import ProjectDescription
 /// 각 Client 는 Interface / Impl / Testing / Tests 네 타깃으로 나뉜다.
 public enum Client: String, CaseIterable {
   case photoLibrary = "PhotoLibrary"
+  case imageAnalysis = "ImageAnalysis"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }
