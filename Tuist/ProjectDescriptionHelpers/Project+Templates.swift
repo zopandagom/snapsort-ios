@@ -6,11 +6,15 @@ public enum Env {
   public static let destinations: Destinations = [.iPhone]
   /// Foundation Models 가 동작하는 최소 버전.
   public static let deploymentTargets: DeploymentTargets = .iOS("26.0")
+  /// Apple Developer Program 팀. 실기기 빌드는 Xcode 자동 서명으로 프로비저닝한다.
+  static let developmentTeam = "XHV4ZL5K8T"
 
   static let baseSettings: SettingsDictionary = [
     "SWIFT_VERSION": "6.0",
     "SWIFT_STRICT_CONCURRENCY": "complete",
     "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
+    "CODE_SIGN_STYLE": "Automatic",
+    "DEVELOPMENT_TEAM": .string(Self.developmentTeam),
   ]
 
   static func bundleId(_ name: String) -> String {
