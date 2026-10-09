@@ -14,6 +14,7 @@
 | Feature 끼리 필요한 공유는 Client 나 Shared(Core) 로 | Feature 가 다른 Feature 에 의존 | 템플릿 |
 | Shared 는 Client 와 Apple 데이터 프레임워크 없이 | Shared 에서 Client 모듈이나 Apple 데이터 프레임워크 import | `shared_independent_of_clients`, `system_framework_only_in_impl` |
 | 좌표는 Core `Coordinate` 로 넘긴다 | Shared·Interface·Testing 에서 `import CoreLocation`, `import MapKit` | `location_map_only_outside_shared_interface` |
+| 화면 코드는 Feature·DesignSystem 에 둔다 | Core 에서 `import SwiftUI`, `import UIKit` | `core_no_ui_framework` |
 | Apple 데이터 프레임워크와 CoreLocation·MapKit 밖의 부수효과 없는 iOS 프레임워크(CoreGraphics·ImageIO 등)는 Core 를 포함한 모든 레이어에서 쓴다 | 의존 규칙을 지키려고 변환·재인코딩 같은 실행 비용을 들이기 | |
 | 새 모듈은 `Module.swift` 의 enum 과 `Project.client/feature/shared` 템플릿으로 | 매니페스트에서 `Target` 을 직접 만들거나 빌드 설정을 덮어쓰기 | |
 
