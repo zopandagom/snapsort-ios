@@ -37,35 +37,35 @@ custom_rules:
   impl_import_only_in_app:
     name: "Impl 은 App 에서만 import"
     included: "Projects/(Features|Clients/[^/]+/(Interface|Testing))/"
-    regex: "^\\s*import\\s+\\w+Impl\\s*$"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+Impl(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "Client Impl 은 App 모듈에서만 import 합니다. Feature 는 Interface 에 의존하세요."
     severity: error
 
   testing_import_not_in_production:
     name: "Testing 모듈은 테스트/Example 에서만"
     included: "Projects/(App/Sources|Features/[^/]+/Sources|Clients/[^/]+/(Interface|Impl))/"
-    regex: "^\\s*import\\s+\\w+Testing\\s*$"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+Testing(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "Fake 가 든 Testing 모듈은 Tests 와 Example 타깃에서만 import 합니다."
     severity: error
 
   system_framework_only_in_impl:
     name: "Apple 데이터 프레임워크는 Client Impl 에서만"
     included: "Projects/(App|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
-    regex: "^\\s*import\\s+(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)\\s*$"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "사진·OCR·AI·저장소·결제·알림 프레임워크는 Client Impl 안에서만 사용합니다. Interface 나 Core 에 값 타입을 정의하세요."
     severity: error
 
   shared_independent_of_clients:
     name: "Shared 는 Client 에 의존하지 않음"
     included: "Projects/Shared/[^/]+/Sources/"
-    regex: "^\\s*import\\s+\\w+(Interface|Impl|Testing)\\s*$"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+(Interface|Impl|Testing)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "Shared 모듈은 여러 모듈이 함께 쓰는 순수 코드입니다. Client 가 Shared 에 의존하고, 그 반대는 하지 않습니다."
     severity: error
 
   core_foundation_only:
     name: "Core 는 Foundation 만"
     included: "Projects/Shared/Core/Sources/"
-    regex: "^\\s*import\\s+(?!Foundation\\s*$)\\w+"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+(?!((typealias|struct|class|enum|protocol|let|var|func)\\s+)?Foundation(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$)\\w+"
     message: "Core 는 모든 모듈이 쓰는 도메인 값 타입·규칙입니다. Foundation 외 프레임워크(SwiftUI, CoreLocation, MapKit 등)가 필요하면 Client Impl 이나 Feature 에 둡니다."
     severity: error
 
