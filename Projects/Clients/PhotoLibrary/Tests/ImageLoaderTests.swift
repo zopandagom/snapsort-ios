@@ -84,7 +84,22 @@ struct ImageLoaderTests {
     #expect(fallbackCount == 1)
   }
 
-  @Test("iCloud 가 아닌 실패와 성공에는 대체 요청을 하지 않는다", arguments: [ImageLoadError.cancelled, .failed, .notFound])
+  @Test("원하는 품질을 읽으면 대체 요청을 하지 않는다")
+  func doesNotFallBackOnSuccess() async throws {
+    var fallbackCount = 0
+
+    let image = try await ImageLoader.fallingBackWhenInCloud { () async throws(ImageLoadError) -> AnalysisImage in
+      .stub(width: 4, height: 4)
+    } to: { () async throws(ImageLoadError) -> AnalysisImage in
+      fallbackCount += 1
+      return .stub(width: 2, height: 2)
+    }
+
+    #expect(image.cgImage.width == 4)
+    #expect(fallbackCount == 0)
+  }
+
+  @Test("iCloud 가 아닌 실패에는 대체 요청을 하지 않는다", arguments: [ImageLoadError.cancelled, .failed, .notFound])
   func doesNotFallBackForOtherErrors(error: ImageLoadError) async {
     var fallbackCount = 0
 
