@@ -1,6 +1,6 @@
 ---
 name: micro-commit
-description: 커밋되지 않은 SnapSort 변경을 docs/CONVENTIONS.md §5 의 역할(build / feat·fix·refactor / test / style / ci / docs / chore)별 마이크로 커밋으로 나누고, 각 커밋 시점이 빌드·테스트를 통과하는지 임시 worktree 에서 검증한다. 사용자가 "커밋", "커밋 나눠", /micro-commit 을 명시적으로 지시할 때만 사용한다. 인자로 검증 기준(기본 origin/main)을 줄 수 있다.
+description: 커밋되지 않은 SnapSort 변경을 docs/CONVENTIONS.md §5 의 역할(build / feat·fix·refactor / test / style / ci / docs / chore)별 마이크로 커밋으로 나누고, 마지막 커밋 시점이 빌드·테스트를 통과하는지 한 번 검증한다. 사용자가 "커밋", "커밋 나눠", /micro-commit 을 명시적으로 지시할 때만 사용한다. 인자로 검증 기준(기본 origin/main)을 줄 수 있다.
 argument-hint: "[base-ref]"
 context: fork
 agent: general-purpose
@@ -97,20 +97,22 @@ feat: 보관함 변경 알림을 추가·삭제 증분으로 전달
 
 모든 변경이 커밋될 때까지 반복한 뒤 `git status --short` 가 비었는지 확인한다.
 
-## 4. 커밋별 검증
+## 4. 마지막 커밋 검증
 ```bash
-.claude/skills/micro-commit/verify-commits.sh <base>   # base = 인자 "$ARGUMENTS", 비어 있으면 origin/main
+.claude/skills/micro-commit/verify-head.sh <base>   # base = 인자 "$ARGUMENTS", 비어 있으면 origin/main
 ```
-- 빌드에 영향이 있는 커밋은 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 커밋당 1분 안팎이 걸린다 (timeout 20분).
-- **FAIL 이 나오면**: 원인이 커밋 순서·묶음이면, 이번에 만든 커밋만 `git reset --soft <이번 작업 시작 커밋>` 으로 되돌려 다시 나누고 재검증한다 (최대 2회). 코드 자체의 문제면 되돌리지 말고 보고한다.
+- 중간 커밋은 검사하지 않고 HEAD 만 한 번 검사한다 (프로젝트가 커질수록 커밋마다 빌드하면 너무 오래 걸린다). 그래서 중간 커밋이 깨지지 않게 하는 것은 "## 2" 의 의존 순서로 지킨다.
+- `base..HEAD` 에서 빌드에 영향이 있는 파일이 바뀌었으면 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 문서·하네스만 바뀌었으면 SKIP 이다 (timeout 20분).
+- **FAIL 이 나오면** 되돌리지 말고 원인을 보고한다. 커밋을 나눈 방식은 마지막 시점의 결과를 바꾸지 않으므로, 실패는 코드 자체의 문제다.
 
 ## 5. 보고 형식
 ```
-| 결과 | 커밋 | 파일 |
-|---|---|---|
-| PASS | abc1234 feat: … | 3 |
-| SKIP | def5678 docs: … | 1 |
+| 커밋 | 파일 |
+|---|---|
+| abc1234 feat: … | 3 |
+| def5678 docs: … | 1 |
 
+마지막 커밋 검증: PASS (make lint, make test) | SKIP | FAIL (원인)
 미커밋 변경: 없음
-참고: <한 파일에 목적이 섞인 경우, 재분할 여부, FAIL 원인 등>
+참고: <한 파일에 목적이 섞인 경우, FAIL 원인 등>
 ```
