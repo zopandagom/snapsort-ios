@@ -137,7 +137,7 @@ flowchart TD
    ```swift
    let project = Project.shared(.core)
    ```
-3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.core])`, Client 는 `interfaceDependencies: [.shared(.core)]`, App 은 `dependencies` 에 `.shared(.core)`.
+3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.core])`, Client 는 `Project.client(_, shared: [.core])`, App 은 `dependencies` 에 `.shared(.core)`.
    DesignSystem 같은 공용 UI 모듈은 Feature 와 App 에서만 쓴다 (Interface 는 프로토콜과 값 타입만).
 
 ### Feature 추가 (예: Onboarding)
