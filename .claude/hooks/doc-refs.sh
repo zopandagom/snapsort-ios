@@ -20,7 +20,7 @@ name=$(basename "$rel")
 terms=("$rel")
 case "$name" in
   SKILL.md) terms+=("\`/$(basename "$(dirname "$rel")")") ;;
-  README.md | Project.swift | Package.swift) ;;
+  README.md | Project.swift | Package.swift | Tuist.swift | Workspace.swift | Module.swift) ;;
   *.swift) terms+=("${name%.swift}") ;;
   *) terms+=("$name") ;;
 esac
