@@ -33,8 +33,7 @@ public extension Project {
           bundleId: Env.bundleIdPrefix,
           deploymentTargets: Env.deploymentTargets,
           infoPlist: .extendingDefault(with: infoPlist.merging(["UILaunchScreen": [:]]) { $1 }),
-          sources: ["Sources/**"],
-          resources: ["Resources/**"],
+          buildableFolders: ["Sources", "Resources"],
           dependencies: dependencies
         ),
       ]
@@ -102,7 +101,7 @@ public extension Project {
           bundleId: Env.bundleId(feature.example),
           deploymentTargets: Env.deploymentTargets,
           infoPlist: .extendingDefault(with: ["UILaunchScreen": [:]]),
-          sources: ["Example/**"],
+          buildableFolders: ["Example"],
           dependencies: [.target(name: feature.name)] + testing + shared
         ),
       ]
@@ -130,7 +129,7 @@ extension Target {
       product: .staticFramework,
       bundleId: Env.bundleId(name),
       deploymentTargets: Env.deploymentTargets,
-      sources: ["\(sources)/**"],
+      buildableFolders: [.folder(.relativeToManifest(sources))],
       dependencies: dependencies
     )
   }
@@ -142,7 +141,7 @@ extension Target {
       product: .unitTests,
       bundleId: Env.bundleId(name),
       deploymentTargets: Env.deploymentTargets,
-      sources: ["Tests/**"],
+      buildableFolders: ["Tests"],
       dependencies: dependencies
     )
   }
