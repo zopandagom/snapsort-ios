@@ -27,6 +27,16 @@ public enum Feature: String, CaseIterable {
   var path: Path { .relativeToRoot("Projects/Features/\(self.rawValue)") }
 }
 
+/// 여러 모듈이 함께 쓰는 공용 모듈 (도메인 값 타입, 공용 UI). Apple 데이터 프레임워크와 Client 에 의존하지 않는다.
+/// 각 Shared 모듈은 모듈 / Tests 두 타깃으로 나뉜다.
+public enum Shared: String, CaseIterable {
+  case core = "Core"
+
+  public var name: String { self.rawValue }
+  public var tests: String { "\(self.rawValue)Tests" }
+  var path: Path { .relativeToRoot("Projects/Shared/\(self.rawValue)") }
+}
+
 public extension TargetDependency {
   static func client(interface client: Client) -> TargetDependency {
     .project(target: client.interface, path: client.path)
@@ -40,6 +50,10 @@ public extension TargetDependency {
   /// Testing 은 테스트 타깃과 Example 앱만 의존한다.
   static func client(testing client: Client) -> TargetDependency {
     .project(target: client.testing, path: client.path)
+  }
+
+  static func shared(_ shared: Shared) -> TargetDependency {
+    .project(target: shared.name, path: shared.path)
   }
 
   static func feature(_ feature: Feature) -> TargetDependency {
