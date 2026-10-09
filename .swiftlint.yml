@@ -62,11 +62,11 @@ custom_rules:
     message: "Shared 모듈은 여러 모듈이 함께 쓰는 순수 코드입니다. Client 가 Shared 에 의존하고, 그 반대는 하지 않습니다."
     severity: error
 
-  core_foundation_only:
-    name: "Core 는 Foundation 만"
-    included: "Projects/Shared/Core/Sources/"
-    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+(?!((typealias|struct|class|enum|protocol|let|var|func)\\s+)?Foundation(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$)\\w+"
-    message: "Core 는 모든 모듈이 쓰는 도메인 값 타입·규칙입니다. Foundation 외 프레임워크(SwiftUI, CoreLocation, MapKit 등)가 필요하면 Client Impl 이나 Feature 에 둡니다."
+  location_map_only_outside_shared_interface:
+    name: "CoreLocation·MapKit 은 Shared·Interface·Testing 밖에서"
+    included: "Projects/(Shared/[^/]+/Sources|Clients/[^/]+/(Interface|Testing))/"
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(CoreLocation|MapKit)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
+    message: "좌표는 Core 의 Coordinate 로 넘깁니다. 지오코딩·지도 앱 열기는 Client Impl, Map 렌더링은 Feature View 에서 합니다 (docs/ARCHITECTURE.md §4)."
     severity: error
 
   no_two_way_model_binding:
