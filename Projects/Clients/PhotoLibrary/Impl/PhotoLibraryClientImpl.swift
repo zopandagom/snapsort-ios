@@ -33,6 +33,18 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
     return assets
   }
 
+  /// 식별자 조회와 디코딩이 메인 스레드를 막지 않도록 메인 밖에서 실행한다.
+  @concurrent
+  public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {
+    guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else {
+      throw .notFound
+    }
+    switch size {
+    case .thumbnail: return try await ImageLoader.thumbnail(of: asset)
+    case .largestAvailable: return try await ImageLoader.largestAvailable(of: asset)
+    }
+  }
+
   /// 시스템 선택 화면은 UIKit 화면 위에 띄워야 하므로, 활성 창에서 가장 위에 떠 있는 화면을 찾아 그 위에 띄운다.
   /// 고른 식별자는 Interface 계약대로 버린다. 고른 사진이 바뀌면 PhotoKit 변경 알림으로 전달된다.
   @MainActor
