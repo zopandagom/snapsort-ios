@@ -43,9 +43,10 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
 
   /// 비교 기준 조회와 등록은 보관함 크기에 따라 비용이 있으므로 메인 스레드 밖에서 실행한다.
   /// 관찰 객체는 스트림이 끝날 때(onTermination) 등록을 해제하므로, 그때까지 이 클로저가 붙잡아 둔다.
+  /// 증분 변경은 하나라도 버리면 받는 쪽 결과가 틀어지므로 버퍼를 제한하지 않는다 (보관함 변경은 드물다).
   @concurrent
-  public func imageChanges() async -> AsyncStream<Void> {
-    let (stream, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+  public func imageChanges() async -> AsyncStream<ImageChange> {
+    let (stream, continuation) = AsyncStream.makeStream(of: ImageChange.self, bufferingPolicy: .unbounded)
     let observer = ImageChangeObserver(continuation: continuation)
     PHPhotoLibrary.shared().register(observer)
     continuation.onTermination = { _ in

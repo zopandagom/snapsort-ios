@@ -17,10 +17,10 @@ public protocol PhotoLibraryClient: Sendable {
   @MainActor
   func presentLimitedLibraryPicker() async
 
-  /// 이미지가 추가·삭제될 때마다 값을 보낸다 (촬영·삭제, 제한 접근 선택 목록 변경 등). 즐겨찾기·편집 같은 내용 변경은 보내지 않는다.
-  /// 무엇이 바뀌었는지는 주지 않으므로 호출한 쪽이 `fetchImageAssets()` 로 다시 조회한다.
+  /// 이미지가 추가·삭제될 때마다 무엇이 바뀌었는지 보낸다 (촬영·삭제, 제한 접근 선택 목록 변경 등). 즐겨찾기·편집 같은 내용 변경은 보내지 않는다.
+  /// 받는 쪽은 차이만 반영하고, `.reloadAll` 일 때만 `fetchImageAssets()` 로 전체를 다시 조회한다.
   /// 돌려받은 시점부터 관찰하므로, 처음 조회 전에 받아 두면 그 사이 변경도 놓치지 않는다.
-  /// 연달아 온 변경은 하나로 합쳐지고, 구독한 Task 가 취소되면 관찰도 끝난다.
-  /// 분류 결과를 저장하게 되면 추가·삭제된 식별자를 보내는 증분 방식으로 바꾼다 (전체 다시 조회는 보관함 크기에 비례).
-  func imageChanges() async -> AsyncStream<Void>
+  /// 대신 처음 조회 결과와 겹치는 변경이 올 수 있으므로 받는 쪽은 같은 변경을 두 번 반영해도 결과가 같게 만든다 (식별자 집합 등).
+  /// 변경은 버리지 않고 순서대로 쌓이며, 구독한 Task 가 취소되면 관찰도 끝난다.
+  func imageChanges() async -> AsyncStream<ImageChange>
 }

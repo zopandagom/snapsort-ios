@@ -48,18 +48,48 @@ struct LibraryModelTests {
     #expect(model.isLimited)
   }
 
-  @Test("보관함이 바뀌면 이미지 수를 다시 불러온다")
-  func imageChangeReloadsCount() async {
+  @Test("이미지가 추가·삭제되면 바뀐 만큼만 이미지 수에 반영한다")
+  func incrementalChangeUpdatesCount() async {
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 3))
+    let model = LibraryModel(photoLibrary: photoLibrary)
+    let appear = Task { await model.onAppear() }
+    await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 3 }
+
+    photoLibrary.sendIncrementalChange(inserted: [.stub(id: "new-0"), .stub(id: "new-1")])
+    photoLibrary.sendIncrementalChange(removed: ["image-0"])
+    photoLibrary.finishImageChanges()
+    await appear.value
+
+    #expect(model.imageCount == 4)
+  }
+
+  @Test("처음 불러온 결과와 겹치는 변경은 두 번 반영하지 않는다")
+  func overlappingChangeIsIdempotent() async {
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 2))
+    let model = LibraryModel(photoLibrary: photoLibrary)
+    let appear = Task { await model.onAppear() }
+    await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 2 }
+
+    // 이미 있는 이미지의 추가와 없는 이미지의 삭제는 구독 직후 처음 불러오기와 겹친 변경이다.
+    photoLibrary.sendIncrementalChange(inserted: [.stub(id: "image-0")], removed: ["missing"])
+    photoLibrary.finishImageChanges()
+    await appear.value
+
+    #expect(model.imageCount == 2)
+  }
+
+  @Test("무엇이 바뀌었는지 모르는 변경이 오면 전체를 다시 불러온다")
+  func reloadAllReloadsCount() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 1))
     let model = LibraryModel(photoLibrary: photoLibrary)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
-    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2))
+    photoLibrary.sendReloadAll(imageAssets: .stubs(count: 5))
     photoLibrary.finishImageChanges()
     await appear.value
 
-    #expect(model.imageCount == 2)
+    #expect(model.imageCount == 5)
   }
 
   @Test("보관함 변경과 함께 제한 접근이 풀리면 배너를 내린다")
@@ -69,7 +99,21 @@ struct LibraryModelTests {
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
-    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2), accessState: .authorized)
+    photoLibrary.sendReloadAll(imageAssets: .stubs(count: 2), accessState: .authorized)
+    photoLibrary.finishImageChanges()
+    await appear.value
+
+    #expect(!model.isLimited)
+  }
+
+  @Test("증분 변경과 함께 제한 접근이 풀려도 배너를 내린다")
+  func incrementalChangeRereadsLimitedAccess() async {
+    let photoLibrary = PhotoLibraryClientFake(currentState: .limited, imageAssets: .stubs(count: 1))
+    let model = LibraryModel(photoLibrary: photoLibrary)
+    let appear = Task { await model.onAppear() }
+    await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
+
+    photoLibrary.sendIncrementalChange(inserted: [.stub(id: "new-0")], accessState: .authorized)
     photoLibrary.finishImageChanges()
     await appear.value
 
@@ -99,17 +143,17 @@ struct LibraryModelTests {
     await firstAppear.value
 
     // 화면 밖에 있는 동안 바뀐 보관함은 다시 진입할 때 처음 불러오기로 읽는다.
-    photoLibrary.sendImageChange(imageAssets: .stubs(count: 2))
+    photoLibrary.sendIncrementalChange(inserted: [.stub(id: "new-0")])
     let secondAppear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 2 }
-    photoLibrary.sendImageChange(imageAssets: .stubs(count: 3))
+    photoLibrary.sendIncrementalChange(inserted: [.stub(id: "new-1")])
     photoLibrary.finishImageChanges()
     await secondAppear.value
 
     #expect(model.imageCount == 3)
   }
 
-  @Test("사진 더 선택을 누르면 선택 화면을 띄우고, 고른 사진이 바뀐 알림으로 이미지 수를 다시 불러온다")
+  @Test("사진 더 선택을 누르면 선택 화면을 띄우고, 고른 사진이 바뀐 알림으로 이미지 수를 갱신한다")
   func selectMorePhotosReloadsCount() async {
     let photoLibrary = PhotoLibraryClientFake(
       currentState: .limited,

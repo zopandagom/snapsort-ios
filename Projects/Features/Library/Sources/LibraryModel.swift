@@ -1,3 +1,4 @@
+import Core
 import Observation
 import PhotoLibraryInterface
 
@@ -11,6 +12,11 @@ public final class LibraryModel {
   /// 사용자가 고른 사진만 읽을 수 있는 제한 접근 상태인지. 화면에 안내 배너를 띄우는 데 쓴다.
   public private(set) var isLimited: Bool
 
+  /// 개수가 아니라 식별자 집합으로 들고 있어, 처음 조회 결과와 겹치는 변경이 와도 두 번 세지 않는다.
+  @ObservationIgnored private var imageIDs: Set<ImageAsset.ID> = [] {
+    didSet { self.imageCount = self.imageIDs.count }
+  }
+
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
 
   /// 권한 상태는 동기로 읽을 수 있으므로 init 에서 읽어 첫 프레임부터 배너가 보이게 한다.
@@ -23,12 +29,20 @@ public final class LibraryModel {
   // MARK: - Events
 
   /// 보관함 변경 구독을 먼저 시작하고 처음 불러온다. 그래야 처음 불러오는 동안 생긴 변경도 놓치지 않는다.
+  /// 이후에는 바뀐 이미지만 반영하고, 무엇이 바뀌었는지 모를 때만 전체를 다시 불러온다.
   /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 끝난다.
   public func onAppear() async {
     let changes = await self.photoLibrary.imageChanges()
     await self.reloadImages()
-    for await _ in changes {
-      await self.reloadImages()
+    for await change in changes {
+      switch change {
+      case let .incremental(inserted, removed):
+        self.refreshLimitedAccess()
+        self.imageIDs.subtract(removed)
+        self.imageIDs.formUnion(inserted.map(\.id))
+      case .reloadAll:
+        await self.reloadImages()
+      }
     }
   }
 
@@ -41,7 +55,11 @@ public final class LibraryModel {
 
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
   private func reloadImages() async {
+    self.refreshLimitedAccess()
+    self.imageIDs = await Set(self.photoLibrary.fetchImageAssets().map(\.id))
+  }
+
+  private func refreshLimitedAccess() {
     self.isLimited = self.photoLibrary.accessState() == .limited
-    self.imageCount = await self.photoLibrary.fetchImageAssets().count
   }
 }

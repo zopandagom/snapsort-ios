@@ -20,28 +20,20 @@ struct PhotoLibraryClientImplTests {
     #expect(PhotoLibraryClientImpl.map(status) == expected)
   }
 
-  @Test(
-    "이미지가 추가·삭제됐거나 증분 정보가 없을 때만 변경을 알린다",
-    arguments: [
-      (false, 0, 0, true),
-      (true, 1, 0, true),
-      (true, 0, 1, true),
-      (true, 0, 0, false),
-    ]
-  )
-  func notifiesOnlyWhenImagesAddedOrRemoved(
-    hasIncrementalChanges: Bool,
-    insertedCount: Int,
-    removedCount: Int,
-    expected: Bool
-  ) {
-    let shouldNotify = ImageChangeObserver.shouldNotify(
-      hasIncrementalChanges: hasIncrementalChanges,
-      insertedCount: insertedCount,
-      removedCount: removedCount
-    )
+  @Test("추가·삭제된 이미지를 그대로 알린다")
+  func notifiesInsertedAndRemoved() {
+    let inserted = [Self.asset(id: "new")]
 
-    #expect(shouldNotify == expected)
+    let change = ImageChangeObserver.imageChange(inserted: inserted, removed: ["old"])
+
+    #expect(change == .incremental(inserted: inserted, removed: ["old"]))
+  }
+
+  @Test("추가·삭제가 없는 변경은 알리지 않는다")
+  func ignoresChangeWithoutInsertOrRemove() {
+    let change = ImageChangeObserver.imageChange(inserted: [], removed: [])
+
+    #expect(change == nil)
   }
 
   @Test("CLLocation 의 좌표를 Coordinate 로 옮긴다")
@@ -80,5 +72,9 @@ struct PhotoLibraryClientImplTests {
   )
   func detectsScreenshot(mediaSubtypes: PHAssetMediaSubtype, expected: Bool) {
     #expect(PhotoLibraryClientImpl.isScreenshot(mediaSubtypes) == expected)
+  }
+
+  private static func asset(id: String) -> ImageAsset {
+    ImageAsset(id: id, creationDate: nil, coordinate: nil, pixelWidth: 1, pixelHeight: 1, isScreenshot: false)
   }
 }

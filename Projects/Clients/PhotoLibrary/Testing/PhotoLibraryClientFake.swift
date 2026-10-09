@@ -15,12 +15,12 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     var imageAssets: [ImageAsset]
     var limitedPickerPresentCount = 0
     var nextSubscriptionID = 0
-    var subscriptions: [Int: AsyncStream<Void>.Continuation] = [:]
+    var subscriptions: [Int: AsyncStream<ImageChange>.Continuation] = [:]
     var changesFinished = false
   }
 
   /// `requestAccess()` 뒤에는 `accessState()` 도 `stateAfterRequest` 를 돌려준다.
-  /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 변경 알림을 보낸다.
+  /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 달라진 만큼 증분 변경을 보낸다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
@@ -62,13 +62,21 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     self.state.withLock { state in
       state.limitedPickerPresentCount += 1
     }
-    if let assets = self.imageAssetsAfterPicker {
-      self.sendImageChange(imageAssets: assets)
+    guard let assetsAfterPicker = self.imageAssetsAfterPicker else { return }
+    self.send { state in
+      let currentIDs = Set(state.imageAssets.map(\.id))
+      let idsAfterPicker = Set(assetsAfterPicker.map(\.id))
+      let inserted = assetsAfterPicker.filter { !currentIDs.contains($0.id) }
+      let removed = currentIDs.subtracting(idsAfterPicker).sorted()
+      state.imageAssets = assetsAfterPicker
+      // 실제 보관함처럼 고른 사진이 그대로면 알리지 않는다.
+      guard !inserted.isEmpty || !removed.isEmpty else { return nil }
+      return .incremental(inserted: inserted, removed: removed)
     }
   }
 
-  public func imageChanges() async -> AsyncStream<Void> {
-    let (stream, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+  public func imageChanges() async -> AsyncStream<ImageChange> {
+    let (stream, continuation) = AsyncStream.makeStream(of: ImageChange.self, bufferingPolicy: .unbounded)
     let id: Int? = self.state.withLock { state in
       guard !state.changesFinished else { return nil }
       let id = state.nextSubscriptionID
@@ -88,17 +96,30 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   // MARK: - 변경 흉내
 
-  /// 보관함이 바뀐 것처럼 조회 결과(와 권한 상태)를 바꾸고 변경 알림을 보낸다.
-  public func sendImageChange(imageAssets: [ImageAsset], accessState: PhotoAccessState? = nil) {
-    let subscriptions = self.state.withLock { state in
+  /// 이미지가 추가·삭제된 것처럼 조회 결과(와 권한 상태)를 바꾸고 증분 변경을 보낸다. 추가된 이미지는 최신순 맨 앞에 붙인다.
+  public func sendIncrementalChange(
+    inserted: [ImageAsset] = [],
+    removed: [ImageAsset.ID] = [],
+    accessState: PhotoAccessState? = nil
+  ) {
+    let removedIDs = Set(removed)
+    self.send { state in
+      state.imageAssets = inserted + state.imageAssets.filter { !removedIDs.contains($0.id) }
+      if let accessState {
+        state.accessState = accessState
+      }
+      return .incremental(inserted: inserted, removed: removed)
+    }
+  }
+
+  /// 무엇이 바뀌었는지 알 수 없는 변경처럼 조회 결과(와 권한 상태)를 바꾸고 전체 다시 조회를 알린다.
+  public func sendReloadAll(imageAssets: [ImageAsset], accessState: PhotoAccessState? = nil) {
+    self.send { state in
       state.imageAssets = imageAssets
       if let accessState {
         state.accessState = accessState
       }
-      return Array(state.subscriptions.values)
-    }
-    for continuation in subscriptions {
-      continuation.yield()
+      return .reloadAll
     }
   }
 
@@ -110,6 +131,19 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     }
     for continuation in subscriptions {
       continuation.finish()
+    }
+  }
+
+  // MARK: - Private
+
+  /// 상태 변경과 보낼 변경 계산을 한 번의 잠금 안에서 해, 그 사이에 다른 변경이 끼어들지 않게 한다. nil 이면 보내지 않는다.
+  private func send(_ update: (inout State) -> ImageChange?) {
+    let (change, subscriptions) = self.state.withLock { state in
+      (update(&state), Array(state.subscriptions.values))
+    }
+    guard let change else { return }
+    for continuation in subscriptions {
+      continuation.yield(change)
     }
   }
 }
