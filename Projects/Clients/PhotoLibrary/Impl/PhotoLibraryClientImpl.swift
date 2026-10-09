@@ -36,6 +36,9 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
   /// 식별자 조회와 디코딩이 메인 스레드를 막지 않도록 메인 밖에서 실행한다.
   @concurrent
   public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {
+    if Task.isCancelled {
+      throw .cancelled
+    }
     guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else {
       throw .notFound
     }
