@@ -25,7 +25,7 @@ agent: Explore
 1. **정확성**: 로직 오류, 누락된 상태 전이(권한 `.limited`·`.denied`, 빈 결과, 실패), 잘못된 비동기 순서.
 2. **Swift 6 동시성**: `@MainActor` 밖에서 Model 상태 변경, 비 Sendable 값(`PHAsset`, `UIImage` 등)이 actor 경계를 넘음, `@unchecked Sendable`·`nonisolated(unsafe)` 남용, 무거운 작업이 메인에서 실행.
 3. **단방향 MV**: `private(set)` 이 아닌 상태, View 가 부수효과를 직접 실행, 이벤트 메서드 이름이 "무슨 일이 일어났는가" 형식이 아님, Model 이 다른 Model 을 참조.
-4. **모듈 경계**: 의존 규칙 표 위반, Interface 에 Apple 프레임워크 타입 노출(`CLLocationCoordinate2D` 포함), 매니페스트에서 템플릿 우회·빌드 설정 덮어쓰기, MapKit 경계 위반(Feature View 는 `Map` 렌더링만, 지오코딩·지도 앱 열기는 Client Impl).
+4. **모듈 경계**: 의존 규칙 표 위반, Interface 에 Apple 데이터 프레임워크·CoreLocation·MapKit 타입 노출(`PHAsset`, `CLLocationCoordinate2D` 등. CoreGraphics·ImageIO 같은 부수효과 없는 타입은 허용), 매니페스트에서 템플릿 우회·빌드 설정 덮어쓰기, MapKit 경계 위반(Feature View 는 `Map` 렌더링만, 지오코딩·지도 앱 열기는 Client Impl).
 5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: MapKit 에 위치 좌표만 넘기기, 사용자가 누를 때 주소를 지도 앱으로 넘기기).
 6. **테스트**: 새 public 이벤트 메서드와 Client Impl 순수 로직의 테스트 누락, 실제 보관함·권한에 의존하는 테스트.
 7. **문서 정합성**: 바뀐 코드와 다르게 설명하는 문서가 남아 있음. 대상은 `docs/`, `CLAUDE.md`, `.claude/skills`, 문서 주석이다. 바뀐 타입·함수·동작 이름으로 grep 해서 찾는다. 이번 변경과 관련된 불일치는 🔴 필수다. 작성자는 코드와 같은 작업 안에서 문서를 고친다.
