@@ -1,6 +1,7 @@
 #!/bin/bash
 # base...HEAD(base 와 갈라진 지점 이후)에서 바뀐 파일을 보고, 마지막 커밋(HEAD) 시점만 한 번 검사한다.
 # 중간 커밋은 의미 단위로 나눠 빌드가 깨질 수 있으므로 검사하지 않는다 (docs/CONVENTIONS.md §5).
+# /pr 이 push 직전에 실행한다.
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test
 #   - .claude/settings.json: JSON 문법
