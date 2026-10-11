@@ -1,3 +1,5 @@
+import IndexingInterface
+import IndexingTesting
 import LibraryFeature
 import PhotoLibraryTesting
 import SwiftUI
@@ -5,7 +7,10 @@ import SwiftUI
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 @main
 struct LibraryFeatureExampleApp: App {
-  @State private var model = LibraryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized)
+  @State private var model = LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewInProgress
+  )
 
   var body: some Scene {
     WindowGroup {
@@ -28,14 +33,24 @@ extension PhotoLibraryClientFake {
   )
 }
 
+extension IndexingClientFake {
+  /// 128장 중 40장을 분석한 상태. 진행률 표시는 보관함 카테고리 화면 작업에서 붙인다.
+  static let previewInProgress = IndexingClientFake(progress: [
+    IndexingProgress(totalCount: 128, indexedCount: 40, skippedCount: 0),
+  ])
+}
+
 #Preview("이미지 있음") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized))
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewInProgress
+  ))
 }
 
 #Preview("제한 접근") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewLimited))
+  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewLimited, indexing: nil))
 }
 
 #Preview("이미지 없음") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: .authorized)))
+  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: .authorized), indexing: nil))
 }
