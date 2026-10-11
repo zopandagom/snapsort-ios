@@ -36,9 +36,10 @@ identifier_name:
 custom_rules:
   impl_import_only_in_app:
     name: "Impl 은 App 에서만 import"
-    included: "Projects/(Features|Clients/[^/]+/(Interface|Testing))/"
+    # Impl 이 다른 Client 를 조합해도 그 Interface 만 쓰도록 Impl 폴더도 검사한다 (정적 프레임워크라 의존성에 없어도 import 가 컴파일될 수 있다).
+    included: "Projects/(Features|Clients/[^/]+/(Interface|Impl|Testing))/"
     regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+Impl(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
-    message: "Client Impl 은 App 모듈에서만 import 합니다. Feature 는 Interface 에 의존하세요."
+    message: "Client Impl 은 App 모듈에서만 import 합니다. Feature 와 다른 Client Impl 은 Interface 에 의존하세요."
     severity: error
 
   testing_import_not_in_production:
