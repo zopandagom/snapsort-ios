@@ -38,7 +38,7 @@ jobs:
             2. 아키텍처 규칙 위반: 단방향 MV(상태 private(set), 이벤트 메서드), 모듈 의존 방향,
                Impl/Testing import 위치, Apple 프레임워크 사용 위치
             3. 개인정보: 사진·OCR 텍스트가 기기 밖으로 나가거나 로그에 남는 코드
-            4. 테스트 누락: Model 의 새 이벤트 메서드와 Client Impl 의 순수 로직
+            4. 테스트 누락: Model 의 새 이벤트 메서드, Client Impl 의 순수 로직, Core 의 규칙 순수 함수
             5. 하네스·빌드 설정(.claude/**, .githooks/**, .github/**, Makefile, Tuist/): 스크립트 정확성,
                실패해도 통과하는 경로(fail-open), 문서와 실제 동작의 불일치
 
