@@ -57,6 +57,7 @@
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
 | PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/pr` 이 push 직전에 한 번 검사). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
+| `.github/workflows/claude-review.yml` 을 바꾸는 변경은 그 파일만 담은 별도 PR 로 낸다. 워크플로 파일이 현재 main 과 다르면 `claude-code-action` 이 리뷰를 건너뛰고(로그 `Workflow validation failed`) `review` 체크는 통과로 보인다. 이 PR 은 로컬 `/arch-review` 로 갈음하고 본문에 적는다. main 에서 그 파일이 바뀌면 다른 브랜치는 PR 전에 origin/main 으로 rebase 한다 (이미 열린 PR 이면 사용자 허락 뒤 `--force-with-lease` 로 push) | 워크플로 수정을 다른 파일 변경(코드, 그 워크플로를 설명하는 문서·하네스 포함)과 한 PR 에 섞기 (그 변경들이 CI 리뷰 없이 머지된다) | `/pr` 사전 확인 |
 | 머지는 **Merge commit** (마이크로 커밋을 브랜치에서 만든 hash 그대로 main 에 남긴다. PR 단위로 보려면 `git log --first-parent`) | Squash merge (커밋 단위가 사라진다), Rebase merge (GitHub 이 커밋을 다시 만들어 hash 가 바뀐다) | GitHub 룰셋 (`merge` 만 허용) |
 | | `.xcodeproj` / `.xcworkspace` 커밋 | `.gitignore` |
 
