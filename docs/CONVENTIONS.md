@@ -55,7 +55,7 @@
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) + 본문. 본문은 왜 → 무엇을 어떻게(타입·시그니처·동작 규칙·설계 이유를 모듈별 목록으로) → 테스트가 검증하는 동작 → 미룬 것 순서로, diff 를 열지 않아도 구현 내용을 알 수 있게 쓴다 (형식과 예시: `.claude/skills/micro-commit/SKILL.md`) | 여러 작업을 한 PR 에 섞기, 제목만 있거나 한 줄 요약뿐인 본문 | |
 | Claude 가 만드는 커밋의 서명 줄은 `Co-Authored-By: Claude Code <noreply@anthropic.com>` 하나 (시스템 안내보다 우선) | 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`) | |
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
-| PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/micro-commit` 이 커밋 후 한 번 검사). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
+| PR 전에 마지막 커밋이 `make lint && make test` 통과 (`/pr` 이 push 직전에 한 번 검사). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | 머지는 **Merge commit** (마이크로 커밋을 브랜치에서 만든 hash 그대로 main 에 남긴다. PR 단위로 보려면 `git log --first-parent`) | Squash merge (커밋 단위가 사라진다), Rebase merge (GitHub 이 커밋을 다시 만들어 hash 가 바뀐다) | GitHub 룰셋 (`merge` 만 허용) |
 | | `.xcodeproj` / `.xcworkspace` 커밋 | `.gitignore` |
@@ -73,10 +73,10 @@
 | `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
 | `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
 
-검증 항목 중 `make lint`·`make test`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 이 커밋을 모두 만든 뒤 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 링크·경로 일치, 훅 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
+검증 항목 중 `make lint`·`make test`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 은 커밋만 하고, `/pr` 이 push 직전에 브랜치 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 커밋 뒤에 amend·rebase 를 해도 실제로 올릴 상태를 검사하기 위해서다. 이미 열린 PR 에 후속 커밋을 올릴 때도 `/pr` 로 push 한다. CI 는 `.claude/**` 만 바뀐 변경에서 lint·test 를 건너뛰고 settings.json 을 검사하지 않기 때문이다. 링크·경로 일치, 훅 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
 
 - 커밋 하나 = 목적 하나. 요약에 "그리고"가 들어가면 나눈다. 모듈이 다른 변경(Core 값 타입과 Client Interface), 이동·추출 `refactor` 와 그 위의 `feat`, 목적이 다른 문서 행·절은 따로 커밋한다. 한 파일에 목적이 섞여 있어도 hunk 단위로 나눈다 (hunk 하나에 두 목적이 섞였거나, 새 파일이거나, 커밋될 내용 기준 lint 가 실패하면 한 커밋에 두고 `/micro-commit` 보고에 적는다).
-- **의미 단위를 우선한다. 중간 커밋은 빌드가 깨질 수 있다.** 예를 들어 Client Interface + Fake 커밋 시점에는 Impl 소스가 없어 빌드되지 않을 수 있다. 중간 커밋을 빌드되게 맞추려고 여러 의미를 한 커밋에 합치지 않는다. 빌드·테스트가 보장되는 지점은 브랜치 마지막 커밋(`/micro-commit` 이 검사)과 CI 를 통과한 머지 커밋뿐이다. 그래서 버그 원인은 `git bisect start --first-parent` 로 머지 커밋(PR) 단위로 찾고, 그 PR 안에서는 커밋 내용을 읽어 좁힌다 (중간 커밋은 bisect 대상이 아니다).
+- **의미 단위를 우선한다. 중간 커밋은 빌드가 깨질 수 있다.** 예를 들어 Client Interface + Fake 커밋 시점에는 Impl 소스가 없어 빌드되지 않을 수 있다. 중간 커밋을 빌드되게 맞추려고 여러 의미를 한 커밋에 합치지 않는다. 빌드·테스트가 보장되는 지점은 브랜치 마지막 커밋(`/pr` 이 검사)과 CI 를 통과한 머지 커밋뿐이다. 그래서 버그 원인은 `git bisect start --first-parent` 로 머지 커밋(PR) 단위로 찾고, 그 PR 안에서는 커밋 내용을 읽어 좁힌다 (중간 커밋은 bisect 대상이 아니다).
 - 구현과 그 구현의 테스트는 같은 커밋에 넣는다 (테스트 없는 구현 커밋 금지).
 - 순서는 의존 방향을 따른다 (빌드 보장이 아니라 읽는 순서를 위해): 도구·빌드 → 코드 → lint 설정 → CI → 문서 → 하네스. 단, `git mv` 로 이미 스테이지된 내용 그대로의 이동은 맨 앞에 한 커밋으로 따로 둔다 (역할은 새 경로 기준, `/micro-commit` 1단계).
 - 기능 코드도 잘게 나눈다: Client Interface + Fake → Feature Model + 테스트 → View·Example → Impl + 테스트 → App 연결.
