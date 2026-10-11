@@ -24,9 +24,10 @@ gh pr list --head "$(git branch --show-current)" --state open --json number,url 
 - origin/main 이후 커밋이 없으면 중단한다.
 - `gh pr list` 결과에 PR 이 있으면 **열린 PR 모드**다. §2 는 그대로 하고, §3·§4 를 건너뛰어 §5 의 "열린 PR 모드"로 간다. 결과가 `[]` 면(PR 이 없거나 머지·닫힘) **새 PR 모드**로 새 PR 을 만든다. PR 이 없는 것은 어긋남이 아니므로 멈추지 않는다.
 - `gh pr list` 자체가 실패하면(인증 만료·네트워크 오류) 멈추고 보고한다. 실패를 "PR 없음"으로 보면 열린 PR 이 있어도 새 PR 모드로 가서 Reply 등을 건너뛴다.
-- `git diff --name-only origin/main...HEAD` 에 `.github/workflows/claude-review.yml` 이 있으면 확인한다. 워크플로 파일이 main 과 다르면 `claude-code-action` 이 리뷰를 건너뛰는데 `review` 체크는 통과로 보인다 (CONVENTIONS §5).
-  - 다른 목적의 변경(코드, 그 워크플로와 관계없는 문서·하네스)이 함께 있으면 중단하고, 바뀐 파일 목록과 함께 워크플로 커밋을 별도 PR 로 분리할 것을 제안한다.
-  - 워크플로 변경만 있으면 진행하고, 본문 "검증 · 리뷰"에 "CI 리뷰는 워크플로 변경으로 건너뜀 (로컬 /arch-review 로 갈음)"을 적는다.
+- `git diff --quiet origin/main HEAD -- .github/workflows/claude-review.yml` 로 브랜치의 워크플로 파일이 **현재 main** 과 같은지 확인한다. merge-base 가 아니라 현재 main 과 직접 비교한다. `claude-code-action` 도 현재 main 의 파일과 비교하므로, 세 점(`origin/main...HEAD`, merge-base 기준) 비교로는 브랜치를 만든 뒤 main 에서 바뀐 경우를 놓친다. 다르면 `claude-code-action` 이 리뷰를 건너뛰는데 `review` 체크는 통과로 보인다 (CONVENTIONS §5).
+  - 브랜치가 그 파일을 바꾸지 않았는데 다르면(`git diff --name-only origin/main...HEAD` 에 없음 = 브랜치를 만든 뒤 main 에서 바뀜) 중단하고 origin/main 으로 rebase 할 것을 안내한다. 열린 PR 모드면 이미 push 한 커밋이 바뀌므로 rebase 뒤 push 에 `--force-with-lease` 가 필요하고, 사용자 허락을 받아야 한다는 것도 함께 알린다 (§5).
+  - 브랜치가 그 파일을 바꿨고 그 밖의 파일도 바뀌었으면 중단하고, 바뀐 파일 목록과 함께 워크플로 커밋을 별도 PR 로 분리할 것을 제안한다. 그 워크플로를 설명하는 문서·하네스 변경도 "그 밖의 파일"이다.
+  - 워크플로 파일만 바뀌었으면 진행한다. 본문 "검증 · 리뷰"의 건너뜀 줄은 새 PR 모드는 §4, 열린 PR 모드는 §5 에서 적는다.
 
 ## 2. 검증과 코드리뷰
 1. 마지막 커밋 검사를 먼저 Bash `run_in_background: true`, `timeout: 1200000`(20분)으로 띄운다. 앞에서 기다리는 Bash 는 10분이 한계라 클린 빌드에서 `make lint`·`make test` 가 도중에 끊길 수 있다.
@@ -61,9 +62,10 @@ git log --format=%s origin/main..HEAD | sed -E 's/^([a-z]+)(\([^)]*\))?!?:.*/\1/
 - 본문: `.github/pull_request_template.md` 의 섹션을 그대로 채운다.
   - **무엇을 / 왜**: 한두 문장.
   - **변경 사항**: 사용자 관점의 변화 위주로 3~6줄.
-  - **검증 · 리뷰**: `verify-head.sh` 결과(PASS 와 검사 항목, 또는 SKIP) 한 줄, `/arch-review 필수 0 · 권장 N` 한 줄 + 아래 두 가지. N 은 §2 의 `/arch-review origin/main` 결과 그대로다 (= 보류 항목 수). 반영 항목은 N 에 넣지 않는다.
+  - **검증 · 리뷰**: `verify-head.sh` 결과(PASS 와 검사 항목, 또는 SKIP) 한 줄, `/arch-review 필수 0 · 권장 N` 한 줄 + 아래 항목. N 은 §2 의 `/arch-review origin/main` 결과 그대로다 (= 보류 항목 수). 반영 항목은 N 에 넣지 않는다.
     - 반영: 이 브랜치 작업 중 리뷰(/arch-review 등)에서 나와 이미 고친 지적. 항목마다 한 줄로 "무엇을 어떻게 고쳤는지". 출처는 **이 대화에서 확인된 리뷰 결과**로 한정한다. 대화에 기록이 없으면(새 세션 등) 커밋 diff 로 추측해 채우지 말고 생략한다.
     - 보류: 사용자가 보류하기로 한 항목과 이유.
+    - CI 리뷰 건너뜀: §1 에서 워크플로 파일만 바뀐 PR 이면 "CI 리뷰는 워크플로 변경으로 건너뜀 (로컬 /arch-review 로 갈음)" 한 줄.
   - **스크린샷 (선택)**: 비워 두고 주석만 남긴다. 사용자가 직접 첨부한다.
 - 본문은 임시 파일로 작성해 `--body-file` 로 넘긴다 (명령줄에 `git push … main` 같은 문자열이 들어가면 main 보호 훅이 오인한다).
 
@@ -77,10 +79,11 @@ gh pr create --base main --title "<제목>" --body-file <본문 파일> --label 
 ```bash
 git push origin HEAD
 ```
-- PR 본문·라벨은 고치지 않는다. 예외는 셋이다. 본문은 `gh pr view --json body` 로 받아 해당 줄만 바꾼 뒤 `gh pr edit --body-file` 로 올리고, 다른 줄은 바꾸지 않는다. 바꿀 줄이나 목록이 본문에 없으면(보류 0건으로 만든 PR, 결과 줄이 생기기 전에 만든 PR) "검증 · 리뷰" 절에 새로 만든다.
+- PR 본문·라벨은 고치지 않는다. 예외는 넷이다. 본문은 `gh pr view --json body` 로 받아 해당 줄만 바꾼 뒤 `gh pr edit --body-file` 로 올리고, 다른 줄은 바꾸지 않는다. 바꿀 줄이나 목록이 본문에 없으면(보류 0건으로 만든 PR, 결과 줄이 생기기 전에 만든 PR) "검증 · 리뷰" 절에 새로 만든다.
   - 라벨에 없는 type 의 커밋이 새로 생겼으면 `gh pr edit --add-label <type>` 만 한다.
   - 본문 "검증 · 리뷰"의 `verify-head.sh` 결과 줄을 이번 §2 결과로 바꾼다 (검사 상태를 옮긴 값이라 최신으로 둔다).
   - 로컬 `/arch-review` 지적을 새로 보류했으면 본문 "보류" 목록에 그 줄을 추가하고, `/arch-review 필수 0 · 권장 N` 줄의 N 도 보류 항목 수에 맞게 바꾼다 (§4).
+  - §1 에서 워크플로 파일만 바뀐 PR 이고 본문에 CI 리뷰 건너뜀 줄이 없으면 그 줄을 추가한다 (§4).
 - push 가 non-fast-forward 로 거절되면(amend·rebase 로 이미 올린 커밋을 바꾼 경우) 멈추고 보고한다. force push 는 사용자가 직접 하거나 허락한 뒤에만 `--force-with-lease` 로 한다.
 - push 한 뒤, 이번 커밋이 대응한 CI 리뷰 지적마다 그 리뷰 코멘트 스레드에 Reply 로 반영(무엇을 어떻게, 커밋 해시)·보류(이유)를 답한다. 새 코멘트(`gh pr comment`)는 달지 않는다.
   ```bash
