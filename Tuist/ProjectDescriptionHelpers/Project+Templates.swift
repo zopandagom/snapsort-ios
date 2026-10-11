@@ -44,16 +44,21 @@ public extension Project {
     )
   }
 
-  /// Client 모듈: Interface(프로토콜·값 타입) / Impl(Apple 프레임워크 구현) / Testing(Fake) / Tests.
+  /// Client 모듈: Interface(프로토콜·값 타입) / Impl(Apple 프레임워크 구현 또는 다른 Client 조합) / Testing(Fake) / Tests.
   /// - Parameters:
   ///   - shared: Client 가 사용하는 Shared 모듈. 네 타깃 모두에 연결된다.
+  ///   - clients: Impl 이 조합하는 다른 Client (예: Indexing 이 쓰는 PhotoLibrary·ImageAnalysis·PhotoStore).
+  ///     Impl 에는 Interface 가, Tests 에는 Interface 와 Fake 가 든 Testing 이 연결된다.
   static func client(
     _ client: Client,
     shared: [Shared] = [],
+    clients: [Client] = [],
     interfaceDependencies: [TargetDependency] = [],
     implDependencies: [TargetDependency] = []
   ) -> Project {
     let shared = shared.map { TargetDependency.shared($0) }
+    let otherInterfaces = clients.map { TargetDependency.client(interface: $0) }
+    let otherTestings = clients.map { TargetDependency.client(testing: $0) }
     return Project(
       name: client.rawValue,
       settings: .settings(base: Env.baseSettings),
@@ -62,7 +67,7 @@ public extension Project {
         .module(
           name: client.impl,
           sources: "Impl",
-          dependencies: [.target(name: client.interface)] + shared + implDependencies
+          dependencies: [.target(name: client.interface)] + shared + otherInterfaces + implDependencies
         ),
         .module(
           name: client.testing,
@@ -71,7 +76,8 @@ public extension Project {
         ),
         .tests(
           name: client.tests,
-          dependencies: [.target(name: client.impl), .target(name: client.testing)] + shared
+          dependencies: [.target(name: client.impl), .target(name: client.testing)] + shared + otherInterfaces
+            + otherTestings
         ),
       ]
     )
