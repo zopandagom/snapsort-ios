@@ -8,7 +8,7 @@
 | Model 상태는 `public private(set) var` | View 나 다른 타입이 Model 상태를 직접 대입 | 컴파일러 |
 | View 는 이벤트 메서드(`onAppear()`, `xxxTapped()`, `xxxChanged(_:)`)만 호출 | `$model.x` 양방향 바인딩 | `no_two_way_model_binding` |
 | 외부 시스템은 Client 로 감싸고 Interface / Impl / Testing 으로 나눈다 | Feature 에서 `import Photos`, `import Vision`, `import SwiftData` 등 | `system_framework_only_in_impl` |
-| Impl 은 App 에서만 만들어 주입 | Feature 나 Interface 에서 `import …Impl` | `impl_import_only_in_app` |
+| Impl 은 App 에서만 만들어 주입 | Feature·Interface·Testing 이나 다른 Client 의 Impl 에서 `import …Impl` (Impl 이 다른 Client 를 조합할 때는 그 Interface 만) | `impl_import_only_in_app` |
 | Fake 는 Testing 모듈에 두고 Tests·Example 에서만 사용 | 프로덕션 코드에서 `import …Testing` | `testing_import_not_in_production` |
 | `#Preview` 는 Feature 의 Example 타깃에 | Feature Sources 에 Fake 를 만들어 Preview 작성 | |
 | Feature 끼리 필요한 공유는 Client 나 Shared(Core) 로 | Feature 가 다른 Feature 에 의존 | 템플릿 |
