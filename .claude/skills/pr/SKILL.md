@@ -24,6 +24,9 @@ gh pr list --head "$(git branch --show-current)" --state open --json number,url 
 - origin/main 이후 커밋이 없으면 중단한다.
 - `gh pr list` 결과에 PR 이 있으면 **열린 PR 모드**다. §2 는 그대로 하고, §3·§4 를 건너뛰어 §5 의 "열린 PR 모드"로 간다. 결과가 `[]` 면(PR 이 없거나 머지·닫힘) **새 PR 모드**로 새 PR 을 만든다. PR 이 없는 것은 어긋남이 아니므로 멈추지 않는다.
 - `gh pr list` 자체가 실패하면(인증 만료·네트워크 오류) 멈추고 보고한다. 실패를 "PR 없음"으로 보면 열린 PR 이 있어도 새 PR 모드로 가서 Reply 등을 건너뛴다.
+- `git diff --name-only origin/main...HEAD` 에 `.github/workflows/claude-review.yml` 이 있으면 확인한다. 워크플로 파일이 main 과 다르면 `claude-code-action` 이 리뷰를 건너뛰는데 `review` 체크는 통과로 보인다 (CONVENTIONS §5).
+  - 다른 목적의 변경(코드, 그 워크플로와 관계없는 문서·하네스)이 함께 있으면 중단하고, 바뀐 파일 목록과 함께 워크플로 커밋을 별도 PR 로 분리할 것을 제안한다.
+  - 워크플로 변경만 있으면 진행하고, 본문 "검증 · 리뷰"에 "CI 리뷰는 워크플로 변경으로 건너뜀 (로컬 /arch-review 로 갈음)"을 적는다.
 
 ## 2. 검증과 코드리뷰
 1. 마지막 커밋 검사를 먼저 Bash `run_in_background: true`, `timeout: 1200000`(20분)으로 띄운다. 앞에서 기다리는 Bash 는 10분이 한계라 클린 빌드에서 `make lint`·`make test` 가 도중에 끊길 수 있다.
