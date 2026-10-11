@@ -25,6 +25,23 @@ struct ImageAnalysisClientFakeTests {
     #expect(try await fake.recognizeText(.stub()) == lines)
   }
 
+  @Test("이미지마다 정한 결과를 돌려준다")
+  func returnsResultPerImage() async throws {
+    let fake = ImageAnalysisClientFake(
+      classify: { image in
+        .success([ImageLabel(identifier: image.cgImage.width == 1 ? "food" : "document", confidence: 0.8)])
+      },
+      recognizeText: { image in image.cgImage.width == 1 ? .failure(.failed) : .success([]) }
+    )
+
+    #expect(try await fake.classify(.stub(width: 1)).map(\.identifier) == ["food"])
+    #expect(try await fake.classify(.stub(width: 2)).map(\.identifier) == ["document"])
+    await #expect(throws: ImageAnalysisError.failed) {
+      try await fake.recognizeText(.stub(width: 1))
+    }
+    #expect(try await fake.recognizeText(.stub(width: 2)).isEmpty)
+  }
+
   @Test("정해 둔 실패를 던진다")
   func throwsConfiguredError() async {
     let fake = ImageAnalysisClientFake(classifyResult: .failure(.failed), recognizeTextResult: .failure(.failed))
