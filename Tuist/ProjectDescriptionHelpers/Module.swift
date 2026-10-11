@@ -8,6 +8,7 @@ import ProjectDescription
 public enum Client: String, CaseIterable {
   case photoLibrary = "PhotoLibrary"
   case imageAnalysis = "ImageAnalysis"
+  case photoStore = "PhotoStore"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }
