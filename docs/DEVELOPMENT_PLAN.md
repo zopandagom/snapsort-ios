@@ -48,7 +48,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 
 ## 완료 기준 (Definition of Done)
 - [ ] `make lint`, `make test` 로컬 통과, CI 녹색
-- [ ] 새 Model 이벤트와 Client 순수 로직에 테스트
+- [ ] 새 Model 이벤트, Client 순수 로직, Core 규칙 순수 함수에 테스트
 - [ ] Example 앱에서 주요 상태(정상/빈 상태/권한 거부/오류) 확인
 - [ ] 개인정보 규칙 위반 없음 (네트워크, 민감 로그)
 - [ ] 실제 기기에서 한 번 이상 확인 (PhotoKit·Vision·Foundation Models 는 시뮬레이터와 동작이 다를 수 있음)
