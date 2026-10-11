@@ -35,6 +35,40 @@ struct PhotoStoreClientFakeTests {
     #expect(try await fake.categoryCounts() == [.food: 1])
   }
 
+  @Test("저장·삭제·여행 교체를 조회에 반영하고 요청을 기록한다")
+  func reflectsWritesAndRecordsRequests() async throws {
+    let fake = PhotoStoreClientFake(images: [.stub(id: "a", categories: [.chat])])
+    let trip = Trip(
+      assetIDs: ["b"],
+      startDate: Date(timeIntervalSince1970: 100),
+      endDate: Date(timeIntervalSince1970: 200),
+      center: Coordinate(latitude: 35.1, longitude: 129.0)
+    )
+
+    try await fake.save([.stub(id: "b", categories: [.food])])
+    try await fake.delete(ids: ["a", "missing"])
+    try await fake.replaceTrips([trip])
+
+    #expect(try await fake.indexedIDs() == ["b"])
+    #expect(try await fake.categoryCounts() == [.food: 1])
+    #expect(try await fake.trips() == [trip])
+    #expect(fake.savedBatches.map { $0.map(\.id) } == [["b"]])
+    #expect(fake.deletedBatches == [["a", "missing"]])
+    #expect(fake.replaceTripsCount == 1)
+  }
+
+  @Test("저장 한도를 정하면 그 횟수만큼 저장한 뒤부터 실패한다")
+  func failsSavingAfterLimit() async throws {
+    let fake = PhotoStoreClientFake(saveLimit: 1)
+
+    try await fake.save([.stub(id: "a")])
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.save([.stub(id: "b")])
+    }
+
+    #expect(try await fake.indexedIDs() == ["a"])
+  }
+
   @Test("정해 둔 실패를 던진다")
   func throwsConfiguredError() async {
     let fake = PhotoStoreClientFake(error: .failed)
