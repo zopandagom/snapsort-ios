@@ -12,5 +12,8 @@ let project = Project.app(
     .feature(.library),
     .feature(.onboarding),
     .client(impl: .photoLibrary),
+    .client(impl: .imageAnalysis),
+    .client(impl: .photoStore),
+    .client(impl: .indexing),
   ]
 )
