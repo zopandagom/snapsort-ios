@@ -5,7 +5,7 @@
 -
 
 ## 검증 · 리뷰
-<!-- verify-head.sh PASS(검사 항목) 또는 SKIP. /arch-review 필수 0 · 권장 N. 권장 항목은 반영/보류(이유)를 적는다. -->
+<!-- verify-head.sh PASS(검사 항목) 또는 SKIP. 리뷰 보류 N 과 반영·보류·합의 목록 (형식: CONVENTIONS §5 "리뷰 지적 보류"). -->
 
 ## 스크린샷 (선택)
 <!-- UI 변경이 있으면 첨부. Example 앱 또는 실기기 화면. -->
