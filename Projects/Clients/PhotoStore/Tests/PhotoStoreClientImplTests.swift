@@ -120,7 +120,7 @@ struct PhotoStoreClientImplTests {
     #expect(try await store.categoryCounts() == [.receipt: 1])
   }
 
-  @Test("여행을 통째로 바꾸고 시작 시각 순으로 돌려준다")
+  @Test("여행을 통째로 바꾸고 시작 시각 순으로 돌려주며, 수도 같이 바뀐다")
   func replacesTrips() async throws {
     let store = try PhotoStoreClientImpl.inMemory()
     let jeju = Trip(
@@ -139,9 +139,11 @@ struct PhotoStoreClientImplTests {
 
     try await store.replaceTrips([jeju, busan])
     #expect(try await store.trips() == [busan, jeju])
+    #expect(try await store.tripCount() == 2)
 
     try await store.replaceTrips([jeju])
     #expect(try await store.trips() == [jeju])
+    #expect(try await store.tripCount() == 1)
   }
 
   @Test("시작 시각이 같은 여행은 끝 시각 순으로 돌려준다")

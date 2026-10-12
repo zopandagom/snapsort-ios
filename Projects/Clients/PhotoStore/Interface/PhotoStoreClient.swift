@@ -16,7 +16,7 @@ public protocol PhotoStoreClient: Sendable {
   func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage]
 
   /// 카테고리별 이미지 수. 이미지가 없는 카테고리는 빠진다.
-  /// 여행은 이미지 카테고리가 아니라 `trips()` 로 센다.
+  /// 여행은 이미지 카테고리가 아니라 `tripCount()` 로 센다.
   func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int]
 
   /// 여행 판정 결과로 저장된 여행 전체를 바꾼다. 판정은 보관함 전체를 다시 보므로 일부만 고치지 않는다.
@@ -24,4 +24,7 @@ public protocol PhotoStoreClient: Sendable {
 
   /// 저장된 여행을 시작 시각 순(같으면 끝 시각 순)으로 돌려준다.
   func trips() async throws(PhotoStoreError) -> [Trip]
+
+  /// 저장된 여행 수. 여행마다 든 사진 식별자를 읽지 않고 센다 (화면의 여행 개수처럼 자주 세는 곳에서 쓴다).
+  func tripCount() async throws(PhotoStoreError) -> Int
 }

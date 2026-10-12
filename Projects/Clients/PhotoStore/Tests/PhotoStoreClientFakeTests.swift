@@ -52,6 +52,7 @@ struct PhotoStoreClientFakeTests {
     #expect(try await fake.indexedIDs() == ["b"])
     #expect(try await fake.categoryCounts() == [.food: 1])
     #expect(try await fake.trips() == [trip])
+    #expect(try await fake.tripCount() == 1)
     #expect(fake.savedBatches.map { $0.map(\.id) } == [["b"]])
     #expect(fake.deletedBatches == [["a", "missing"]])
     #expect(fake.replaceTripsCount == 1)
@@ -78,6 +79,9 @@ struct PhotoStoreClientFakeTests {
     }
     await #expect(throws: PhotoStoreError.failed) {
       try await fake.trips()
+    }
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.tripCount()
     }
   }
 }

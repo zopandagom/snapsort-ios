@@ -125,6 +125,11 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     return self.state.withLock { $0.trips }.sorted { ($0.startDate, $0.endDate) < ($1.startDate, $1.endDate) }
   }
 
+  public func tripCount() async throws(PhotoStoreError) -> Int {
+    try self.throwIfNeeded()
+    return self.state.withLock { $0.trips.count }
+  }
+
   private func throwIfNeeded() throws(PhotoStoreError) {
     if let error = self.error {
       throw error

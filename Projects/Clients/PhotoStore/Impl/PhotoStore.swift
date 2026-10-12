@@ -110,6 +110,11 @@ actor PhotoStore {
     }
   }
 
+  /// 행을 읽지 않고 세므로 여행마다 든 사진 식별자 배열을 디코딩하지 않는다.
+  func tripCount() throws -> Int {
+    try self.modelContext.fetchCount(FetchDescriptor<StoredTrip>())
+  }
+
   func trips() throws -> [Trip] {
     try self.modelContext
       .fetch(FetchDescriptor<StoredTrip>(sortBy: [SortDescriptor(\.startDate), SortDescriptor(\.endDate)]))
