@@ -21,15 +21,21 @@ struct SnapSortApp: App {
   init() {
     let photoLibrary = PhotoLibraryClientImpl()
     self._onboardingModel = State(initialValue: OnboardingModel(photoLibrary: photoLibrary))
-    // 저장소를 열지 못하면(디스크 공간 부족, 손상된 저장 파일 등) 인덱서 없이 보관함만 보여 준다.
-    let indexing = (try? PhotoStoreClientImpl(url: Self.photoStoreURL)).map { photoStore in
+    // 인덱서가 쓰고 보관함 화면이 읽는 같은 저장소다.
+    // 저장소를 열지 못하면(디스크 공간 부족, 손상된 저장 파일 등) 분류 없이 보관함만 보여 준다.
+    let photoStore = try? PhotoStoreClientImpl(url: Self.photoStoreURL)
+    let indexing = photoStore.map { photoStore in
       IndexingClientImpl(
         photoLibrary: photoLibrary,
         imageAnalysis: ImageAnalysisClientImpl(),
         photoStore: photoStore
       )
     }
-    self._libraryModel = State(initialValue: LibraryModel(photoLibrary: photoLibrary, indexing: indexing))
+    self._libraryModel = State(initialValue: LibraryModel(
+      photoLibrary: photoLibrary,
+      indexing: indexing,
+      photoStore: photoStore
+    ))
   }
 
   var body: some Scene {

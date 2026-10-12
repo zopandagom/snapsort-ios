@@ -74,6 +74,10 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.trips() }
   }
 
+  public func tripCount() async throws(PhotoStoreError) -> Int {
+    try await Self.perform { try await self.store.value.tripCount() }
+  }
+
   /// SwiftData·인코딩 실패를 `.failed` 로 바꾼다. 원인 오류에는 OCR 텍스트가 섞일 수 있어 남기지 않는다.
   private static func perform<Output>(_ operation: () async throws -> Output) async throws(PhotoStoreError) -> Output {
     do {

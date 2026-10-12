@@ -1,4 +1,4 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.feature(.library, clients: [.photoLibrary, .indexing], shared: [.core])
+let project = Project.feature(.library, clients: [.photoLibrary, .indexing, .photoStore], shared: [.core])
