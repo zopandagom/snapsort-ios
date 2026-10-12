@@ -39,9 +39,9 @@ gh pr list --head "$(git branch --show-current)" --state open --json number,url 
      - `origin/main...HEAD` 에서 빌드에 영향이 있는 파일이 바뀌었으면 `make lint && make test`, settings.json 은 JSON, 워크플로는 YAML 을 검사한다. 문서·하네스만 바뀌었으면 SKIP 이다.
      - 중간 커밋은 검사하지 않는다. 의미 단위로 나눠 빌드가 깨질 수 있다 (CONVENTIONS §5).
      - **FAIL 이거나 시간 초과로 끝나면 PR 을 만들지 않고 멈춘다.** push 도 하지 않는다. 원인을 보고하고, 고친 뒤 커밋은 사용자 지시(/micro-commit)를 기다린다.
-   - 열린 PR 모드면 아직 답하지 않은 CI 리뷰 지적도 가져온다. 봇이 단 최상위 코멘트 중 Reply 가 없는 것이다. 페이지를 모두 모은 뒤 걸러야 다른 페이지의 Reply 를 놓치지 않는다.
+   - 열린 PR 모드면 아직 답하지 않은 CI 리뷰 지적도 가져온다. 봇이 단 최상위 코멘트 중 봇이 아닌 사용자의 Reply 가 없는 것이다. 봇의 후속 Reply("아직 남아 있음" 등)는 답으로 치지 않는다. 페이지를 모두 모은 뒤 걸러야 다른 페이지의 Reply 를 놓치지 않는다.
      ```bash
-     gh api --paginate 'repos/{owner}/{repo}/pulls/<N>/comments' | jq -s 'add | ([.[].in_reply_to_id] - [null]) as $replied
+     gh api --paginate 'repos/{owner}/{repo}/pulls/<N>/comments' | jq -s 'add | [.[] | select(.in_reply_to_id != null and .user.type != "Bot") | .in_reply_to_id] as $replied
        | [.[] | select(.in_reply_to_id == null and .user.type == "Bot" and (.id as $id | $replied | index($id) | not)) | {id, path, line, body}]'
      ```
 3. **리뷰 지적이 1건이라도 있으면(🔴 필수·🟡 권장 모두) PR 을 만들지 않고 멈춘다.** push 도 하지 않는다. 리뷰 지적은 로컬 `/arch-review` 결과와, 열린 PR 모드면 2단계에서 가져온 답하지 않은 CI 리뷰 지적이다(이번 커밋으로 이미 고친 CI 지적은 세지 않고 §5 에서 반영 Reply 를 단다).
