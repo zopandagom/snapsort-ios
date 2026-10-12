@@ -39,4 +39,27 @@ struct IndexingClientFakeTests {
 
     #expect(fake.activeRunCount == 0)
   }
+
+  @Test("돌고 있는 스트림에 진행률을 더 보내고, 끝내면 받는 쪽 반복이 끝난다")
+  func sendsProgressAndFinishesRuns() async {
+    let fake = IndexingClientFake(finishesAfterProgress: false)
+    let sent = IndexingProgress(totalCount: 3, indexedCount: 1, skippedCount: 0)
+
+    let task = Task {
+      var received: [IndexingProgress] = []
+      for await value in fake.run() {
+        received.append(value)
+      }
+      return received
+    }
+    while fake.activeRunCount == 0 {
+      await Task.yield()
+    }
+    fake.sendProgress(sent)
+    fake.finishRuns()
+
+    #expect(await task.value == [sent])
+    #expect(fake.activeRunCount == 0)
+    #expect(fake.runCount == 1)
+  }
 }
