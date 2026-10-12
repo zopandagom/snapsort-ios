@@ -178,4 +178,14 @@ struct PhotoStoreClientImplTests {
 
     #expect(try await PhotoStoreClientImpl(url: url).images(in: .receipt) == [image])
   }
+
+  @Test("저장 폴더를 기기 백업에서 뺀다")
+  func excludesFolderFromBackup() throws {
+    let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: folder) }
+
+    _ = try PhotoStoreClientImpl(url: folder.appending(path: "PhotoStore.store"))
+
+    #expect(try folder.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
+  }
 }

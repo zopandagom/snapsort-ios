@@ -31,7 +31,7 @@
 Projects/
   App/                      조립 지점. Client Impl 을 만들어 Feature Model 에 주입
   Features/<Name>/          Sources(Model+View) · Tests · Example(Fake 로 도는 데모 앱)
-  Clients/<Name>/           Interface(프로토콜) · Impl(Apple 프레임워크) · Testing(Fake) · Tests
+  Clients/<Name>/           Interface(프로토콜) · Impl(Apple 프레임워크 구현 또는 다른 Client 조합) · Testing(Fake) · Tests
   Shared/<Name>/            Sources · Tests. Core(도메인 값 타입·규칙)
 Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플릿
 ```

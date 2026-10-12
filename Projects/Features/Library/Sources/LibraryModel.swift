@@ -1,4 +1,5 @@
 import Core
+import IndexingInterface
 import Observation
 import PhotoLibraryInterface
 
@@ -11,6 +12,8 @@ public final class LibraryModel {
   public private(set) var imageCount = 0
   /// 사용자가 고른 사진만 읽을 수 있는 제한 접근 상태인지. 화면에 안내 배너를 띄우는 데 쓴다.
   public private(set) var isLimited: Bool
+  /// 분류 인덱싱 진행률. 인덱싱을 시작하기 전이나 인덱서가 없으면 nil.
+  public private(set) var indexingProgress: IndexingProgress?
 
   /// 개수가 아니라 식별자 집합으로 들고 있어, 처음 조회 결과와 겹치는 변경이 와도 두 번 세지 않는다.
   @ObservationIgnored private var imageIDs: Set<ImageAsset.ID> = [] {
@@ -18,20 +21,38 @@ public final class LibraryModel {
   }
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
+  @ObservationIgnored private let indexing: (any IndexingClient)?
 
   /// 권한 상태는 동기로 읽을 수 있으므로 init 에서 읽어 첫 프레임부터 배너가 보이게 한다.
   /// App 은 온보딩 전에 이 Model 을 만들므로, 화면 진입 때도 다시 읽는다.
-  public init(photoLibrary: any PhotoLibraryClient) {
+  /// - Parameter indexing: 분류 인덱서. 저장소를 열지 못하면(디스크 공간 부족 등) App 이 nil 을 넘기고, 분류 없이 보관함만 보여 준다.
+  public init(photoLibrary: any PhotoLibraryClient, indexing: (any IndexingClient)?) {
     self.photoLibrary = photoLibrary
+    self.indexing = indexing
     self.isLimited = photoLibrary.accessState() == .limited
   }
 
   // MARK: - Events
 
+  /// 이미지 수 관찰과 분류 인덱싱을 함께 시작한다.
+  /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 둘 다 끝난다.
+  public func onAppear() async {
+    await withDiscardingTaskGroup { group in
+      group.addTask { await self.observeImages() }
+      group.addTask { await self.runIndexing() }
+    }
+  }
+
+  /// 고른 사진이 바뀌면 보관함 변경 알림이 오므로 여기서 따로 다시 불러오지 않는다.
+  public func selectMorePhotosTapped() async {
+    await self.photoLibrary.presentLimitedLibraryPicker()
+  }
+
+  // MARK: - Private
+
   /// 보관함 변경 구독을 먼저 시작하고 처음 불러온다. 그래야 처음 불러오는 동안 생긴 변경도 놓치지 않는다.
   /// 이후에는 바뀐 이미지만 반영하고, 무엇이 바뀌었는지 모를 때만 전체를 다시 불러온다.
-  /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 끝난다.
-  public func onAppear() async {
+  private func observeImages() async {
     let changes = await self.photoLibrary.imageChanges()
     await self.reloadImages()
     for await change in changes {
@@ -46,12 +67,13 @@ public final class LibraryModel {
     }
   }
 
-  /// 고른 사진이 바뀌면 보관함 변경 알림이 오므로 여기서 따로 다시 불러오지 않는다.
-  public func selectMorePhotosTapped() async {
-    await self.photoLibrary.presentLimitedLibraryPicker()
+  /// 인덱서는 보관함 변경을 스스로 관찰하므로, 진행률만 받아 상태에 반영한다.
+  private func runIndexing() async {
+    guard let indexing = self.indexing else { return }
+    for await progress in indexing.run() {
+      self.indexingProgress = progress
+    }
   }
-
-  // MARK: - Private
 
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
   private func reloadImages() async {

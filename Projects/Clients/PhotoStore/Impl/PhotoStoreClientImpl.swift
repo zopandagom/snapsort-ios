@@ -10,10 +10,17 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
   private let store: Task<PhotoStore, Never>
 
   /// - Parameter url: 저장 파일 위치. App 이 정해 넘기므로 위젯과 나눠 쓸 때(App Group) App 에서만 바꾸면 된다.
+  ///   상위 폴더는 저장소 전용이어야 한다. 그 폴더를 통째로 기기 백업에서 뺀다.
   public init(url: URL) throws(PhotoStoreError) {
+    var folder = url.deletingLastPathComponent()
     do {
       // 처음 실행하면 Application Support 같은 상위 폴더가 아직 없을 수 있다.
-      try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      // 저장 결과는 보관함에서 다시 만들 수 있고 OCR 텍스트가 iCloud·컴퓨터 백업으로 나가지 않게 한다 (docs/ARCHITECTURE.md §4).
+      // SQLite 가 나중에 만드는 -wal·-shm 파일도 빠지도록 파일이 아니라 폴더에 표시한다.
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try folder.setResourceValues(values)
     } catch {
       throw .failed
     }
