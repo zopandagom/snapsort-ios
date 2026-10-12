@@ -1,12 +1,17 @@
+import Core
+import Foundation
 import IndexingInterface
 import IndexingTesting
 import PhotoLibraryInterface
 import PhotoLibraryTesting
+import PhotoStoreInterface
+import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
 /// `onAppear()` 는 변경 알림이 끝날 때까지 돌아오지 않는다.
 /// 변경 테스트는 구독과 처음 불러오기를 기다린 뒤 변경을 보내고, `finishImageChanges()` 로 끝낸 다음 결과를 확인한다.
+/// 인덱서가 있으면 인덱싱이 멈춰도 다시 시도를 기다리므로, 결과를 확인한 뒤 Task 를 취소해 끝낸다.
 @MainActor
 struct LibraryModelTests {
   @Test("화면 진입 시 이미지 수를 불러온다", arguments: [0, 3])
@@ -15,7 +20,7 @@ struct LibraryModelTests {
       currentState: .authorized,
       imageAssets: .stubs(count: count)
     )
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
@@ -33,7 +38,7 @@ struct LibraryModelTests {
     ]
   )
   func isLimitedReflectsAccessState(state: PhotoAccessState, expected: Bool) {
-    let model = LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: state), indexing: nil)
+    let model = LibraryModel(photoLibrary: PhotoLibraryClientFake(currentState: state), indexing: nil, photoStore: nil)
 
     #expect(model.isLimited == expected)
   }
@@ -41,7 +46,7 @@ struct LibraryModelTests {
   @Test("온보딩 전에 만들어져도 화면 진입 시 제한 접근 상태를 다시 읽는다")
   func onAppearRereadsLimitedAccess() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .notDetermined, stateAfterRequest: .limited)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     _ = await photoLibrary.requestAccess()
     photoLibrary.finishImageChanges()
 
@@ -57,31 +62,35 @@ struct LibraryModelTests {
       IndexingProgress(totalCount: 3, indexedCount: 2, skippedCount: 1),
     ]
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 3))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: IndexingClientFake(progress: progress))
-    photoLibrary.finishImageChanges()
+    let indexing = IndexingClientFake(progress: progress, finishesAfterProgress: false)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
+    let appear = Task { await model.onAppear() }
 
-    await model.onAppear()
+    await waitUntil { model.indexingProgress == progress.last && model.imageCount == 3 }
+    #expect(!model.isIndexingStopped)
 
-    #expect(model.indexingProgress == progress.last)
-    #expect(model.imageCount == 3)
+    appear.cancel()
+    await appear.value
   }
 
   @Test("인덱서가 없으면 진행률 없이 이미지 수만 불러온다")
   func onAppearWithoutIndexing() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 2))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
 
     #expect(model.indexingProgress == nil)
+    #expect(!model.isIndexingStopped)
+    #expect(model.categoryCounts.isEmpty)
     #expect(model.imageCount == 2)
   }
 
   @Test("이미지가 추가·삭제되면 바뀐 만큼만 이미지 수에 반영한다")
   func incrementalChangeUpdatesCount() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 3))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 3 }
 
@@ -96,7 +105,7 @@ struct LibraryModelTests {
   @Test("처음 불러온 결과와 겹치는 변경은 두 번 반영하지 않는다")
   func overlappingChangeIsIdempotent() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 2))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 2 }
 
@@ -111,7 +120,7 @@ struct LibraryModelTests {
   @Test("무엇이 바뀌었는지 모르는 변경이 오면 전체를 다시 불러온다")
   func reloadAllReloadsCount() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 1))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
@@ -125,7 +134,7 @@ struct LibraryModelTests {
   @Test("보관함 변경과 함께 제한 접근이 풀리면 배너를 내린다")
   func imageChangeRereadsLimitedAccess() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .limited, imageAssets: .stubs(count: 1))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
@@ -139,7 +148,7 @@ struct LibraryModelTests {
   @Test("증분 변경과 함께 제한 접근이 풀려도 배너를 내린다")
   func incrementalChangeRereadsLimitedAccess() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .limited, imageAssets: .stubs(count: 1))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
@@ -153,7 +162,7 @@ struct LibraryModelTests {
   @Test("화면이 사라져 Task 가 취소되면 변경 구독을 끝낸다")
   func cancellingEndsSubscription() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 }
 
@@ -170,7 +179,7 @@ struct LibraryModelTests {
       progress: [IndexingProgress(totalCount: 1, indexedCount: 0, skippedCount: 0)],
       finishesAfterProgress: false
     )
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 && model.indexingProgress != nil }
 
@@ -178,12 +187,13 @@ struct LibraryModelTests {
     await appear.value
 
     #expect(indexing.activeRunCount == 0)
+    #expect(!model.isIndexingStopped)
   }
 
   @Test("화면에 다시 들어오면 변경을 다시 구독한다")
   func reappearResubscribes() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized, imageAssets: .stubs(count: 1))
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let firstAppear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 }
     firstAppear.cancel()
@@ -207,7 +217,7 @@ struct LibraryModelTests {
       imageAssets: .stubs(count: 1),
       imageAssetsAfterPicker: .stubs(count: 3)
     )
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { photoLibrary.imageChangesSubscriberCount == 1 && model.imageCount == 1 }
 
@@ -224,10 +234,27 @@ struct LibraryModelTests {
 /// 변경을 그 뒤에 보내야 처음 불러오기가 아니라 구독 경로로 반영됐는지 검증할 수 있다.
 /// Fake 의 async 메서드는 전역 실행기에서 돌아 끝나는 시점이 스케줄링에 달렸으므로, 반복 횟수가 아니라 시간으로 제한한다.
 @MainActor
-private func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async {
+func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async {
   let deadline = ContinuousClock.now + timeout
   while !condition(), ContinuousClock.now < deadline {
     await Task.yield()
   }
   #expect(condition(), "기다리던 상태가 되지 않았다")
+}
+
+extension IndexedImage {
+  static func stub(id: String, categories: Set<ImageCategory>) -> IndexedImage {
+    IndexedImage(asset: .stub(id: id), labels: [], textLines: nil, categories: categories)
+  }
+}
+
+extension Trip {
+  static func stub() -> Trip {
+    Trip(
+      assetIDs: [],
+      startDate: Date(timeIntervalSince1970: 0),
+      endDate: Date(timeIntervalSince1970: 0),
+      center: Coordinate(latitude: 0, longitude: 0)
+    )
+  }
 }
