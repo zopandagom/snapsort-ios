@@ -8,12 +8,16 @@ public struct ImageAnalysisClientImpl: ImageAnalysisClient {
 
   /// 모델 실행이 메인 스레드를 막지 않도록 메인 밖에서 실행한다.
   @concurrent
-  public func classify(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [ImageLabel] {
+  public func classify(
+    _ image: AnalysisImage,
+    minimumConfidence: Float
+  ) async throws(ImageAnalysisError) -> [ImageLabel] {
     let observations = try await Self.perform {
       try await ClassifyImageRequest().perform(on: image.cgImage, orientation: image.orientation)
     }
     return ImageClassification.labels(
-      observations.map { ImageLabel(identifier: $0.identifier, confidence: $0.confidence) }
+      observations.map { ImageLabel(identifier: $0.identifier, confidence: $0.confidence) },
+      minimumConfidence: minimumConfidence
     )
   }
 
