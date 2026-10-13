@@ -2,10 +2,19 @@ import Core
 import CoreGraphics
 import ImageIO
 
-/// 테스트와 Example 앱에서 쓰는 분석 이미지. 크기와 방향만 정하고 픽셀은 한 색으로 채운다.
+/// 테스트와 Example 앱에서 쓰는 분석 이미지. 크기·방향·대체 버전 여부만 정하고 픽셀은 한 색으로 채운다.
 public extension AnalysisImage {
-  static func stub(width: Int = 4, height: Int = 3, orientation: CGImagePropertyOrientation = .up) -> AnalysisImage {
-    AnalysisImage(cgImage: .stub(width: width, height: height), orientation: orientation)
+  static func stub(
+    width: Int = 4,
+    height: Int = 3,
+    orientation: CGImagePropertyOrientation = .up,
+    isLocalFallback: Bool = false
+  ) -> AnalysisImage {
+    AnalysisImage(
+      cgImage: .stub(width: width, height: height),
+      orientation: orientation,
+      isLocalFallback: isLocalFallback
+    )
   }
 }
 
