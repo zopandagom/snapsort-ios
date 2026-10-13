@@ -1,0 +1,95 @@
+[
+  {
+    "name": "시드 · 기프티콘 · 카카오톡 선물하기 스크린샷",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.91 }, { "identifier": "drink", "confidence": 0.34 }],
+    "text": ["선물하기", "스타벅스", "아이스 카페 아메리카노 T", "교환처 스타벅스", "유효기간 2026.12.31", "주문번호 0000000000"],
+    "expected": ["gifticon"]
+  },
+  {
+    "name": "시드 · 기프티콘 · 앨범에 저장한 편의점 교환권(상품 사진 포함)",
+    "asset": { "isScreenshot": false, "hasLocation": false, "pixelWidth": 720, "pixelHeight": 1280 },
+    "labels": [{ "identifier": "drink", "confidence": 0.62 }, { "identifier": "food", "confidence": 0.21 }],
+    "text": ["GS25", "바나나우유 240ml", "교환처 GS25", "유효기간 2026년 11월 30일", "0000 0000 0000"],
+    "expected": ["gifticon"],
+    "knownIssue": "위치 없는 이미지에서 사진형 라벨만으로는 저장한 기프티콘과 촬영 사진을 구분하지 못해 OCR 하지 않는다 — 정확도 측정 작업(규칙 수정 PR)에서 지운다"
+  },
+  {
+    "name": "시드 · 영수증 · 촬영한 카드 영수증",
+    "asset": { "isScreenshot": false, "hasLocation": true, "pixelWidth": 3024, "pixelHeight": 4032 },
+    "labels": [{ "identifier": "receipt", "confidence": 0.71 }, { "identifier": "document", "confidence": 0.33 }],
+    "text": ["(주)예시상사", "사업자번호 000-00-00000", "아메리카노 2 9,000", "합계 9,000", "부가세 818", "승인번호 00000000"],
+    "expected": ["receipt", "document"]
+  },
+  {
+    "name": "시드 · 대화 · 메신저 대화 캡처",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.88 }],
+    "text": ["9:41", "친구", "내일 몇 시에 봐?", "오후 3:12", "7시 어때", "오후 3:15", "좋아", "메시지 입력"],
+    "expected": ["chat"]
+  },
+  {
+    "name": "시드 · 대화 아님 · 최근 통화 목록",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.9 }],
+    "text": ["9:41", "최근 통화", "엄마", "휴대전화", "오후 3:12", "김철수", "휴대전화", "오전 11:30"],
+    "expected": ["other"],
+    "knownIssue": "말풍선 시각 패턴이 통화 기록 시각과 구분되지 않는다 — 정확도 측정 작업(규칙 수정 PR)에서 지운다"
+  },
+  {
+    "name": "시드 · 쇼핑 · 상품 상세 화면",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.86 }, { "identifier": "clothing", "confidence": 0.4 }],
+    "text": ["오버핏 니트", "39,000원", "할인가 29,000원", "무료배송", "장바구니", "바로구매"],
+    "expected": ["shopping"]
+  },
+  {
+    "name": "시드 · 지도 · 길찾기 화면",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.84 }, { "identifier": "map", "confidence": 0.52 }],
+    "text": ["서울역 → 강남역", "대중교통 32분", "도보 5분"],
+    "expected": ["map"]
+  },
+  {
+    "name": "시드 · 문서 · 촬영한 인쇄물",
+    "asset": { "isScreenshot": false, "hasLocation": true, "pixelWidth": 3024, "pixelHeight": 4032 },
+    "labels": [{ "identifier": "document", "confidence": 0.77 }, { "identifier": "printed_page", "confidence": 0.45 }],
+    "text": ["회의록", "일시: 2026년 10월 1일", "참석자: 3명", "1. 안건"],
+    "expected": ["document"]
+  },
+  {
+    "name": "시드 · 음식 · 식당에서 찍은 사진",
+    "asset": { "isScreenshot": false, "hasLocation": true, "pixelWidth": 4032, "pixelHeight": 3024 },
+    "labels": [{ "identifier": "food", "confidence": 0.83 }, { "identifier": "dish", "confidence": 0.5 }],
+    "text": [],
+    "expected": ["food"]
+  },
+  {
+    "name": "시드 · 인물 · 위치 없이 받은 단체 사진",
+    "asset": { "isScreenshot": false, "hasLocation": false, "pixelWidth": 1600, "pixelHeight": 1200 },
+    "labels": [{ "identifier": "people", "confidence": 0.79 }, { "identifier": "adult", "confidence": 0.6 }],
+    "text": [],
+    "expected": ["people"]
+  },
+  {
+    "name": "시드 · 반려동물 · 집에서 찍은 강아지",
+    "asset": { "isScreenshot": false, "hasLocation": true, "pixelWidth": 4032, "pixelHeight": 3024 },
+    "labels": [{ "identifier": "dog", "confidence": 0.9 }, { "identifier": "animal", "confidence": 0.85 }],
+    "text": [],
+    "expected": ["pet"]
+  },
+  {
+    "name": "시드 · 풍경 · 바닷가",
+    "asset": { "isScreenshot": false, "hasLocation": true, "pixelWidth": 4032, "pixelHeight": 3024 },
+    "labels": [{ "identifier": "beach", "confidence": 0.74 }, { "identifier": "sky", "confidence": 0.66 }],
+    "text": [],
+    "expected": ["landscape"]
+  },
+  {
+    "name": "시드 · 기타 · 설정 화면 스크린샷",
+    "asset": { "isScreenshot": true, "hasLocation": false, "pixelWidth": 1179, "pixelHeight": 2556 },
+    "labels": [{ "identifier": "screenshot", "confidence": 0.93 }],
+    "text": ["9:41", "설정", "Wi-Fi", "Bluetooth", "알림"],
+    "expected": ["other"]
+  }
+]
