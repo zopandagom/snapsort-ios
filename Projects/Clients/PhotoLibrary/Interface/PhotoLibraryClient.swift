@@ -12,6 +12,10 @@ public protocol PhotoLibraryClient: Sendable {
   /// 최신순 이미지(영상 제외)와 메타데이터. 픽셀은 읽지 않는다.
   func fetchImageAssets() async -> [ImageAsset]
 
+  /// 제목이 `name` 인 사용자 앨범의 이미지(영상 제외)를 앨범 순서로 준다. 픽셀은 읽지 않는다. 같은 제목이 여럿이면 첫 앨범.
+  /// 앨범이 없으면 nil. 제한 접근(`.limited`)에서는 사용자 앨범을 읽을 수 없어 nil 일 수 있다. 지금은 Debug 기록 도구만 쓴다.
+  func fetchImageAssets(inAlbumNamed name: String) async -> [ImageAsset]?
+
   /// 분석에 쓸 이미지를 읽는다. iCloud 원본은 내려받지 않고 기기에 있는 버전만 쓴다 (docs/ARCHITECTURE.md §4).
   /// 호출한 Task 가 취소되면 읽기 요청도 취소하고 `.cancelled` 를 던진다.
   func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage

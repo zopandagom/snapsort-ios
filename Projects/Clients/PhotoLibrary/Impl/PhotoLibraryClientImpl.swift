@@ -33,6 +33,25 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
     return assets
   }
 
+  /// 정렬을 지정하지 않아 앨범에 놓인 순서대로 준다. 조회가 메인 스레드를 막지 않도록 메인 밖에서 실행한다.
+  @concurrent
+  public func fetchImageAssets(inAlbumNamed name: String) async -> [ImageAsset]? {
+    let albumOptions = PHFetchOptions()
+    albumOptions.predicate = NSPredicate(format: "title == %@", name)
+    let albums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: albumOptions)
+    guard let album = albums.firstObject else { return nil }
+
+    let options = PHFetchOptions()
+    options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+    let result = PHAsset.fetchAssets(in: album, options: options)
+    var assets: [ImageAsset] = []
+    assets.reserveCapacity(result.count)
+    result.enumerateObjects { asset, _, _ in
+      assets.append(Self.imageAsset(from: asset))
+    }
+    return assets
+  }
+
   /// 식별자 조회와 디코딩이 메인 스레드를 막지 않도록 메인 밖에서 실행한다.
   @concurrent
   public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {
