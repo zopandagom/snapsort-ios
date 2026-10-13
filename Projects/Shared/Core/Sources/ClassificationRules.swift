@@ -3,7 +3,11 @@
 /// 키워드는 공백 없이 소문자로 적는다. OCR 이 글자 사이를 띄워 읽어도 맞도록 대조할 때 텍스트의 공백을 무시한다.
 /// 단, 공백을 넘어 걸린 키워드는 단어 시작에서 시작할 때만 인정한다(`RuleClassifier`).
 /// 표의 값은 임시이며 샘플 이미지 정확도 측정 작업에서 조정한다.
-enum ClassificationRules {
+public enum ClassificationRules {
+  /// 이보다 신뢰도가 낮은 이미지 분류 라벨은 규칙에 쓰지 않는다. 임시 값이며 정확도 측정 작업에서 확정한다.
+  /// Vision 은 지원하는 라벨(1천 개 이상) 대부분을 신뢰도 0 에 가깝게 돌려준다.
+  public static let minimumLabelConfidence: Float = 0.1
+
   /// 정보형 카테고리 하나의 규칙. 라벨이 하나라도 있거나 키워드가 기준 개수 이상 나오면 해당한다.
   struct InformationRule {
     let category: ImageCategory
