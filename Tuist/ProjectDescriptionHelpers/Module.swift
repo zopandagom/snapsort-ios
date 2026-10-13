@@ -23,6 +23,7 @@ public enum Client: String, CaseIterable {
 public enum Feature: String, CaseIterable {
   case library = "Library"
   case onboarding = "Onboarding"
+  case sampleRecorder = "SampleRecorder"
 
   public var name: String { "\(self.rawValue)Feature" }
   public var tests: String { "\(self.name)Tests" }
