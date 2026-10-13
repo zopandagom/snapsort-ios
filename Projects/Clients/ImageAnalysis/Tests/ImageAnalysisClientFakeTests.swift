@@ -10,7 +10,7 @@ struct ImageAnalysisClientFakeTests {
     let labels = [ImageLabel(identifier: "food", confidence: 0.8)]
     let fake = ImageAnalysisClientFake(classifyResult: .success(labels))
 
-    #expect(try await fake.classify(.stub()) == labels)
+    #expect(try await fake.classify(.stub(), minimumConfidence: 0.1) == labels)
   }
 
   @Test("정해 둔 텍스트를 돌려준다")
@@ -34,8 +34,8 @@ struct ImageAnalysisClientFakeTests {
       recognizeText: { image in image.cgImage.width == 1 ? .failure(.failed) : .success([]) }
     )
 
-    #expect(try await fake.classify(.stub(width: 1)).map(\.identifier) == ["food"])
-    #expect(try await fake.classify(.stub(width: 2)).map(\.identifier) == ["document"])
+    #expect(try await fake.classify(.stub(width: 1), minimumConfidence: 0.1).map(\.identifier) == ["food"])
+    #expect(try await fake.classify(.stub(width: 2), minimumConfidence: 0.1).map(\.identifier) == ["document"])
     await #expect(throws: ImageAnalysisError.failed) {
       try await fake.recognizeText(.stub(width: 1))
     }
@@ -47,7 +47,7 @@ struct ImageAnalysisClientFakeTests {
     let fake = ImageAnalysisClientFake(classifyResult: .failure(.failed), recognizeTextResult: .failure(.failed))
 
     await #expect(throws: ImageAnalysisError.failed) {
-      try await fake.classify(.stub())
+      try await fake.classify(.stub(), minimumConfidence: 0.1)
     }
     await #expect(throws: ImageAnalysisError.failed) {
       try await fake.recognizeText(.stub())
@@ -65,7 +65,7 @@ struct ImageAnalysisClientFakeTests {
       withUnsafeCurrentTask { $0?.cancel() }
       var errors: [ImageAnalysisError?] = []
       do throws(ImageAnalysisError) {
-        _ = try await fake.classify(.stub())
+        _ = try await fake.classify(.stub(), minimumConfidence: 0.1)
         errors.append(nil)
       } catch {
         errors.append(error)
@@ -80,5 +80,66 @@ struct ImageAnalysisClientFakeTests {
     }
 
     #expect(await task.value == [.cancelled, .cancelled])
+  }
+
+  @Test("기준 미만 라벨은 정해 둔 결과에서도 뺀다")
+  func filtersLabelsBelowMinimumConfidence() async throws {
+    let fake = ImageAnalysisClientFake(classifyResult: .success([
+      ImageLabel(identifier: "food", confidence: 0.8),
+      ImageLabel(identifier: "drink", confidence: 0.05),
+      ImageLabel(identifier: "dog", confidence: 0.005),
+    ]))
+
+    #expect(try await fake.classify(.stub(), minimumConfidence: 0.1).map(\.identifier) == ["food"])
+    #expect(try await fake.classify(.stub(), minimumConfidence: 0.01).map(\.identifier) == ["food", "drink"])
+  }
+
+  @Test("부른 순서와 기준을 기록한다")
+  func recordsRequests() async throws {
+    let fake = ImageAnalysisClientFake()
+
+    _ = try await fake.classify(.stub(), minimumConfidence: 0.01)
+    _ = try await fake.recognizeText(.stub())
+    _ = try await fake.classify(.stub(), minimumConfidence: 0.1)
+
+    #expect(fake.requests == [.classify(minimumConfidence: 0.01), .recognizeText, .classify(minimumConfidence: 0.1)])
+  }
+
+  @Test("결과를 기다리는 동안 Task 가 취소되면 결과 대신 취소를 던진다")
+  func throwsCancelledWhenCancelledDuringHandler() async {
+    let startedSignals = AsyncStream.makeStream(of: Void.self)
+    let fake = ImageAnalysisClientFake(
+      classify: { _ in
+        startedSignals.continuation.yield()
+        try? await Task.sleep(for: .seconds(60))
+        return .success([ImageLabel(identifier: "food", confidence: 0.8)])
+      },
+      recognizeText: { _ in
+        startedSignals.continuation.yield()
+        try? await Task.sleep(for: .seconds(60))
+        return .success([])
+      }
+    )
+
+    var started = startedSignals.stream.makeAsyncIterator()
+    for operation in [AnalysisRequest.classify(minimumConfidence: 0.1), .recognizeText] {
+      let task = Task { () async -> ImageAnalysisError? in
+        do throws(ImageAnalysisError) {
+          switch operation {
+          case let .classify(minimumConfidence):
+            _ = try await fake.classify(.stub(), minimumConfidence: minimumConfidence)
+          case .recognizeText:
+            _ = try await fake.recognizeText(.stub())
+          }
+          return nil
+        } catch {
+          return error
+        }
+      }
+      await started.next()
+      task.cancel()
+
+      #expect(await task.value == .cancelled, "\(operation)")
+    }
   }
 }
