@@ -5,7 +5,7 @@
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test
 #   - .claude/settings.json: JSON 문법
-#   - .github/workflows: YAML 문법
+#   - .github 의 YAML 파일(워크플로·dependabot): YAML 문법
 #   - 그 외(문서 등)만 바뀌었으면: SKIP
 # 작업 트리에서 그대로 실행하므로 커밋되지 않은 변경이 없어야 HEAD 를 검사한 것이 된다.
 set -uo pipefail
@@ -23,8 +23,8 @@ build_paths='^(Projects/|Tuist/|Workspace\.swift|Tuist\.swift|Makefile|\.mise\.t
 checks=()
 grep -Eq "$build_paths" <<<"$files" && checks+=("make lint" "make test")
 grep -q '^\.claude/settings\.json$' <<<"$files" && checks+=("jq empty .claude/settings.json")
-grep -Eq '^\.github/workflows/.*\.ya?ml$' <<<"$files" &&
-  checks+=("ruby -ryaml -e 'Dir[\".github/workflows/*.y*ml\"].each { |f| YAML.load_file(f) }'")
+grep -Eq '^\.github/.*\.ya?ml$' <<<"$files" &&
+  checks+=("ruby -ryaml -e 'Dir[\".github/**/*.y*ml\"].each { |f| YAML.load_file(f) }'")
 
 if ((${#checks[@]} == 0)); then
   echo "SKIP  $subject (검사할 파일 없음)"

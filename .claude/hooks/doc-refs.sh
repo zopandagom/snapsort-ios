@@ -28,7 +28,7 @@ esac
 cd "$root" || exit 0
 args=()
 for term in "${terms[@]}"; do args+=(-e "$term"); done
-hits=$(grep -rnF "${args[@]}" docs CLAUDE.md README.md .claude/skills .github 2>/dev/null |
+hits=$(grep -rnF "${args[@]}" docs CLAUDE.md README.md .claude/skills .claude/hooks .githooks .github .swiftlint.yml Makefile 2>/dev/null |
   grep -v "^$rel:" | cut -c1-200 | head -15)
 [[ -n "$hits" ]] || exit 0
 
