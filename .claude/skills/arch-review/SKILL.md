@@ -1,6 +1,6 @@
 ---
 name: arch-review
-description: SnapSort 변경분을 docs/ARCHITECTURE.md·docs/CONVENTIONS.md 기준으로 읽기 전용 리뷰한다 (단방향 MV, 모듈 경계, Swift 6 동시성, 개인정보, 테스트 누락). 구현을 마치고 /verify 가 통과한 뒤 커밋 전에, 또는 사용자가 "리뷰", "검토"를 요청할 때 사용한다. 인자로 비교 기준(예: main, HEAD~3)을 줄 수 있고, 없으면 커밋되지 않은 변경 + main 이후 커밋 전체를 본다.
+description: SnapSort 변경분을 docs/ARCHITECTURE.md·docs/CONVENTIONS.md 기준으로 읽기 전용 리뷰한다 (단방향 MV, 모듈 경계, Swift 6 동시성, 개인정보, 테스트 누락, 문서 정합성, 하네스). 구현을 마치고 /verify 가 통과한 뒤 커밋 전에, 또는 사용자가 "리뷰", "검토"를 요청할 때 사용한다. 인자로 비교 기준(예: origin/main, HEAD~3)을 줄 수 있고, 없으면 커밋되지 않은 변경 + origin/main 이후 커밋 전체를 본다.
 argument-hint: "[base-ref]"
 context: fork
 agent: Explore
@@ -12,8 +12,8 @@ agent: Explore
 
 ## 1. 기준과 변경분 읽기
 
-1. 규칙 문서를 먼저 읽는다: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`.
-2. 변경분을 모은다. 기준: `$ARGUMENTS` (비어 있으면 `main`).
+1. 규칙 문서를 먼저 읽는다: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`. 무엇을 어떤 심각도로 지적할지는 CONVENTIONS §5 "리뷰 기준"을 따른다.
+2. 변경분을 모은다. 기준: `$ARGUMENTS` (비어 있으면 `origin/main`. CONVENTIONS §5 "리뷰 기준"의 범위. 최신 origin/main 이 필요하면 부르는 쪽이 `git fetch` 한다. `/pr` 은 §1 에서 한다).
    ```bash
    git diff --stat <base>...HEAD; git diff <base>...HEAD   # 커밋된 변경
    git diff HEAD; git status --short                      # 아직 커밋되지 않은 변경 (새 파일은 직접 Read)
@@ -28,9 +28,10 @@ agent: Explore
 4. **모듈 경계**: 의존 규칙 표 위반, Interface 에 Apple 데이터 프레임워크·CoreLocation·MapKit 타입 노출(`PHAsset`, `CLLocationCoordinate2D` 등. CoreGraphics·ImageIO 같은 부수효과 없는 타입은 허용), 매니페스트에서 템플릿 우회·빌드 설정 덮어쓰기, MapKit 경계 위반(Feature View 는 `Map` 렌더링만, 지오코딩·지도 앱 열기는 Client Impl).
 5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: MapKit 에 위치 좌표만 넘기기, 사용자가 누를 때 주소를 지도 앱으로 넘기기).
 6. **테스트**: 새 public 이벤트 메서드, Client Impl 순수 로직, Core 규칙 순수 함수(규칙 분류·OCR 대상 판정·여행 판정 등)의 테스트 누락, 실제 보관함·권한에 의존하는 테스트.
-7. **문서 정합성**: 바뀐 코드와 다르게 설명하는 문서가 남아 있음. 대상은 `docs/`, `CLAUDE.md`, `.claude/skills`, 문서 주석이다. 바뀐 타입·함수·동작 이름으로 grep 해서 찾는다. 이번 변경과 관련된 불일치는 🔴 필수다. 작성자는 코드와 같은 작업 안에서 문서를 고친다.
+7. **문서 정합성**: 이번 변경과 관련된 문서 줄(CONVENTIONS §5 "리뷰 기준")이 바뀐 코드·규칙과 다르게 설명함. 문서 범위를 바뀐 타입·함수·동작 이름과 바뀐 규칙의 핵심 문구로 grep 해서 찾는다.
+8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`): 스크립트 정확성, 실패해도 통과하는 경로(fail-open), 함께 지킬 수 없는 규칙(실제로 부딪히는 흐름을 들 수 있을 때).
 
-**보고하지 않는 것**: SwiftFormat·SwiftLint 로 잡히는 스타일(CI 가 담당), 취향 차이, 변경분 밖의 기존 코드 (심각한 버그면 "범위 밖" 으로 한 줄만).
+**보고하지 않는 것·범위 밖**: CONVENTIONS §5 "리뷰 기준"을 따른다. 변경분 밖에 원래 있던 문제는 표에 넣지 않고 표 아래에 `범위 밖: 위치 · 문제` 로 한 줄씩 적는다 (🔴 에 해당하면 앞에 🔴).
 
 ## 3. 보고 형식
 
@@ -44,9 +45,10 @@ agent: Explore
 | 1 | 🔴 필수 | Projects/…/LibraryModel.swift:42 | … | ARCHITECTURE 단방향 규칙 #4 | … |
 | 2 | 🟡 권장 | … | … | CONVENTIONS §3 | … |
 
+범위 밖: Projects/…/Foo.swift:10 · …
 요약: 필수 N · 권장 N
 ```
 
-- 🔴 필수: 버그, 동시성 오류, 규칙 위반, 개인정보 위반, 이번 변경과 어긋난 문서. 커밋 전에 고쳐야 한다.
-- 🟡 권장: 테스트 보강, 이름, 이번 변경과 관련 없는 기존 문서 불일치.
-- 문제가 없으면 `리뷰 결과: 문제 없음 (검토 범위: …)` 한 줄.
+- 심각도(🔴 필수·🟡 권장)와 🟡 의 "문제" 칸에 적을 것은 CONVENTIONS §5 "리뷰 기준"을 따른다. 처리(보류·기각 등)는 추천하지 않는다 (`/pr` 이 추천하고 사용자가 정한다, CONVENTIONS §5 "리뷰 지적 처리").
+- 요약의 N 은 표의 지적만 센다 (범위 밖 줄 제외).
+- 표도 범위 밖 줄도 없으면 `리뷰 결과: 문제 없음 (검토 범위: …)` 한 줄. 범위 밖 줄만 있으면 표 대신 `지적 없음` 한 줄과 범위 밖 줄.
