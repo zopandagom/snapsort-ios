@@ -7,9 +7,12 @@ import ImageIO
 public struct AnalysisImage: Sendable {
   public let cgImage: CGImage
   public let orientation: CGImagePropertyOrientation
+  /// 원하는 품질의 버전이 iCloud 에만 있어, 기기에서 바로 줄 수 있는 대체 버전으로 읽었는지. 대체 버전은 원하는 크기보다 작을 수 있다.
+  public let isLocalFallback: Bool
 
-  public init(cgImage: CGImage, orientation: CGImagePropertyOrientation) {
+  public init(cgImage: CGImage, orientation: CGImagePropertyOrientation, isLocalFallback: Bool = false) {
     self.cgImage = cgImage
     self.orientation = orientation
+    self.isLocalFallback = isLocalFallback
   }
 }
