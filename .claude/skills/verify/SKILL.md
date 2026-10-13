@@ -33,4 +33,4 @@ CI(`.github/workflows/ci.yml`)와 같은 Makefile 타깃으로 검증한다. 로
 
 - 통과: `lint ✓ · build ✓ · test ✓ (N개)` 한 줄.
 - 실패: 단계, 파일:줄, 원인 한 줄, 수정 방향. 고쳤다면 무엇을 고쳤는지와 재실행 결과.
-- 실패를 숨기거나 테스트를 건너뛰어 통과시키지 않는다. 테스트를 삭제하거나 `.disabled`·`withKnownIssue` 로 바꿔야 할 것 같으면 먼저 사용자에게 묻는다 (CONVENTIONS §3).
+- 실패를 숨기거나 테스트를 건너뛰어 통과시키지 않는다. 테스트를 삭제하거나 `.disabled`·`withKnownIssue`(정확도 샘플의 `knownIssue` 추가 포함) 로 바꿔야 할 것 같으면 먼저 사용자에게 묻는다 (CONVENTIONS §3).

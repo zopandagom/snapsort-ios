@@ -10,6 +10,10 @@ xcuserdata/
 DerivedData/
 *.xcresult
 
+# Debug 기록 도구 결과 (OCR 텍스트 포함, CONVENTIONS §4)
+ClassificationSamples-draft-*.json
+IndexingTiming-*.json
+
 # macOS
 .DS_Store
 

@@ -26,7 +26,7 @@ agent: Explore
 2. **Swift 6 동시성**: `@MainActor` 밖에서 Model 상태 변경, 비 Sendable 값(`PHAsset`, `UIImage` 등)이 actor 경계를 넘음, `@unchecked Sendable`·`nonisolated(unsafe)` 남용, 무거운 작업이 메인에서 실행.
 3. **단방향 MV**: `private(set)` 이 아닌 상태, View 가 부수효과를 직접 실행, 이벤트 메서드 이름이 "무슨 일이 일어났는가" 형식이 아님, Model 이 다른 Model 을 참조.
 4. **모듈 경계**: 의존 규칙 표 위반, Interface 에 Apple 데이터 프레임워크·CoreLocation·MapKit 타입 노출(`PHAsset`, `CLLocationCoordinate2D` 등. CoreGraphics·ImageIO 같은 부수효과 없는 타입은 허용), 매니페스트에서 템플릿 우회·빌드 설정 덮어쓰기, MapKit 경계 위반(Feature View 는 `Map` 렌더링만, 지오코딩·지도 앱 열기는 Client Impl).
-5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: MapKit 에 위치 좌표만 넘기기, 사용자가 누를 때 주소를 지도 앱으로 넘기기).
+5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: CONVENTIONS §4).
 6. **테스트**: 새 public 이벤트 메서드, Client Impl 순수 로직, Core 규칙 순수 함수(규칙 분류·OCR 대상 판정·여행 판정 등)의 테스트 누락, 실제 보관함·권한에 의존하는 테스트.
 7. **문서 정합성**: 이번 변경과 관련된 문서 줄(CONVENTIONS §5 "리뷰 기준")이 바뀐 코드·규칙과 다르게 설명함. 문서 범위를 바뀐 타입·함수·동작 이름과 바뀐 규칙의 핵심 문구로 grep 해서 찾는다.
 8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`): 스크립트 정확성, 실패해도 통과하는 경로(fail-open), 함께 지킬 수 없는 규칙(실제로 부딪히는 흐름을 들 수 있을 때).
