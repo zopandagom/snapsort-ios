@@ -33,7 +33,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 주차 | 새 Client | 새 Feature / Shared |
 |---|---|---|
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
-| 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터) | Core |
+| 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
 | 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | Gifticon |
 | 4 | 지오코딩·지도 앱 열기 Client (이름은 구현 PR 에서 확정), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장, Widget |
 | 5 | Purchase(StoreKit) | Paywall |
@@ -59,7 +59,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☐ |
 | App ID `com.zopandagom.snapsort` + App Group 등록 | W4 (위젯과 SwiftData 저장소 공유. W2 는 App 기본 위치에 저장) | ☐ |
 | App Store Connect 앱 생성, 앱 이름 선점 ("SnapSort" / 한국어 이름) | 가능한 빨리 | ☐ |
-| 분류 정확도용 샘플 이미지 세트 (카테고리별 20장+, 직접 찍거나 만든 것만) | W2 시작 전 | ☐ |
+| 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
 | 가격 정책 결정 (유료 일회성 vs 무료 + 인앱) | W5 전 | ☐ |
 | `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시) | W5 | ☐ |
 | 사진 권한 문구(`NSPhotoLibraryUsageDescription`)를 전체 이미지 분류·정리(삭제) 용도로 수정 | 전체 이미지 조회 PR | ☑ |
@@ -71,7 +71,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 |---|---|
 | Foundation Models 미지원 기기 비율이 높음 | 규칙 기반 분류만으로도 쓸 만한 품질을 W2 에서 확보. AI 는 정확도 향상 요소로 취급 |
 | 한국 기프티콘 형식이 다양 (카카오, 네이버, 편의점 등) | W2 픽스처에 주요 발급처 포함, 만료일 정규식을 Impl 순수 함수로 두고 테스트 |
-| 대용량 보관함(수만 장)에서 분석 시간 | 식별자만 먼저 조회, 증분 분석, 진행률 표시. 썸네일로 분석하고 OCR 은 필요한 이미지에만. W2 에서 1만 장 기준 측정 |
+| 대용량 보관함(수만 장)에서 분석 시간 | 식별자만 먼저 조회, 증분 분석, 진행률 표시. 썸네일로 분석하고 OCR 은 필요한 이미지에만. Debug 기록 도구의 속도 모드로 1만 장 기준 측정 |
 | iCloud 저장 공간 최적화로 원본이 기기에 없음 | 네트워크로 원본을 받지 않고(`isNetworkAccessAllowed = false`) 기기에 있는 버전만 쓴다. 분류는 썸네일, OCR·바코드는 기기에 있는 가장 큰 버전 |
 | iOS 사진 앱의 검색·여행 추억과 기능이 겹침 | 차별점은 위 "사진 앱과의 차별 기능" 절에 둔다 |
 | 차별 기능 추가로 출시 일정이 빠듯함 | 주마다 진행 상황을 점검하고, 늦어지면 출시 후로 미룰 항목을 사용자와 다시 정한다 |
