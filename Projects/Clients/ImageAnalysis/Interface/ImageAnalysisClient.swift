@@ -10,7 +10,8 @@ public protocol ImageAnalysisClient: Sendable {
   func classify(_ image: AnalysisImage, minimumConfidence: Float) async throws(ImageAnalysisError) -> [ImageLabel]
 
   /// 이미지에서 한국어·영어 텍스트를 줄 단위로 읽어 읽는 순서대로 돌려준다. 글자가 없는 줄은 뺀다.
-  /// 작은 글자를 놓치지 않도록 기기에 있는 가장 큰 버전(`ImageSize.largestAvailable`)을 넘긴다.
+  /// 작은 글자를 놓치지 않도록 기기에 있는 가장 큰 버전(`ImageSize.largestAvailable`)을 넘긴다
+  /// (Debug 기록 도구의 OCR 해상도 비교는 그 이미지를 줄인 입력도 넘긴다).
   /// 호출한 Task 가 취소되면 `.cancelled` 를 던진다.
   func recognizeText(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [RecognizedTextLine]
 }
