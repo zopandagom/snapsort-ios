@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// OCR 로 읽은 텍스트 한 줄 (docs/ARCHITECTURE.md §4). 규칙 분류기와 캡처 정보 추출(만료일·주소·번호)의 입력이다.
-/// 사진에서 읽은 텍스트이므로 기기 밖으로 보내거나 로그에 남기지 않는다.
+/// 사진에서 읽은 텍스트이므로 기기 밖으로 보내거나 로그에 남기지 않는다 (Debug 기록 도구의 결과 파일은 docs/CONVENTIONS.md §4).
 public struct RecognizedTextLine: Sendable, Hashable, Codable {
   /// 읽은 글자. 앞뒤 공백은 뺀다.
   public let text: String
