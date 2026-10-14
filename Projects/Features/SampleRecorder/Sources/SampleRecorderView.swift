@@ -9,6 +9,8 @@
     let onClose: () -> Void
 
     @Environment(\.scenePhase) private var scenePhase
+    /// 공유 시트에 띄운 파일. View 전용 일시 상태다 (ARCHITECTURE §1 규칙 8).
+    @State private var sharingFile: RecordedFile?
 
     public init(model: SampleRecorderModel, onClose: @escaping () -> Void) {
       self.model = model
@@ -28,6 +30,10 @@
             Button("닫기", action: self.onClose)
           }
         }
+      }
+      .sheet(item: self.$sharingFile) { file in
+        ActivityView(file: file) { self.sharingFile = nil }
+          .presentationDetents([.medium, .large])
       }
       // 기록 화면을 떠나면 자동 잠금을 되돌린다(규칙 8: 화면을 떠나면 되돌리는 설정).
       .onDisappear {
@@ -150,7 +156,9 @@
     private func fileRow(_ output: FileOutput, title: String) -> some View {
       switch output {
       case let .ready(file):
-        ShareLink(item: file, preview: SharePreview(file.fileName)) {
+        Button {
+          self.sharingFile = file
+        } label: {
           Label(title, systemImage: "square.and.arrow.up")
         }
       case .encodingFailed:

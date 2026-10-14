@@ -6,10 +6,12 @@
   import PhotoLibraryInterface
   import UniformTypeIdentifiers
 
-  /// 공유 시트로 넘기는 JSON. 우리 코드는 파일을 쓰지 않는다.
-  public struct RecordedFile: Sendable, Equatable, Transferable {
+  /// 공유 시트(`ActivityView`)로 넘기는 JSON. `NSItemProvider` 로 Data 를 넘겨 우리 코드는 파일을 쓰지 않는다.
+  public struct RecordedFile: Sendable, Equatable, Identifiable, Transferable {
     public let fileName: String
     public let data: Data
+
+    public var id: String { self.fileName }
 
     public static var transferRepresentation: some TransferRepresentation {
       DataRepresentation(exportedContentType: .json) { $0.data }
