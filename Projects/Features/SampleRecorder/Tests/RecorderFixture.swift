@@ -31,6 +31,9 @@
     ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패.
     ///   - fallbackIDs: iCloud 대체 버전으로 읽히는 이미지.
     ///   - classifyGate: 분류 결과를 주기 전에 부른다. 측정 도중의 취소를 흉내 낸다.
+    ///   - largestImages: 원본(`.largestAvailable`)으로 이 이미지를 준다. OCR 해상도 비교에서 줄일 만큼 큰 원본을 흉내 낸다.
+    ///   - recognizeBySize: OCR 입력 크기(폭·높이)로 결과를 고른다. nil 을 돌려주면 폭으로 이미지를 찾는 기본 규칙을 쓴다.
+    ///     줄인 이미지는 폭이 바뀌어 기본 규칙으로 찾지 못하기 때문이다. 설정하면 OCR 기록은 `ocr:<폭>x<높이>` 다.
     init(
       access: PhotoAccessState = .authorized,
       album: [ImageAsset]? = nil,
@@ -43,6 +46,8 @@
       classifyFailures: Set<ImageAsset.ID> = [],
       recognizeFailures: Set<ImageAsset.ID> = [],
       classifyGate: @escaping @Sendable (ImageAsset.ID) async -> Void = { _ in },
+      largestImages: [ImageAsset.ID: AnalysisImage] = [:],
+      recognizeBySize: (@Sendable (Int, Int) async -> Result<[String], ImageAnalysisError>?)? = nil,
       fetchGate: (@Sendable () async -> Void)? = nil,
       deviceConditions: @escaping @Sendable () -> DeviceConditions = { normalConditions },
       now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) }
@@ -71,18 +76,20 @@
           await classifyGate(id)
           return classifyFailures.contains(id) ? .failure(.failed) : .success(labels[id] ?? [])
         },
-        recognizeText: { image in
-          let id = idsByWidth[image.cgImage.width] ?? ""
-          log.append("ocr:\(id)")
-          if recognizeFailures.contains(id) {
-            return .failure(.failed)
-          }
-          return .success((text[id] ?? []).map {
-            RecognizedTextLine(text: $0, confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1))
-          })
-        }
+        recognizeText: Self.recognizer(
+          idsByWidth: idsByWidth,
+          text: text,
+          failures: recognizeFailures,
+          bySize: recognizeBySize,
+          log: log
+        )
       )
-      let library = SizedPhotoLibrary(base: self.photoLibrary, largestErrors: largestErrors, log: log)
+      let library = SizedPhotoLibrary(
+        base: self.photoLibrary,
+        largestErrors: largestErrors,
+        largestImages: largestImages,
+        log: log
+      )
       var calendar = Calendar(identifier: .gregorian)
       calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .gmt
       self.model = SampleRecorderModel(
@@ -94,6 +101,33 @@
       )
     }
 
+    /// OCR Fake 의 결과. `bySize` 가 있으면 입력 크기로 고르고, 없거나 nil 을 주면 폭으로 이미지를 찾아 `text`·`failures` 로 고른다.
+    nonisolated static func recognizer(
+      idsByWidth: [Int: ImageAsset.ID],
+      text: [ImageAsset.ID: [String]],
+      failures: Set<ImageAsset.ID>,
+      bySize: (@Sendable (Int, Int) async -> Result<[String], ImageAnalysisError>?)?,
+      log: EventLog
+    ) -> @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError> {
+      { image in
+        let (width, height) = (image.cgImage.width, image.cgImage.height)
+        let id = idsByWidth[width] ?? ""
+        if let bySize {
+          log.append("ocr:\(width)x\(height)")
+          if let result = await bySize(width, height) {
+            return result.map { $0.map(Self.line) }
+          }
+        } else {
+          log.append("ocr:\(id)")
+        }
+        return failures.contains(id) ? .failure(.failed) : .success((text[id] ?? []).map(Self.line))
+      }
+    }
+
+    nonisolated static func line(_ text: String) -> RecognizedTextLine {
+      RecognizedTextLine(text: text, confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1))
+    }
+
     /// 기록을 끝까지 돌린다.
     func record(_ mode: RecordingMode) async {
       self.model.modeChanged(mode)
@@ -101,10 +135,11 @@
     }
   }
 
-  /// PhotoLibrary Fake 는 크기와 관계없이 같은 결과를 주므로, 원본만 실패하는 경우와 읽기 순서 기록을 이 대역이 더한다.
+  /// PhotoLibrary Fake 는 크기와 관계없이 같은 결과를 주므로, 원본만 실패하거나 원본만 다른 경우와 읽기 순서 기록을 이 대역이 더한다.
   struct SizedPhotoLibrary: PhotoLibraryClient {
     let base: PhotoLibraryClientFake
     let largestErrors: [ImageAsset.ID: ImageLoadError]
+    let largestImages: [ImageAsset.ID: AnalysisImage]
     let log: EventLog
 
     func accessState() -> PhotoAccessState {
@@ -128,6 +163,10 @@
       if size == .largestAvailable, let error = self.largestErrors[id] {
         _ = try? await self.base.loadImage(id: id, size: size)
         throw error
+      }
+      if size == .largestAvailable, let image = self.largestImages[id] {
+        _ = try? await self.base.loadImage(id: id, size: size)
+        return image
       }
       return try await self.base.loadImage(id: id, size: size)
     }

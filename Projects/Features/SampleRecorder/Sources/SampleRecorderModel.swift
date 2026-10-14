@@ -6,7 +6,8 @@
   import Observation
   import PhotoLibraryInterface
 
-  /// 실기기에서 정확도 샘플을 기록하고 분류 단계별 시간을 재는 개발 도구의 상태와 로직 (docs/ARCHITECTURE.md §4 기록 도구).
+  /// 실기기에서 정확도 샘플을 기록하고 분류 단계별 시간을 재고, OCR 원본 상한별 차이를 비교하는 개발 도구의 상태와 로직
+  /// (docs/ARCHITECTURE.md §4 기록 도구).
   /// 측정은 메인 밖 Task(`SampleRecording`)가 하고, Model 은 진행률과 결과만 받아 상태에 반영한다.
   /// 결과 파일의 개인정보 규칙은 docs/CONVENTIONS.md §4.
   @MainActor

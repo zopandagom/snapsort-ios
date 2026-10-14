@@ -160,6 +160,8 @@
         (.authorized, .accuracy, nil, .albumNotFound),
         (.authorized, .accuracy, [], .albumEmpty),
         (.authorized, .speed(count: 100), nil, .noImages),
+        (.denied, .ocrResolution(count: 100), nil, .notAuthorized),
+        (.authorized, .ocrResolution(count: 100), nil, .noImages),
       ]
     )
     func failsBeforeProcessing(
@@ -177,11 +179,14 @@
       #expect(fixture.photoLibrary.loadImageRequests.isEmpty)
     }
 
-    @Test("제한 접근에서도 속도 모드는 기록하고 접근 상태를 남긴다")
-    func speedModeWorksWithLimitedAccess() async throws {
+    @Test(
+      "제한 접근에서도 보관함에서 고르는 모드는 기록하고 접근 상태를 남긴다",
+      arguments: [RecordingMode.speed(count: 100), .ocrResolution(count: 100)]
+    )
+    func libraryModesWorkWithLimitedAccess(mode: RecordingMode) async throws {
       let fixture = RecorderFixture(access: .limited, library: .stubs(count: 2))
 
-      await fixture.record(.speed(count: 100))
+      await fixture.record(mode)
 
       #expect(try jsonObject(fixture.model.phase.result?.timingFile)["access"] as? String == "limited")
     }
