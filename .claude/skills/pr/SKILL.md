@@ -37,7 +37,10 @@ gh pr list --head "$(git branch --show-current)" --state open --json number,url 
 2. 검사가 도는 동안 다음을 한다. 모든 결과가 온 뒤에 다음 단계로 간다.
    - `/arch-review origin/main` → PR 전체 범위 리뷰 (서브에이전트).
    - 열린 PR 모드이고 갈음 PR 이 아니면 아래 "CI 리뷰 결과 모으기".
-   - 새 `withKnownIssue`: `git diff -U0 -G 'withKnownIssue' origin/main...HEAD -- Projects` 를 파이프 없이 돌린다 (종료 코드가 0 이 아니면 멈춘다). 출력의 `+` 줄 중 `withKnownIssue` 를 부르는 줄이 새 항목이다 (옮기기만 한 것은 `-` 줄에도 같은 호출이 있다).
+   - 새 `withKnownIssue`: 다음 두 명령을 각각 파이프 없이 돌린다 (하나라도 종료 코드가 0 이 아니면 멈춘다).
+     `git diff -U0 -G 'withKnownIssue' origin/main...HEAD -- Projects`
+     `git diff -U0 -G '"knownIssue"' origin/main...HEAD -- Projects`
+     첫 출력은 `withKnownIssue` 를 부르는 `+` 줄 하나가 새 항목이다. 예외는 `Projects/Shared/Core/Tests/ClassificationAccuracyTests.swift` 의 샘플 래퍼(`sample.knownIssue` 를 넘기는 호출) 한 곳뿐이고, 그 샘플은 둘째 출력으로 센다. 그 밖의 호출은 이유를 어떻게 넘기든 항목이다. 둘째 출력은 `"knownIssue"` 키가 있는 `+` 줄 하나가 샘플 하나다. 두 출력 모두 `-` 줄에 같은 내용이 있으면 옮기기만 한 것이고, 이유 문자열을 고쳤으면 새 항목이다.
    - 검사 결과: 출력 첫 단어가 PASS·SKIP·FAIL 이고, 종료 코드가 0 이 아니면 FAIL 로 본다. 검사 항목은 `verify-head.sh` 머리 주석(CONVENTIONS §5 의 PR 전 검사 행)이다. 중간 커밋은 검사하지 않는다 (CONVENTIONS §5).
 3. 결과를 표 하나로 보여 준다: `# | 출처 | 심각도 | 위치 | 문제(발생 조건·사용자 영향) | 결정 | 추천`.
    - 행: 로컬 `/arch-review` 지적과 범위 밖 줄, 이 대화에서 사용자가 요청한 다른 리뷰의 지적, CI 리뷰 지적, 새 `withKnownIssue`, 이 대화에서 고치기로 정했는데 아직 고친 커밋을 확인하지 않은 지적. 같은 지적(CONVENTIONS §5 "같은 지적")은 한 행으로 합치고 출처를 모두 적는다.
@@ -88,7 +91,7 @@ git log --format=%s origin/main..HEAD | sed -E 's/^([a-z]+)(\([^)]*\))?!?:.*/\1/
   - **변경 사항**: 사용자 관점의 변화 위주로 3~6줄.
   - **검증 · 리뷰**: `verify-head.sh` 결과(PASS 와 검사 항목, 또는 SKIP) 한 줄, 그 아래 다음 줄들.
     - 처리 줄: CI 가 아닌 리뷰(로컬 `/arch-review`, 요청 리뷰) 지적마다 `<지적 요약>: <기록 형식>` (CONVENTIONS §5 "리뷰 지적 처리"). 반영의 커밋은 이 대화에서 사용자가 확인한 해시다. 대화에 기록이 없으면(새 세션 등) 커밋 diff 로 추측해 채우지 말고 생략한다.
-    - 합의 줄: 새 `withKnownIssue` 마다 (형식 CONVENTIONS §3).
+    - 합의 줄: 새 `withKnownIssue` 마다(정확도 샘플은 샘플마다) (형식 CONVENTIONS §3).
     - CI 리뷰 갈음 PR 이면 "CI 리뷰는 워크플로 파일 변경으로 건너뜀 (로컬 /arch-review 로 갈음)" 한 줄.
   - **스크린샷 (선택)**: 비워 두고 주석만 남긴다. 사용자가 직접 첨부한다.
 - 본문은 임시 파일로 작성해 `--body-file` 로 넘긴다 (명령줄에 `git push … main` 같은 문자열이 들어가면 main 보호 훅이 오인한다).

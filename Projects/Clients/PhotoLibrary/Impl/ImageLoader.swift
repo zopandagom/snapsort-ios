@@ -43,6 +43,7 @@ enum ImageLoader {
   // MARK: - 테스트할 규칙
 
   /// 원하는 품질이 iCloud 에만 있으면 기기에 있는 버전을 바로 주는 요청으로 한 번 더 읽는다. 다른 실패는 그대로 던진다.
+  /// 대체 버전으로 읽은 결과는 `isLocalFallback` 으로 표시한다 (Debug 기록 도구가 센다).
   static func fallingBackWhenInCloud(
     _ primary: () async throws(ImageLoadError) -> AnalysisImage,
     to fallback: () async throws(ImageLoadError) -> AnalysisImage
@@ -50,7 +51,8 @@ enum ImageLoader {
     do {
       return try await primary()
     } catch .notAvailableLocally {
-      return try await fallback()
+      let image = try await fallback()
+      return AnalysisImage(cgImage: image.cgImage, orientation: image.orientation, isLocalFallback: true)
     }
   }
 

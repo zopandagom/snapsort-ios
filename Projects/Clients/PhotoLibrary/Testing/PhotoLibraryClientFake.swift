@@ -9,6 +9,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   public let stateAfterRequest: PhotoAccessState
   private let imageAssetsAfterPicker: [ImageAsset]?
   private let loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>]
+  private let albums: [String: [ImageAsset]]
+  private let fetchGate: (@Sendable () async -> Void)?
   private let state: Mutex<State>
 
   private struct State {
@@ -25,16 +27,22 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 달라진 만큼 증분 변경을 보낸다.
   /// `loadImageResults` 는 식별자별 `loadImage` 결과다. 크기와 관계없이 같은 결과를 주고, 없는 식별자는 `.notFound`, 취소된 Task 에는 `.cancelled` 를
   /// 던진다.
+  /// `albums` 는 앨범 제목별 이미지다. 없는 제목은 nil 이다.
+  /// `fetchGate` 를 주면 두 조회가 결과를 주기 전에 기다린다. 조회 도중의 취소를 흉내 낸다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
     imageAssets: [ImageAsset] = [],
     imageAssetsAfterPicker: [ImageAsset]? = nil,
-    loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
+    loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:],
+    albums: [String: [ImageAsset]] = [:],
+    fetchGate: (@Sendable () async -> Void)? = nil
   ) {
     self.stateAfterRequest = stateAfterRequest
     self.imageAssetsAfterPicker = imageAssetsAfterPicker
     self.loadImageResults = loadImageResults
+    self.albums = albums
+    self.fetchGate = fetchGate
     self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
   }
 
@@ -65,7 +73,13 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   }
 
   public func fetchImageAssets() async -> [ImageAsset] {
-    self.state.withLock { $0.imageAssets }
+    await self.fetchGate?()
+    return self.state.withLock { $0.imageAssets }
+  }
+
+  public func fetchImageAssets(inAlbumNamed name: String) async -> [ImageAsset]? {
+    await self.fetchGate?()
+    return self.albums[name]
   }
 
   public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {

@@ -108,7 +108,7 @@ struct ImageLoaderTests {
     #expect(ImageLoader.orientation(orientation) == expected)
   }
 
-  @Test("원하는 품질이 iCloud 에만 있으면 기기에 있는 버전으로 한 번 더 읽는다")
+  @Test("원하는 품질이 iCloud 에만 있으면 기기에 있는 버전으로 한 번 더 읽고 대체 버전으로 표시한다")
   func fallsBackWhenInCloud() async throws {
     var fallbackCount = 0
 
@@ -120,10 +120,11 @@ struct ImageLoaderTests {
     }
 
     #expect(image.cgImage.width == 2)
+    #expect(image.isLocalFallback)
     #expect(fallbackCount == 1)
   }
 
-  @Test("원하는 품질을 읽으면 대체 요청을 하지 않는다")
+  @Test("원하는 품질을 읽으면 대체 요청을 하지 않고 대체 버전으로 표시하지 않는다")
   func doesNotFallBackOnSuccess() async throws {
     var fallbackCount = 0
 
@@ -135,6 +136,7 @@ struct ImageLoaderTests {
     }
 
     #expect(image.cgImage.width == 4)
+    #expect(!image.isLocalFallback)
     #expect(fallbackCount == 0)
   }
 

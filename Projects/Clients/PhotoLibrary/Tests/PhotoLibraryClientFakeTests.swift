@@ -1,6 +1,7 @@
 import Core
 import PhotoLibraryInterface
 import PhotoLibraryTesting
+import Synchronization
 import Testing
 
 struct PhotoLibraryClientFakeTests {
@@ -56,5 +57,43 @@ struct PhotoLibraryClientFakeTests {
     }
 
     #expect(await task.value == .cancelled)
+  }
+
+  @Test("앨범 제목으로 정해 둔 이미지를 돌려주고, 없는 제목은 nil 이다")
+  func fetchesAlbum() async {
+    let fake = PhotoLibraryClientFake(albums: ["샘플": [.stub(id: "b"), .stub(id: "a")]])
+
+    #expect(await fake.fetchImageAssets(inAlbumNamed: "샘플")?.map(\.id) == ["b", "a"])
+    #expect(await fake.fetchImageAssets(inAlbumNamed: "없음") == nil)
+  }
+
+  @Test("조회 대기를 주면 두 조회 모두 대기가 풀린 뒤에 결과를 준다")
+  func waitsForFetchGate() async {
+    let (signal, release) = AsyncStream.makeStream(of: Void.self)
+    // 여러 조회가 함께 기다리도록 스트림은 한 Task 만 읽고, 조회는 그 Task 를 기다린다.
+    let released = Task { for await _ in signal {} }
+    let waitingCount = Mutex(0)
+    let fake = PhotoLibraryClientFake(
+      imageAssets: [.stub(id: "a")],
+      albums: ["샘플": [.stub(id: "b")]],
+      fetchGate: {
+        waitingCount.withLock { $0 += 1 }
+        await released.value
+      }
+    )
+
+    let fetches = Task {
+      async let library = fake.fetchImageAssets()
+      async let album = fake.fetchImageAssets(inAlbumNamed: "샘플")
+      return await (library.map(\.id), album?.map(\.id))
+    }
+    while waitingCount.withLock({ $0 }) < 2 {
+      await Task.yield()
+    }
+    release.finish()
+    let (library, album) = await fetches.value
+
+    #expect(library == ["a"])
+    #expect(album == ["b"])
   }
 }

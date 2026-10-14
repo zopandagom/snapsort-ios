@@ -11,6 +11,8 @@ let project = Project.app(
   dependencies: [
     .feature(.library),
     .feature(.onboarding),
+    // Debug 빌드 전용 기록 도구. 모듈 소스가 모두 `#if DEBUG` 라 Release 에서는 빈 모듈이다 (docs/ARCHITECTURE.md §2).
+    .feature(.sampleRecorder),
     .client(impl: .photoLibrary),
     .client(impl: .imageAnalysis),
     .client(impl: .photoStore),

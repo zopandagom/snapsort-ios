@@ -205,12 +205,13 @@ struct IndexingRun {
 
   /// 이미지 한 장을 분류 파이프라인(docs/ARCHITECTURE.md §4)으로 분석한다.
   /// ① 메타데이터 → ② 썸네일 이미지 분류 → ③ OCR 대상이면 가장 큰 버전으로 OCR → 키워드 규칙으로 카테고리.
+  /// Debug 기록 도구의 `SampleRecording.measure`(SampleRecorderFeature)가 같은 순서로 단계별 시간을 잰다. 한쪽 순서를 바꾸면 다른 쪽도 맞춘다.
   private func analyze(_ asset: ImageAsset) async throws(IndexingStop) -> Outcome {
     let labels: [ImageLabel]
     do throws(AnalysisFailure) {
       let thumbnail = try await self.loadImage(asset.id, size: .thumbnail)
       labels = try await self.analysis { () async throws(ImageAnalysisError) in
-        try await self.imageAnalysis.classify(thumbnail)
+        try await self.imageAnalysis.classify(thumbnail, minimumConfidence: ClassificationRules.minimumLabelConfidence)
       }
     } catch let failure {
       return try failure.outcome()
