@@ -44,7 +44,7 @@
 |---|---|---|
 | 모든 분석은 기기 안에서 | `URLSession` 등 네트워크 코드 추가 (필요하면 사전 합의 후 별도 모듈) | `no_network` |
 | 장소 이름 변환·지도 표시는 Apple 시스템 서비스(MapKit `MKReverseGeocodingRequest`·`Map`)로, 위치 좌표만 넘긴다. OCR 로 읽은 주소는 사용자가 누를 때만 지도 앱으로 넘긴다 | 사진·OCR 텍스트를 사용자 동작 없이 자동으로 외부로 보내기, 서드파티 지도·지오코딩 SDK, deprecated `CLGeocoder` | |
-| Debug 빌드 전용 개발 도구(기록 도구 `SampleRecorderFeature`)의 결과 파일(OCR 텍스트 포함)은 사용자가 공유 시트로 직접 옮긴다. AirDrop 이나 '파일에 저장'의 '나의 iPhone' 위치로만. 기록 도구는 Release 에 넣지 않는다(ARCHITECTURE §2) | 기록 파일을 메시지·메일·iCloud Drive 등 클라우드로 보내기, 기록 도구를 Release 에 포함, 가리지 않은 기록 파일 커밋 | 리뷰, `.gitignore` |
+| Debug 빌드 전용 개발 도구(기록 도구 `SampleRecorderFeature`)의 결과 파일(OCR 텍스트 포함)은 사용자가 공유 시트로 직접 옮긴다. AirDrop 이나 '파일에 저장'의 '나의 iPhone' 위치로만. 기록 도구는 Release 에 넣지 않는다(ARCHITECTURE §2). 공유 시트에서 공개 상수가 있는 시스템 대상(메일·메시지·복사 등)과 Apple 앱 공유 확장(메모·미리 알림·Freeform. 비공개 식별자라 빠지지 않을 수 있다)은 코드로 뺀다(`ShareExclusions`). 그 밖의 대상(서드파티 앱)과 '파일에 저장'의 iCloud Drive 위치는 막지 못해 화면 안내로 둔다 | 기록 파일을 메시지·메일·iCloud Drive 등 클라우드로 보내기, 기록 도구를 Release 에 포함, 가리지 않은 기록 파일 커밋 | 리뷰, `.gitignore`, 공유 시트 제외 목록 |
 | 로그에는 개수·소요 시간·카테고리 같은 메타데이터만 | OCR 텍스트, 기프티콘 번호, 사진 식별자를 `print`/`Logger` 로 출력 | |
 | `Logger` 는 `privacy: .private` 기본 | 서드파티 분석/크래시 SDK 를 합의 없이 추가 | |
 | 권한은 필요한 시점에 요청하고 제한 접근(`.limited`)도 정상 흐름으로 처리 | 앱 시작 즉시 권한 팝업 | |
