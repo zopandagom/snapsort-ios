@@ -66,6 +66,10 @@
         RecordingOutput.timingFileName(mode: .speed(count: 10000), at: date, timeZone: seoul)
           == "IndexingTiming-speed10000-20270115-1700.json"
       )
+      #expect(
+        RecordingOutput.timingFileName(mode: .ocrResolution(count: 100), at: date, timeZone: seoul)
+          == "IndexingTiming-ocrResolution100-20270115-1700.json"
+      )
     }
   }
 #endif

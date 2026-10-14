@@ -13,7 +13,8 @@ enum ImageLoader {
 
   /// OCR·바코드용 이미지의 픽셀 수 상한(약 12.6MP). 48MP 원본을 그대로 디코딩하면 한 장에 약 190MB 라 줄인다 (이 상한이면 약 50MB).
   /// 긴 변이 아니라 픽셀 수로 제한해, 스크롤 캡처·긴 영수증처럼 세로로 긴 이미지도 폭이 지나치게 줄지 않게 한다.
-  /// 영수증의 작은 글자를 읽을 수 있는 크기로 둔 임시 값이고, 정확도·1만 장 측정 작업에서 확정한다.
+  /// OCR 기준으로 확정한 값이다. Debug 기록 도구의 OCR 해상도 비교에서 더 낮은 상한은 OCR 시간을 줄이지 않고 글자만 놓쳤다 (docs/ARCHITECTURE.md §4).
+  /// 바코드는 그 비교로 재지 않으므로 바코드를 구현할 때 확인한다.
   static let largestPixelCount = 4096 * 3072
 
   /// 맞는 크기의 캐시가 있으면 PhotoKit 이 그것을 쓰고, 없으면 원본에서 줄일 수 있다. `.highQualityFormat` 이라 결과는 한 번만 온다.
@@ -78,6 +79,7 @@ enum ImageLoader {
   }
 
   /// 픽셀 수가 `maxPixelCount` 이하가 되도록 비율을 지켜 줄였을 때의 긴 변. 이미 작으면 원래 긴 변이다.
+  /// 기록 도구 `OCRResolution.downscaledSize` 의 긴 변이 같은 식이다. 바꾸면 맞춘다.
   static func maxPixelLength(width: Int, height: Int, maxPixelCount: Int) -> CGFloat {
     let longSide = CGFloat(max(width, height))
     let pixelCount = width * height

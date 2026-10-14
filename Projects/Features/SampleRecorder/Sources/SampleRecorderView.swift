@@ -61,6 +61,9 @@
           ForEach(RecordingMode.speedCounts, id: \.self) { count in
             Text("속도 (최신 \(count.formatted())장)").tag(RecordingMode.speed(count: count))
           }
+          ForEach(RecordingMode.ocrResolutionCounts, id: \.self) { count in
+            Text("OCR 해상도 비교 (최신 \(count.formatted())장)").tag(RecordingMode.ocrResolution(count: count))
+          }
         }
         .pickerStyle(.inline)
         .labelsHidden()
@@ -124,6 +127,9 @@
       }
       self.filesSection(result)
       self.summarySection(result)
+      if let comparison = result.ocrComparison {
+        self.ocrComparisonSection(comparison)
+      }
     }
 
     private func filesSection(_ result: RecordingResult) -> some View {
@@ -250,6 +256,78 @@
       case .background: "앱이 백그라운드로 가서 멈췄습니다"
       case .screenClosed: "화면을 닫아 멈췄습니다"
       }
+    }
+  }
+
+  /// OCR 해상도 비교 결과 절. 타입 본문 길이 제한 때문에 확장으로 둔다.
+  extension SampleRecorderView {
+    private func ocrComparisonSection(_ summary: OCRResolutionSummary) -> some View {
+      Section {
+        LabeledContent(
+          "비교",
+          value: "\(summary.comparedCount)장 / OCR 대상 \(summary.targetCount)장 "
+            + "(대체 버전 \(summary.fallbackCount), 건너뜀 \(summary.skippedTargetCount))"
+        )
+        if summary.comparedCount == 0 {
+          Text("비교한 이미지가 없습니다")
+        } else {
+          LabeledContent(
+            "기준 OCR",
+            value: [
+              summary.baseline.ocr.map(Self.statsText),
+              "공통 합계 \(Self.secondsText(summary.baseline.commonTotalMs))",
+            ]
+            .compactMap(\.self)
+            .joined(separator: " · ")
+          )
+          ForEach(summary.caps, id: \.name) { cap in
+            LabeledContent(cap.name) {
+              Text(Self.capText(cap, baselineCommonTotalMs: summary.baseline.commonTotalMs))
+            }
+          }
+        }
+      } header: {
+        Text("OCR 해상도 비교 (기준 대비)")
+      } footer: {
+        Text(
+          "기준(현재 상한) OCR 대비 값입니다. 낮은 상한은 기준 이미지를 줄여 만든 입력입니다. 워밍업 이미지는 시간에서 뺐습니다. "
+            + "8MP·4MP 는 그보다 큰 이미지만 줄어들어 표본이 작을 수 있습니다(줄임 n장 확인)."
+        )
+      }
+    }
+
+    private static func capText(_ cap: OCRResolutionSummary.CapSummary, baselineCommonTotalMs: Double) -> String {
+      var timing = ["OCR \(cap.ocr.map(self.statsText) ?? "-")", "공통 합계 \(self.secondsText(cap.commonTotalMs))"]
+      if baselineCommonTotalMs > 0 {
+        timing[1] += " (기준의 \(self.percentText(cap.commonTotalMs / baselineCommonTotalMs)))"
+      }
+      if let ratio = cap.timeRatio {
+        timing.append("비율 p50 \(self.percentText(ratio.p50))")
+      }
+      var lines = [
+        timing.joined(separator: " · "),
+        "줄임 \(cap.downscaledCount) · 같은 입력 \(cap.sameInputCount) · 실패 \(cap.failedCount)",
+        "분류 불일치 \(cap.categoryMismatchCount)/줄임 \(cap.downscaledCount)장",
+      ]
+      if let recall = cap.charRecall {
+        lines.append(
+          "재현율 합산 \(self.percentText(recall.pooled)) · 이미지 평균 \(self.percentText(recall.mean)) · "
+            + "하위 5% \(self.percentText(recall.p05)) · 최저 \(self.percentText(recall.min))"
+        )
+      }
+      lines.append(
+        "날짜 놓침 \(cap.fewerDatesImageCount)/\(cap.imagesWithDatesCount)장 · "
+          + "긴 숫자 놓침 \(cap.fewerLongNumbersImageCount)/\(cap.imagesWithLongNumbersCount)장"
+      )
+      return lines.joined(separator: "\n")
+    }
+
+    private static func secondsText(_ milliseconds: Double) -> String {
+      "\((milliseconds / 1000).formatted(.number.precision(.fractionLength(1))))초"
+    }
+
+    private static func percentText(_ fraction: Double) -> String {
+      fraction.formatted(.percent.precision(.fractionLength(1)))
     }
   }
 #endif

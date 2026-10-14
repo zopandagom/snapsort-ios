@@ -71,6 +71,7 @@
   }
 
   /// 측정 파일. OCR 텍스트·라벨·식별자·촬영 날짜는 넣지 않는다. 값이 nil 인 필드는 빠진다.
+  /// OCR 해상도 비교 모드는 `ocrResolution`(상한·회전 규칙·요약)과 이미지별 `ocrComparison` 이 더해지고, 다른 모드는 그 키가 없다.
   struct TimingFile: Encodable {
     let mode: String
     let requestedCount: Int?
@@ -94,15 +95,26 @@
     let thermalStateChanges: [ThermalStateChange]
     let limitations: [String]
     let summary: TimingSummary
+    let ocrResolution: OCRResolutionFileSection?
     let images: [ImageMeasurement]
 
-    init(run: RecordingRun, summary: TimingSummary, conditionsAtEnd: DeviceConditions, recordedAt: Date) {
-      if case let .speed(count) = run.mode {
-        self.mode = "speed"
-        self.requestedCount = count
-      } else {
+    init(
+      run: RecordingRun,
+      summary: TimingSummary,
+      ocrComparison: OCRResolutionSummary?,
+      conditionsAtEnd: DeviceConditions,
+      recordedAt: Date
+    ) {
+      switch run.mode {
+      case .accuracy:
         self.mode = "accuracy"
         self.requestedCount = nil
+      case let .speed(count):
+        self.mode = "speed"
+        self.requestedCount = count
+      case let .ocrResolution(count):
+        self.mode = "ocrResolution"
+        self.requestedCount = count
       }
       self.libraryCount = run.libraryCount
       self.processedCount = run.measurements.count
@@ -122,8 +134,16 @@
       self.lowPowerModeAtStart = run.conditionsAtStart.isLowPowerModeEnabled
       self.lowPowerModeAtEnd = conditionsAtEnd.isLowPowerModeEnabled
       self.thermalStateChanges = run.thermalStateChanges
-      self.limitations = Self.limitations
+      self.limitations = ocrComparison == nil ? Self.limitations : Self.limitations + Self.ocrResolutionLimitations
       self.summary = summary
+      self.ocrResolution = ocrComparison.map { summary in
+        OCRResolutionFileSection(
+          caps: OCRResolutionCap.all
+            .map { OCRResolutionFileSection.Cap(name: $0.name, maxPixelCount: $0.maxPixelCount) },
+          rotation: OCRResolution.rotationDescription,
+          summary: summary
+        )
+      }
       self.images = run.measurements
     }
 
@@ -143,6 +163,29 @@
       "totalMs 는 메인 밖에서 잰 한 장의 경과 시간이며 화면 갱신을 포함하지 않는다.",
       "발열 상태는 이미지 시작 시점마다 읽어 이미지 사이의 짧은 변화는 놓칠 수 있다.",
     ]
+
+    static let ocrResolutionLimitations = [
+      "OCR 해상도 비교: 낮은 상한 입력은 기준 이미지를 CoreGraphics 로 줄인 것이라 운영의 디코딩 중 축소와 픽셀이 조금 다를 수 있다.",
+      "OCR 해상도 비교: 원본 로드 시간 절감은 재지 않는다(상한을 바꾼 뒤 속도 모드로 잰다).",
+      "OCR 해상도 비교: 재현율·분류 일치·날짜·숫자열은 정답이 아니라 기준(현재 상한) OCR 대비다.",
+      "OCR 해상도 비교: totalMs 에 낮은 상한 OCR 이 더해진다(운영 시간은 pipelineMs).",
+      "OCR 해상도 비교: 16bit·HDR·회색조 원본은 8bit RGB 로 줄인다.",
+      "OCR 해상도 비교: 원본 상한은 OCR·바코드 공용이지만 바코드 인식은 이 비교로 재지 않는다(바코드를 구현할 때 확인한다).",
+      "OCR 해상도 비교: 8MP·4MP 는 그보다 큰 OCR 대상(카메라 사진·긴 스크롤 캡처)만 줄어들어 표본이 작을 수 있다"
+        + "(downscaledCount 확인. 이미지별 isScreenshot·크기로 사후 분리 가능).",
+    ]
+  }
+
+  /// 측정 파일의 `ocrResolution`: OCR 해상도 비교 모드의 비교 조건(상한·회전 규칙)과 요약.
+  struct OCRResolutionFileSection: Encodable {
+    struct Cap: Encodable {
+      let name: String
+      let maxPixelCount: Int
+    }
+
+    let caps: [Cap]
+    let rotation: String
+    let summary: OCRResolutionSummary
   }
 
   /// 시간 값 묶음의 요약. p50·p95 는 최근접 순위로 고른다.

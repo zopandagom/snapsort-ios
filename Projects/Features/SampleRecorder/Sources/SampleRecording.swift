@@ -24,6 +24,7 @@
   }
 
   /// `IndexingRun.analyze(_:)`(IndexingClientImpl.swift)와 같은 순서로 한 장씩 분석하며 단계별 시간을 잰다. 한쪽 순서를 바꾸면 다른 쪽도 맞춘다.
+  /// OCR 해상도 비교 모드는 OCR 대상의 원본을 낮은 상한으로 줄여 다시 OCR 하고 기준과 비교한다(`compareResolutions`).
   /// 모든 시간은 메인 밖에서 `ContinuousClock` 으로 잰다.
   struct SampleRecording: Sendable {
     let photoLibrary: any PhotoLibraryClient
@@ -47,7 +48,7 @@
       }
     }
 
-    /// 조회 → (속도 모드면 여행 판정 시간) → 이미지 루프 → 인코딩.
+    /// 조회 → (속도 모드면 여행 판정 시간) → 이미지 루프 → 인코딩(OCR 해상도 비교 모드면 비교 요약도).
     /// 실패(`RecordingFailure`)는 이미지를 처리하기 전의 권한·조회 단계에서만 난다.
     @concurrent
     func run(mode: RecordingMode, progress: AsyncStream<RecordingProgress>.Continuation) async -> RecordingOutcome {
@@ -91,6 +92,8 @@
     /// 정확도 모드는 OCR 대상이 아니어도 원본을 읽어 OCR 한다(판정 규칙을 바꿔도 다시 기록하지 않도록).
     /// 그래서 원본 로드나 OCR 에 실패하면 OCR 대상이 아니어도 건너뛴다. OCR 줄 없이 기록하면 OCR 대상 조건을 바꾸는 실험에서
     /// 그 샘플이 틀린 입력이 되기 때문이다.
+    /// OCR 해상도 비교 모드는 OCR 대상(운영 기준)일 때만 원본을 읽어 기준과 낮은 상한을 OCR 한다. 기준 실패는 속도 모드처럼 건너뛰고,
+    /// 낮은 상한 실패는 그 상한만 실패로 기록한다.
     @concurrent
     func measure(_ asset: ImageAsset, index: Int, mode: RecordingMode) async -> MeasureOutcome {
       let clock = ContinuousClock()
@@ -105,8 +108,16 @@
         measurement.needsTextRecognition = needsText
 
         var textLines: [RecognizedTextLine] = []
-        // 정확도 모드는 OCR 대상이 아니어도 OCR 하고, 실패하면 건너뛴다(measure 문서 주석).
-        if mode == .accuracy || needsText {
+        if case .ocrResolution = mode, needsText {
+          try await self.compareResolutions(
+            asset,
+            index: index,
+            ruleLabels: ruleLabels,
+            measurement: &measurement,
+            stage: &stage
+          )
+        } else if mode == .accuracy || needsText {
+          // 정확도 모드는 OCR 대상이 아니어도 OCR 하고, 실패하면 건너뛴다(measure 문서 주석).
           textLines = try await self.recognizeText(asset, measurement: &measurement, stage: &stage, clock: clock)
         }
 
@@ -147,7 +158,8 @@
 
     // MARK: - Private
 
-    /// 권한을 확인하고 대상 이미지를 조회한다. 속도 모드는 인덱서처럼 보관함 전체로 여행 판정 시간을 한 번 잰다(결과는 버린다).
+    /// 권한을 확인하고 대상 이미지를 조회한다. 속도·OCR 해상도 비교 모드는 보관함 최신 N장을 고르고,
+    /// 속도 모드는 인덱서처럼 보관함 전체로 여행 판정 시간을 한 번 잰다(결과는 버린다).
     /// 기기 상태 시작값은 권한 확인 뒤 조회 직전에 읽는다. `deviceConditions` 는 시작값 → 이미지마다 → 끝값 순서로 부르고,
     /// 여기서 실패하면 끝값은 읽지 않는다.
     private func fetchTargets(
@@ -172,7 +184,7 @@
           targets: album,
           conditionsAtStart: conditionsAtStart
         ))
-      case let .speed(count):
+      case let .speed(count), let .ocrResolution(count):
         let library = await self.photoLibrary.fetchImageAssets()
         guard !library.isEmpty else { return .failed(.noImages) }
         var run = RecordingRun(
@@ -182,9 +194,11 @@
           conditionsAtStart: conditionsAtStart
         )
         run.libraryCount = library.count
-        let travelStart = clock.now
-        _ = TravelDetector.trips(in: library, calendar: self.calendar)
-        run.travelDetectionMs = travelStart.duration(to: clock.now).milliseconds
+        if case .speed = mode {
+          let travelStart = clock.now
+          _ = TravelDetector.trips(in: library, calendar: self.calendar)
+          run.travelDetectionMs = travelStart.duration(to: clock.now).milliseconds
+        }
         return .ready(run)
       }
     }
@@ -239,7 +253,9 @@
       return textLines
     }
 
-    private func loadImage(_ id: ImageAsset.ID, size: ImageSize) async throws(MeasureStop) -> AnalysisImage {
+    // MARK: - 오류 변환 (OCR 해상도 비교 `SampleRecording+OCRResolution.swift` 도 쓴다)
+
+    func loadImage(_ id: ImageAsset.ID, size: ImageSize) async throws(MeasureStop) -> AnalysisImage {
       do throws(ImageLoadError) {
         return try await self.photoLibrary.loadImage(id: id, size: size)
       } catch {
@@ -251,7 +267,7 @@
       }
     }
 
-    private func analysis<Output>(
+    func analysis<Output>(
       _ operation: () async throws(ImageAnalysisError) -> Output
     ) async throws(MeasureStop) -> Output {
       do throws(ImageAnalysisError) {
@@ -312,8 +328,14 @@
     }
 
     /// 끝(완료·취소 모두)의 조건으로 요약을 계산하고 두 파일을 따로 인코딩한다. 기록한 샘플이 0장이면 샘플 파일은 없다.
+    /// OCR 해상도 비교 모드는 남은 이미지로 비교 요약을 만들어 결과와 측정 파일에 넣는다.
     func result(conditionsAtEnd: DeviceConditions, recordedAt: Date, calendar: Calendar) -> RecordingResult {
       let summary = TimingSummary.make(from: self.measurements, thermalChanges: self.thermalStateChanges)
+      let ocrComparison: OCRResolutionSummary? = if case .ocrResolution = self.mode {
+        OCRResolutionSummary.make(from: self.measurements, caps: OCRResolutionCap.all)
+      } else {
+        nil
+      }
       let timeZone = calendar.timeZone
       let samplesFile: FileOutput? = self.mode == .accuracy && !self.drafts.isEmpty
         ? RecordingOutput.encode(
@@ -324,6 +346,7 @@
       let timing = TimingFile(
         run: self,
         summary: summary,
+        ocrComparison: ocrComparison,
         conditionsAtEnd: conditionsAtEnd,
         recordedAt: recordedAt
       )
@@ -341,7 +364,8 @@
         totalSeconds: self.totalSeconds,
         conditionsAtStart: self.conditionsAtStart,
         conditionsAtEnd: conditionsAtEnd,
-        thermalStateChanges: self.thermalStateChanges
+        thermalStateChanges: self.thermalStateChanges,
+        ocrComparison: ocrComparison
       )
     }
   }
@@ -353,14 +377,14 @@
   }
 
   /// 이미지 한 장의 측정을 멈추는 이유.
-  private enum MeasureStop: Error {
+  enum MeasureStop: Error {
     /// Task 가 취소됐다. 이 이미지는 남기지 않고 기록을 멈춘다.
     case cancelled
     /// 이 이미지만 건너뛴다.
     case skipped(SkippedImage.Reason)
   }
 
-  private extension Duration {
+  extension Duration {
     var milliseconds: Double {
       Double(self.components.seconds) * 1000 + Double(self.components.attoseconds) / 1e15
     }

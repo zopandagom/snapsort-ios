@@ -9,8 +9,12 @@
     case accuracy
     /// 보관함 최신 `count` 장의 단계별 시간을 잰다. 측정 파일만 만든다.
     case speed(count: Int)
+    /// 보관함 최신 `count` 장 중 OCR 대상(운영 기준)의 원본을 낮은 상한(`OCRResolutionCap.all`)으로 줄여 다시 OCR 하고
+    /// 현재 상한(기준)과 비교한다. 단계별 시간은 속도 모드와 같이 기준 값으로 잰다. 측정 파일만 만든다.
+    case ocrResolution(count: Int)
 
     public static let speedCounts = [100, 1000, 10000]
+    public static let ocrResolutionCounts = [100, 1000]
     public static let albumName = "SnapSort 샘플"
 
     /// 측정 파일 이름과 `mode` 값에 쓰는 이름.
@@ -18,6 +22,7 @@
       switch self {
       case .accuracy: "accuracy"
       case let .speed(count): "speed\(count)"
+      case let .ocrResolution(count): "ocrResolution\(count)"
       }
     }
   }
@@ -76,7 +81,7 @@
     case limitedAccess
     case albumNotFound
     case albumEmpty
-    /// 속도 모드인데 보관함에 이미지가 없다.
+    /// 보관함에서 고르는 모드(속도·OCR 해상도 비교)인데 보관함에 이미지가 없다.
     case noImages
   }
 
@@ -84,7 +89,7 @@
     public let mode: RecordingMode
     /// 화면에 보이는 요약. 측정 파일의 `summary` 와 같다.
     public let summary: TimingSummary
-    /// 정확도 모드의 샘플 초안. 속도 모드이거나 기록한 샘플이 0장이면 nil.
+    /// 정확도 모드의 샘플 초안. 정확도 모드가 아니거나 기록한 샘플이 0장이면 nil.
     public let samplesFile: FileOutput?
     public let timingFile: FileOutput
     public let recordedSampleCount: Int
@@ -97,6 +102,8 @@
     public let conditionsAtEnd: DeviceConditions
     /// 발열 상태가 바뀐 이미지와 그 상태. 첫 원소는 첫 이미지의 상태다.
     public let thermalStateChanges: [ThermalStateChange]
+    /// OCR 해상도 비교 요약. 측정 파일의 `ocrResolution.summary` 와 같다. 다른 모드는 nil.
+    public let ocrComparison: OCRResolutionSummary?
   }
 
   /// 만든 결과 파일. 인코딩에 실패하면 그 파일만 공유하지 못한다.
@@ -173,6 +180,7 @@
 
   /// 이미지 한 장의 측정 레코드. 식별자·라벨·OCR 텍스트·촬영 날짜는 담지 않는다.
   /// 값이 없는 단계는 nil 이고, 측정 파일에서 키가 빠진다.
+  /// OCR 해상도 비교 모드에서 원본·OCR 필드(`largestLoadMs`·`ocr…`·`textLineCount`)는 기준(현재 상한) 값이고, 낮은 상한 값은 `ocrComparison` 에 있다.
   struct ImageMeasurement: Sendable, Equatable, Encodable {
     enum Outcome: String, Sendable, Encodable {
       case recorded
@@ -204,6 +212,8 @@
     var totalMs: Double = 0
     /// 운영 인덱서가 하는 단계만 더한 시간: 썸네일 로드 + 분류, OCR 대상이면 원본 로드 + OCR. 건너뛴 이미지는 nil.
     var pipelineMs: Double?
+    /// OCR 해상도 비교 모드에서 OCR 대상을 기록했을 때만 있다.
+    var ocrComparison: OCRComparisonRecord?
 
     init(index: Int, asset: ImageAsset) {
       self.index = index
