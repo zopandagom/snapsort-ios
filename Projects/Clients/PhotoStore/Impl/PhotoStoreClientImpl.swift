@@ -58,6 +58,14 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.indexedIDs() }
   }
 
+  public func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try await Self.perform { try await self.store.value.pendingTextRecognitionIDs() }
+  }
+
+  public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
+    try await Self.perform { try await self.store.value.images(ids: ids) }
+  }
+
   public func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(in: category) }
   }

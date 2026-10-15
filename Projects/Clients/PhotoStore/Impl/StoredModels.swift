@@ -12,7 +12,12 @@ final class StoredImage {
   var pixelHeight = 0
   var isScreenshot = false
   var labelsData = Data()
-  /// OCR 하지 않았으면 nil.
+  /// OCR 상태는 두 값으로 읽는다(`PhotoStore.textRecognition`):
+  /// (false, nil) 대상 아님, (true, nil) 대기, (true, data) 읽음.
+  /// 이 속성이 생기기 전에 저장한 행은 (false, data) 일 수 있고 읽음으로 본다(그때는 OCR 한 이미지만 data 가 있었다).
+  /// 기본값이 있어 SwiftData 경량 이전이 자동으로 된다.
+  var needsTextRecognition = false
+  /// 읽은 OCR 줄. 대상 아님·대기면 nil.
   var textLinesData: Data?
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)

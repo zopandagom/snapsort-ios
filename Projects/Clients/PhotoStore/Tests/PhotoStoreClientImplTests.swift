@@ -2,6 +2,7 @@ import Core
 import CoreGraphics
 import Foundation
 import PhotoStoreInterface
+import SwiftData
 import Testing
 @testable import PhotoStoreImpl
 
@@ -19,11 +20,11 @@ struct PhotoStoreClientImplTests {
         isScreenshot: true
       ),
       labels: [ImageLabel(identifier: "document", confidence: 0.42)],
-      textLines: [RecognizedTextLine(
+      textRecognition: .recognized([RecognizedTextLine(
         text: "유효기간 2026.12.31",
         confidence: 0.9,
         boundingBox: CGRect(x: 0.1, y: 0.2, width: 0.5, height: 0.05)
-      )],
+      )]),
       categories: [.gifticon, .document]
     )
 
@@ -33,17 +34,52 @@ struct PhotoStoreClientImplTests {
     #expect(try await store.indexedIDs() == ["gifticon"])
   }
 
-  @Test("OCR 하지 않은 이미지와 글자가 없던 이미지를 구분한다")
-  func keepsDifferenceBetweenNoOCRAndNoText() async throws {
+  @Test("OCR 대상 아님·대기·글자 없이 읽음을 구분해 같은 값으로 다시 읽는다")
+  func keepsTextRecognitionStates() async throws {
     let store = try PhotoStoreClientImpl.inMemory()
-    let notRecognized = IndexedImage.stub(id: "photo", textLines: nil, categories: [.food])
-    let noText = IndexedImage.stub(id: "blank", textLines: [], categories: [.food])
+    let images: [IndexedImage] = [
+      .stub(id: "photo", textRecognition: .notNeeded, categories: [.food]),
+      .stub(id: "pending", textRecognition: .pending, categories: [.food]),
+      .stub(id: "blank", textRecognition: .recognized([]), categories: [.food]),
+    ]
 
-    try await store.save([notRecognized, noText])
+    try await store.save(images)
 
     let stored = try await store.images(in: .food)
-    #expect(stored.first { $0.id == "photo" }?.textLines == nil)
+    #expect(Dictionary(uniqueKeysWithValues: stored.map { ($0.id, $0.textRecognition) }) == [
+      "photo": .notNeeded, "pending": .pending, "blank": .recognized([]),
+    ])
+    #expect(stored.first { $0.id == "pending" }?.textLines == nil)
     #expect(stored.first { $0.id == "blank" }?.textLines == [])
+  }
+
+  @Test("OCR 대기 식별자는 대기만 돌려주고, 읽음으로 다시 저장하면 빠진다")
+  func listsPendingTextRecognition() async throws {
+    let store = try PhotoStoreClientImpl.inMemory()
+    try await store.save([
+      .stub(id: "photo"),
+      .stub(id: "a", textRecognition: .pending),
+      .stub(id: "b", textRecognition: .pending),
+      .stub(id: "read", textRecognition: .recognized([])),
+    ])
+    #expect(try await store.pendingTextRecognitionIDs() == ["a", "b"])
+
+    try await store.save([.stub(id: "a", textRecognition: .recognized([]))])
+
+    #expect(try await store.pendingTextRecognitionIDs() == ["b"])
+  }
+
+  @Test("식별자로 저장된 이미지를 읽고 없는 식별자는 뺀다")
+  func readsImagesByID() async throws {
+    let store = try PhotoStoreClientImpl.inMemory()
+    let pending = IndexedImage.stub(
+      id: "a",
+      labels: [ImageLabel(identifier: "receipt", confidence: 0.5)],
+      textRecognition: .pending
+    )
+    try await store.save([pending, .stub(id: "b")])
+
+    #expect(try await store.images(ids: ["a", "missing"]) == [pending])
   }
 
   @Test("같은 식별자를 다시 저장하면 새 결과로 바꾼다")
@@ -175,10 +211,57 @@ struct PhotoStoreClientImplTests {
       .appending(path: "PhotoStore.store")
     defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     let image = IndexedImage.stub(id: "a", categories: [.receipt])
+    let pending = IndexedImage.stub(id: "b", textRecognition: .pending, categories: [.receipt])
 
-    try await PhotoStoreClientImpl(url: url).save([image])
+    try await PhotoStoreClientImpl(url: url).save([image, pending])
 
-    #expect(try await PhotoStoreClientImpl(url: url).images(in: .receipt) == [image])
+    let reopened = try PhotoStoreClientImpl(url: url)
+    #expect(try await reopened.images(in: .receipt) == [image, pending])
+    #expect(try await reopened.pendingTextRecognitionIDs() == ["b"])
+  }
+
+  @Test("OCR 상태 속성이 생기기 전 형식의 행은 줄이 있으면 읽음, 없으면 대상 아님으로 읽고 대기에 넣지 않는다")
+  func readsRowsSavedBeforeTextRecognitionState() async throws {
+    let url = FileManager.default.temporaryDirectory
+      .appending(path: UUID().uuidString)
+      .appending(path: "PhotoStore.store")
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let lines = [
+      RecognizedTextLine(text: "합계 9,000", confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1)),
+      RecognizedTextLine(text: "영수증", confidence: 0.8, boundingBox: CGRect(x: 0, y: 0.2, width: 1, height: 0.1)),
+    ]
+    // 이전 빌드가 저장한 것처럼 `needsTextRecognition` 을 기본값(false)으로 둔 행을 직접 넣고, 컨테이너를 놓은 뒤 다시 연다.
+    do {
+      let container = try ModelContainer(
+        for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self,
+        configurations: ModelConfiguration(url: url, cloudKitDatabase: .none)
+      )
+      let context = ModelContext(container)
+      let encoder = PropertyListEncoder()
+      for (id, data) in try [("read", encoder.encode(lines)), ("photo", nil)] as [(String, Data?)] {
+        let stored = StoredImage(assetID: id)
+        stored.labelsData = try encoder.encode([ImageLabel]())
+        stored.textLinesData = data
+        context.insert(stored)
+        stored.memberships = [StoredCategoryMembership(category: ImageCategory.receipt.rawValue)]
+      }
+      try context.save()
+    }
+
+    let store = try PhotoStoreClientImpl(url: url)
+
+    let byCategory = try await Dictionary(uniqueKeysWithValues: store.images(in: .receipt).map { (
+      $0.id,
+      $0.textRecognition
+    ) })
+    let byID = try await Dictionary(uniqueKeysWithValues: store.images(ids: ["read", "photo"]).map { (
+      $0.id,
+      $0.textRecognition
+    ) })
+    let expected: [ImageAsset.ID: TextRecognition] = ["read": .recognized(lines), "photo": .notNeeded]
+    #expect(byCategory == expected)
+    #expect(byID == expected)
+    #expect(try await store.pendingTextRecognitionIDs().isEmpty)
   }
 
   @Test("저장 폴더를 기기 백업에서 뺀다")
