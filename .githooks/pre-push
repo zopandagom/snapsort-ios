@@ -1,5 +1,5 @@
 #!/bin/bash
-# 사람이 터미널에서 실수로 main 에 push 하는 것도 막는다 (make bootstrap 이 연결).
+# main 으로 push 하는 것을 push 전에 막는다 (make bootstrap 이 연결). 서버에서는 GitHub 룰셋 `main 보호`(PR 필수)가 막는다.
 # 우회가 꼭 필요하면: git push --no-verify
 while read -r _ _ remote_ref _; do
   if [[ "$remote_ref" == "refs/heads/main" ]]; then

@@ -1,10 +1,19 @@
 #!/bin/bash
-# 커밋 전에 수정한 Swift 파일을 스테이지 여부와 상관없이 모두 lint 한다 (make bootstrap 이 연결). 규칙은 CI lint 잡과 같다.
-# 대상: HEAD 대비 바뀐 파일(스테이지 + 미스테이지) + 추적하지 않는 새 파일.
-# 스테이지된 내용이 작업 트리와 다른 파일은 커밋될 내용(index)도 따로 꺼내 lint 한다.
-# lint 설정이 바뀌면 결과가 레포 전체에 영향을 주므로 make lint 로 전체를 검사한다.
-# 고치려면: make format / 우회가 꼭 필요하면: git commit --no-verify
+# 커밋 전에 두 가지를 본다 (make bootstrap 이 연결).
+# 1. 현재 브랜치가 main 이면 막는다 (실수 방지. main push 는 서버에서 GitHub 룰셋 `main 보호` 가 막는다).
+#    detached HEAD(rebase 중 등)는 브랜치 이름이 비어 통과한다.
+# 2. 수정한 Swift 파일을 스테이지 여부와 상관없이 모두 lint 한다. 규칙은 CI lint 잡과 같다.
+#    대상: HEAD 대비 바뀐 파일(스테이지 + 미스테이지) + 추적하지 않는 새 파일.
+#    스테이지된 내용이 작업 트리와 다른 파일은 커밋될 내용(index)도 따로 꺼내 lint 한다.
+#    lint 설정이 바뀌면 결과가 레포 전체에 영향을 주므로 make lint 로 전체를 검사한다.
+# 고치려면: 기능 브랜치로 옮기거나(git switch -c <브랜치>) make format / 우회가 꼭 필요하면: git commit --no-verify
 set -euo pipefail
+
+if [[ $(git branch --show-current) == main ]]; then
+  echo "main 브랜치에 직접 커밋할 수 없습니다. 기능 브랜치를 만들어 커밋하세요: git switch -c feat/<요약> (fix/…, chore/…)" >&2
+  exit 1
+fi
+
 cd "$(git rev-parse --show-toplevel)"
 
 # 첫 커밋처럼 HEAD 가 없으면 빈 트리와 비교한다.
