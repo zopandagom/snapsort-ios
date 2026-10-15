@@ -227,6 +227,27 @@ struct RuleClassifierTests {
 
     #expect(!categories.contains(.travel))
   }
+
+  @Test(
+    "라벨이 같으면 줄을 더해도 기타 밖의 카테고리가 빠지지 않는다",
+    arguments: [
+      (screenshot, ["receipt"]),
+      (screenshot, ["screenshot"]),
+      (photo, ["food"]),
+      (photo, ["document", "dog"]),
+    ]
+  )
+  func addingLinesOnlyAddsCategories(asset: ImageAsset, identifiers: [String]) {
+    let labels = identifiers.map(label)
+    let withoutText = RuleClassifier.classify(asset: asset, labels: labels, textLines: [])
+    let withText = RuleClassifier.classify(
+      asset: asset,
+      labels: labels,
+      textLines: ["교환처 GS25", "유효기간 2026.12.31", "오후 3:12", "오후 3:13", "합계 9,000", "영수증"].map(line)
+    )
+
+    #expect(withoutText.subtracting([.other]).isSubset(of: withText))
+  }
 }
 
 private let screenshot = ImageAsset(

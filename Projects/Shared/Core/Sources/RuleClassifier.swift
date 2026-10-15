@@ -6,7 +6,8 @@ public enum RuleClassifier {
   /// - 사진형: 스크린샷이 아닐 때만 라벨로 판단한다. 화면에 보이던 음식·인물은 사진형으로 묶지 않는다.
   ///   남이 보낸 스크린샷을 저장한 이미지처럼 메타데이터로는 모르는 경우를 위해 `screenshot` 라벨도 스크린샷으로 본다.
   /// - 여행은 여러 장의 위치·날짜로 판정하므로 여기서 돌려주지 않는다.
-  /// - Parameter textLines: OCR 하지 않은 이미지는 빈 배열.
+  /// - Parameter textLines: OCR 하지 않았거나 아직 읽지 않은(인덱서 2단계 대기) 이미지는 빈 배열.
+  ///   라벨이 같으면 줄을 더해도 `.other` 밖의 카테고리는 빠지지 않는다(인덱서가 대기 이미지의 카테고리를 먼저 저장하는 전제).
   public static func classify(
     asset: ImageAsset,
     labels: [ImageLabel],
