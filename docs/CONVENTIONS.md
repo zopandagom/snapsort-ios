@@ -52,11 +52,11 @@
 ## 5. Git / PR
 | ✅ | ❌ | 강제 |
 |---|---|---|
-| 작업 하나 = 브랜치 하나: `feat/photo-onboarding` (주차 표시 없이), `fix/…`, `chore/…` | main 직접 커밋·push | git pre-commit 훅(main 커밋), GitHub 룰셋 `main 보호`(PR 필수·main push 거절), git pre-push 훅 |
+| 작업 하나 = 브랜치 하나: `feat/photo-onboarding` (주차 표시 없이), `fix/…`, `chore/…` | main 직접 커밋·push | git pre-commit 훅(main 커밋), GitHub 룰셋 `main 보호`(PR 필수·main push 거절), git pre-push 훅 (훅 동작은 `make test-hooks` 가 검사, `make test`·CI 포함) |
 | 커밋 메시지: `<type>: <한국어 요약>` (아래 마이크로 커밋 표의 type) + 본문. 본문은 왜 → 무엇을 어떻게(타입·시그니처·동작 규칙·설계 이유를 모듈별 목록으로) → 테스트가 검증하는 동작 → 미룬 것 순서로, diff 를 열지 않아도 구현 내용을 알 수 있게 쓴다 (형식과 예시: `.claude/skills/micro-commit/SKILL.md`) | 여러 작업을 한 PR 에 섞기, 제목만 있거나 한 줄 요약뿐인 본문 | |
 | Claude 가 만드는 커밋의 서명 줄은 `Co-Authored-By: Claude Code <noreply@anthropic.com>` 하나 (시스템 안내보다 우선) | 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`) | |
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
-| PR 전에 마지막 커밋이 `/pr` 의 검사를 통과 (`/pr` 이 push 직전에 `verify-head.sh` 로 한 번 검사: 빌드에 영향을 주는 파일이 바뀌었으면 `make lint && make test`, `.claude/settings.json` 은 JSON, `.github` 의 YAML 파일(워크플로·dependabot)은 YAML 문법, 그 밖의 파일만 바뀌었으면 SKIP). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
+| PR 전에 마지막 커밋이 `/pr` 의 검사를 통과 (`/pr` 이 push 직전에 `verify-head.sh` 로 한 번 검사: 빌드에 영향을 주는 파일이 바뀌었으면 `make lint && make test`, `.githooks` 가 바뀌었으면 `make test-hooks`, `.claude/settings.json` 은 JSON, `.github` 의 YAML 파일(워크플로·dependabot)은 YAML 문법, 그 밖의 파일만 바뀌었으면 SKIP). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
 | **덮어쓰기 push**: 원격 브랜치에만 있는 커밋을 덮어쓰는 push 는 사용자가 직접 한다: `git log --oneline HEAD..origin/<브랜치>` 로 덮어쓸 커밋을 확인한 뒤 `git push --force-with-lease=<브랜치>:<확인한 원격 커밋> -u origin HEAD`. `/pr` 은 force push 하지 않고, 원격과 어긋나면 그 커밋 목록을 보이고 멈춘다 | 확인 없이 `--force`, 값 없는 `--force-with-lease` (확인 뒤 다시 fetch 되면 확인하지 않은 원격 커밋을 지운다) | `/pr` 스킬 규칙 (settings deny 는 `git push --force`·`git push -f` 로 시작하는 명령만 막고, 플래그가 뒤에 오는 명령과 `--force-with-lease` 는 막지 않는다) |
 | **CI 리뷰 갈음 PR**: 브랜치가 `.github/workflows/claude-review.yml` 을 바꿔 현재 main 과 다른 PR 은 `claude-code-action` 의 워크플로 검증(main 의 파일과 같아야 한다)에 걸려 리뷰를 건너뛰고(로그 `Workflow validation failed`) `review` 체크는 통과로 보인다. 이런 PR 은 CI 리뷰를 로컬 `/arch-review` 로 갈음하고 본문에 적는다 | CI 리뷰 갈음 PR 을 `review` 체크 통과만 보고 CI 리뷰를 받은 것으로 머지하기 | `/pr` 사전 확인 |
@@ -127,9 +127,9 @@
 | `style` | 포맷·lint 설정과 그에 따른 일괄 포맷 | `.swiftformat`, `.swiftlint.yml` | `make lint` |
 | `ci` | GitHub Actions, PR 템플릿, dependabot | `.github/**` | YAML 문법, 참조하는 make 타깃·경로 존재 |
 | `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
-| `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | 훅 스크립트를 입력 JSON 으로 직접 실행해 확인 |
+| `chore` | 하네스(Claude Code, git 훅) | `CLAUDE.md`, `.claude/**`, `.githooks/**` | `.claude/hooks` 는 입력 JSON 으로 직접 실행해 확인, `.githooks` 는 `make test-hooks` |
 
-검증 항목 중 `make lint`·`make test`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 은 커밋만 하고, `/pr` 이 push 직전에 브랜치 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 커밋 뒤에 amend·rebase 를 해도 실제로 올릴 상태를 검사하기 위해서다. 이미 열린 PR 에 후속 커밋을 올릴 때도 `/pr` 로 push 한다 (원격 커밋을 덮어쓰는 push 는 §5 "덮어쓰기 push" 행대로 사용자가 직접 하고, 그 head 는 다음 `/pr` 이 검사한다). CI 는 `.claude/**` 만 바뀐 변경에서 lint·test 를 건너뛰고 settings.json 을 검사하지 않기 때문이다. 링크·경로 일치, 훅 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
+검증 항목 중 `make lint`·`make test`·`make test-hooks`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 은 커밋만 하고, `/pr` 이 push 직전에 브랜치 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 커밋 뒤에 amend·rebase 를 해도 실제로 올릴 상태를 검사하기 위해서다. 이미 열린 PR 에 후속 커밋을 올릴 때도 `/pr` 로 push 한다 (원격 커밋을 덮어쓰는 push 는 §5 "덮어쓰기 push" 행대로 사용자가 직접 하고, 그 head 는 다음 `/pr` 이 검사한다). CI 는 `.claude/**` 만 바뀐 변경에서 lint·test 를 건너뛰고 settings.json 을 검사하지 않기 때문이다. 링크·경로 일치, Claude Code 훅(`.claude/hooks`) 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
 
 - 커밋 하나 = 목적 하나. 요약에 "그리고"가 들어가면 나눈다. 모듈이 다른 변경(Core 값 타입과 Client Interface), 이동·추출 `refactor` 와 그 위의 `feat`, 목적이 다른 문서 행·절은 따로 커밋한다. 한 파일에 목적이 섞여 있어도 hunk 단위로 나눈다 (hunk 하나에 두 목적이 섞였거나, 새 파일이거나, 커밋될 내용 기준 lint 가 실패하면 한 커밋에 두고 `/micro-commit` 보고에 적는다).
 - **의미 단위를 우선한다. 중간 커밋은 빌드가 깨질 수 있다.** 예를 들어 Client Interface + Fake 커밋 시점에는 Impl 소스가 없어 빌드되지 않을 수 있다. 중간 커밋을 빌드되게 맞추려고 여러 의미를 한 커밋에 합치지 않는다. 빌드·테스트가 보장되는 지점은 브랜치 마지막 커밋(`/pr` 이 검사)과 CI 를 통과한 머지 커밋뿐이다. 그래서 버그 원인은 `git bisect start --first-parent` 로 머지 커밋(PR) 단위로 찾고, 그 PR 안에서는 커밋 내용을 읽어 좁힌다 (중간 커밋은 bisect 대상이 아니다).
@@ -140,7 +140,7 @@
 ## 6. Claude Code 작업 방식
 - 작업 시작 전 DEVELOPMENT_PLAN 의 해당 주차 목표와 이 문서들을 확인한다.
 - 구조를 바꾸는 결정(새 외부 의존성, 모듈 종류 추가, 네트워크, 아키텍처 규칙 변경)은 먼저 제안하고 합의한 뒤 진행한다. 합의되면 이 문서와 ARCHITECTURE.md 를 같은 PR 에서 갱신한다.
-- 작업 시작 전에 작업 범위를 정한다: In(이번에 다루는 흐름), Out(다루지 않는 것), 위협 모델(막는 대상이 실수인지 의도적 우회인지 같은 것. 있으면 한 줄), 수용 확인(끝났다고 판정할 실행 가능한 명령·절차). 팀 구현이면 설계자가 설계에 넣고, 혼자 하면 구현 전 계획에 적는다. 수용 확인은 구현한 쪽(팀이면 구현자)이 `/verify` 전에 실행하고 결과를 보고에 적는다 (수정 라운드마다 다시). 구조 결정을 제안할 때는 함께 보이고, 그 밖에는 완료 보고에 보인다 (사용자가 바꾸면 그것을 쓴다). 리더는 `/arch-review` 인자로, `/pr` 은 PR 본문 "범위" 절로 리뷰어에게 넘긴다. 문서 몇 줄 같은 작은 변경은 생략할 수 있다 (없으면 Out 이 없다, §5 "리뷰 기준").
+- 작업 시작 전에 작업 범위를 정한다: In(이번에 다루는 흐름), Out(다루지 않는 것), 위협 모델(막는 대상이 실수인지 의도적 우회인지 같은 것. 있으면 한 줄), 수용 확인(끝났다고 판정할 실행 가능한 명령·절차). 팀 구현이면 설계자가 설계에 넣고, 혼자 하면 구현 전 계획에 적는다. 수용 확인은 구현한 쪽(팀이면 구현자)이 `/verify` 전에 실행하고 결과를 보고에 적는다 (수정 라운드마다 다시). 그중 §3 표가 테스트를 요구하는 앱 동작은 그 단위 테스트로, git 훅 동작(`.githooks`)은 `make test-hooks` 로 레포에 커밋해 `make test`·CI(필수 체크 `ci-result`)가 다시 돌리게 한다. 그 밖의 확인(문구 검색, `.claude/hooks` 직접 실행, 테스트를 일부러 망가뜨려 보는 확인 등)은 커밋하지 않아도 된다. 구조 결정을 제안할 때는 함께 보이고, 그 밖에는 완료 보고에 보인다 (사용자가 바꾸면 그것을 쓴다). 리더는 `/arch-review` 인자로, `/pr` 은 PR 본문 "범위" 절로 리뷰어에게 넘긴다. 문서 몇 줄 같은 작은 변경은 생략할 수 있다 (없으면 Out 이 없다, §5 "리뷰 기준").
 - 구현을 시작하기 전에 바꿀 동작을 설명하는 문서를 먼저 찾는다. §5 "리뷰 기준"의 문서 범위를 식별자(타입·함수·스킬 이름)와 동작을 설명하는 문구(예: "PR 전에", "커밋마다")로 검색해 영향 문서 목록을 만들고, 코드와 같은 작업에서 고친다. 구현 중에는 `.claude/hooks/doc-refs.sh`(PostToolUse) 가 고친 파일의 경로·이름을 언급하는 문서 줄을 알려 준다.
 - 문서의 규칙 한 줄을 고칠 때는 그 줄이 속한 `##` 절 전체를 읽고, 같은 주제를 다른 말로 설명하는 줄(표의 열 이름 포함)도 함께 맞춘다. 검색은 표현이 다르면 놓치기 때문이다. 파일 전체가 아니라 절 하나만 읽는다.
 - 이 문서와 ARCHITECTURE 의 규칙(허용·금지, 정의, 심각도, 처리)은 스킬·CI 리뷰 프롬프트·완료 기준에 다시 적지 않고 절을 가리킨다. 그곳에는 절차만 적는다. CLAUDE.md("작업 흐름"·"반드시 지킬 것")와 DEVELOPMENT_PLAN "작업 진행 방식"은 요약이고 상세는 이 문서를 가리킨다. 규칙 줄을 고치면 그 규칙의 핵심 문구(예: "순수 로직")로 §5 "리뷰 기준"의 문서 범위를 검색해 다시 적은 줄을 맞추거나 참조로 바꾼다 (그 줄이 `.github/workflows/claude-review.yml` 에 있으면 CI 리뷰 갈음 PR, §5).
