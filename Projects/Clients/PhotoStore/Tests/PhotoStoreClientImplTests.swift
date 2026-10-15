@@ -220,8 +220,8 @@ struct PhotoStoreClientImplTests {
     #expect(try await reopened.pendingTextRecognitionIDs() == ["b"])
   }
 
-  @Test("OCR 상태 속성이 생기기 전 형식의 행은 줄이 있으면 읽음, 없으면 대상 아님으로 읽고 대기에 넣지 않는다")
-  func readsRowsSavedBeforeTextRecognitionState() async throws {
+  @Test("OCR 상태 속성이 없던 이전 스키마의 저장 파일을 열면 경량 이전되고, 줄이 있던 행은 읽음, 없던 행은 대상 아님이며 대기에 넣지 않는다")
+  func migratesStoreSavedBeforeTextRecognitionState() async throws {
     let url = FileManager.default.temporaryDirectory
       .appending(path: UUID().uuidString)
       .appending(path: "PhotoStore.store")
@@ -230,20 +230,24 @@ struct PhotoStoreClientImplTests {
       RecognizedTextLine(text: "합계 9,000", confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1)),
       RecognizedTextLine(text: "영수증", confidence: 0.8, boundingBox: CGRect(x: 0, y: 0.2, width: 1, height: 0.1)),
     ]
-    // 이전 빌드가 저장한 것처럼 `needsTextRecognition` 을 기본값(false)으로 둔 행을 직접 넣고, 컨테이너를 놓은 뒤 다시 연다.
+    // 이전 빌드처럼 `needsTextRecognition` 열이 없는 스키마로 파일을 만들고 컨테이너를 놓은 뒤, 지금 스키마로 다시 연다.
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     do {
       let container = try ModelContainer(
-        for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self,
+        for: PreTextRecognitionSchema.StoredImage.self,
+        PreTextRecognitionSchema.StoredCategoryMembership.self,
+        PreTextRecognitionSchema.StoredTrip.self,
         configurations: ModelConfiguration(url: url, cloudKitDatabase: .none)
       )
       let context = ModelContext(container)
       let encoder = PropertyListEncoder()
       for (id, data) in try [("read", encoder.encode(lines)), ("photo", nil)] as [(String, Data?)] {
-        let stored = StoredImage(assetID: id)
+        let stored = PreTextRecognitionSchema.StoredImage(assetID: id)
         stored.labelsData = try encoder.encode([ImageLabel]())
         stored.textLinesData = data
         context.insert(stored)
-        stored.memberships = [StoredCategoryMembership(category: ImageCategory.receipt.rawValue)]
+        stored
+          .memberships = [PreTextRecognitionSchema.StoredCategoryMembership(category: ImageCategory.receipt.rawValue)]
       }
       try context.save()
     }
@@ -262,6 +266,7 @@ struct PhotoStoreClientImplTests {
     #expect(byCategory == expected)
     #expect(byID == expected)
     #expect(try await store.pendingTextRecognitionIDs().isEmpty)
+    #expect(try await store.indexedIDs() == ["read", "photo"])
   }
 
   @Test("저장 폴더를 기기 백업에서 뺀다")
