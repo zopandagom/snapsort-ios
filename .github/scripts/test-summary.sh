@@ -1,7 +1,7 @@
 #!/bin/bash
 # xcresult 를 PR 코멘트용 마크다운으로 요약해 stdout 으로 낸다. CI test 잡이 쓴다.
 # 사용: .github/scripts/test-summary.sh build/TestResults.xcresult
-# 결과 번들이 없거나 테스트가 하나도 돌지 않았으면 빌드 실패로 본다.
+# 결과 번들이 없거나 테스트가 하나도 돌지 않았으면 빌드 또는 훅 테스트 실패로 본다 (make test 는 xcodebuild 전에 훅 테스트를 돌리고, 실패하면 결과 번들 없이 멈춘다).
 # 실패 메시지에 ``` 가 들어 있어도 깨지지 않도록 코드 블록은 백틱 4개, 테스트 이름은 이중 백틱으로 감싼다.
 set -uo pipefail
 
@@ -14,8 +14,8 @@ summary=""
 [[ -d "$bundle" ]] && summary=$(xcrun xcresulttool get test-results summary --path "$bundle" --compact 2>/dev/null)
 
 if [[ -z "$summary" ]] || [[ $(jq '.totalTestCount // 0' <<<"$summary") -eq 0 ]]; then
-  echo "### ❌ 빌드 실패"
-  echo "테스트 결과가 없습니다. [실행 로그]($run_url)에서 빌드 오류를 확인하세요."
+  echo "### ❌ 빌드 또는 훅 테스트 실패"
+  echo "테스트 결과가 없습니다. [실행 로그]($run_url)에서 빌드 오류(\`❌\`·\`error:\` 줄)나 훅 테스트의 \`FAIL\` 줄을 확인하세요."
   exit 0
 fi
 
