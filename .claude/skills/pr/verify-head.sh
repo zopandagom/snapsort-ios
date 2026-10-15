@@ -4,6 +4,7 @@
 # /pr 이 push 직전에 실행한다.
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test
+#   - .githooks/: make test-hooks
 #   - .claude/settings.json: JSON 문법
 #   - .github 의 YAML 파일(워크플로·dependabot): YAML 문법
 #   - 그 외(문서 등)만 바뀌었으면: SKIP
@@ -22,6 +23,7 @@ files=$(git diff --name-only "$base"...HEAD)
 build_paths='^(Projects/|Tuist/|Workspace\.swift|Tuist\.swift|Makefile|\.mise\.toml|\.swiftlint\.yml|\.swiftformat)'
 checks=()
 grep -Eq "$build_paths" <<<"$files" && checks+=("make lint" "make test")
+grep -q '^\.githooks/' <<<"$files" && checks+=("make test-hooks")
 grep -q '^\.claude/settings\.json$' <<<"$files" && checks+=("jq empty .claude/settings.json")
 grep -Eq '^\.github/.*\.ya?ml$' <<<"$files" &&
   checks+=("ruby -ryaml -e 'Dir[\".github/**/*.y*ml\"].each { |f| YAML.load_file(f) }'")
@@ -36,7 +38,7 @@ trap 'rm -f "$log"' EXIT
 for check in "${checks[@]}"; do
   if ! bash -c "$check" >>"$log" 2>&1; then
     echo "FAIL  $subject ($check)"
-    grep -E 'error|✖|failed|Error' "$log" | head -10 | sed 's/^/      /'
+    grep -E '^FAIL|error|✖|failed|Error' "$log" | head -10 | sed 's/^/      /'
     exit 1
   fi
 done
