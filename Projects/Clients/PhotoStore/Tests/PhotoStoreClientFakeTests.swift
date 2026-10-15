@@ -58,6 +58,31 @@ struct PhotoStoreClientFakeTests {
     #expect(fake.replaceTripsCount == 1)
   }
 
+  @Test("Impl 처럼 OCR 대기 식별자와 식별자별 이미지를 돌려준다")
+  func listsPendingAndImagesByIDLikeImpl() async throws {
+    let pending = IndexedImage.stub(id: "a", textRecognition: .pending)
+    let fake = PhotoStoreClientFake(images: [pending, .stub(id: "b"), .stub(id: "c", textRecognition: .recognized([]))])
+
+    #expect(try await fake.pendingTextRecognitionIDs() == ["a"])
+    #expect(try await fake.images(ids: ["a", "missing"]) == [pending])
+
+    try await fake.save([.stub(id: "a", textRecognition: .recognized([]))])
+    #expect(try await fake.pendingTextRecognitionIDs().isEmpty)
+  }
+
+  @Test("식별자 읽기에서 뺄 식별자를 정하면 그 식별자만 빼고, 풀면 다시 돌려준다")
+  func hidesImagesFromIDReads() async throws {
+    let fake = PhotoStoreClientFake(
+      images: [.stub(id: "a", textRecognition: .pending), .stub(id: "b")],
+      missingOnIDRead: ["a"]
+    )
+
+    #expect(try await fake.images(ids: ["a", "b"]).map(\.id) == ["b"])
+    #expect(try await fake.pendingTextRecognitionIDs() == ["a"])
+    fake.restoreIDReads()
+    #expect(try await fake.images(ids: ["a", "b"]).map(\.id) == ["a", "b"])
+  }
+
   @Test("저장 한도를 정하면 그 횟수만큼 저장한 뒤부터 실패한다")
   func failsSavingAfterLimit() async throws {
     let fake = PhotoStoreClientFake(saveLimit: 1)

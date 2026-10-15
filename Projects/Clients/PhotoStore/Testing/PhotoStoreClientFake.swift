@@ -15,23 +15,33 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var savedBatches: [[IndexedImage]] = []
     var deletedBatches: [Set<ImageAsset.ID>] = []
     var replaceTripsCount = 0
+    var missingOnIDRead: Set<ImageAsset.ID> = []
   }
 
   /// - Parameters:
   ///   - error: 정하면 모든 호출이 이 실패를 던지고 아무것도 바꾸지 않는다.
   ///   - saveLimit: 정하면 `save` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 작업 도중의 저장 실패를 흉내 낸다.
+  ///   - missingOnIDRead: `images(ids:)` 가 빼고 돌려줄 식별자. 다른 조회에는 있는데 읽을 때 행이 없는 어긋남을 흉내 낸다.
+  ///     `restoreIDReads()` 로 푼다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
     error: PhotoStoreError? = nil,
-    saveLimit: Int? = nil
+    saveLimit: Int? = nil,
+    missingOnIDRead: Set<ImageAsset.ID> = []
   ) {
     self.error = error
     self.saveLimit = saveLimit
     self.state = Mutex(State(
       images: Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }),
-      trips: trips
+      trips: trips,
+      missingOnIDRead: missingOnIDRead
     ))
+  }
+
+  /// `missingOnIDRead` 를 비워 `images(ids:)` 가 다시 모두 돌려주게 한다.
+  public func restoreIDReads() {
+    self.state.withLock { $0.missingOnIDRead = [] }
   }
 
   /// 지금 저장된 이미지. 식별자 순이다.
@@ -84,6 +94,17 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public func indexedIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
     try self.throwIfNeeded()
     return self.state.withLock { Set($0.images.keys) }
+  }
+
+  public func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try self.throwIfNeeded()
+    return self.state.withLock { Set($0.images.values.filter { $0.textRecognition == .pending }.map(\.id)) }
+  }
+
+  public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
+    try self.throwIfNeeded()
+    let missing = self.state.withLock { $0.missingOnIDRead }
+    return self.images.filter { ids.contains($0.id) && !missing.contains($0.id) }
   }
 
   /// 프로토콜 약속대로 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로 돌려준다.

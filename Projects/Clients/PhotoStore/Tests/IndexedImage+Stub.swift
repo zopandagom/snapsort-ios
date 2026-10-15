@@ -8,7 +8,7 @@ extension IndexedImage {
     creationDate: Date? = nil,
     coordinate: Coordinate? = nil,
     labels: [ImageLabel] = [],
-    textLines: [RecognizedTextLine]? = nil,
+    textRecognition: TextRecognition = .notNeeded,
     categories: Set<ImageCategory> = []
   ) -> IndexedImage {
     IndexedImage(
@@ -21,7 +21,7 @@ extension IndexedImage {
         isScreenshot: false
       ),
       labels: labels,
-      textLines: textLines,
+      textRecognition: textRecognition,
       categories: categories
     )
   }
