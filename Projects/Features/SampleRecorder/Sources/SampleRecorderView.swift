@@ -58,6 +58,7 @@
           selection: Binding(get: { self.model.mode }, set: { self.model.modeChanged($0) })
         ) {
           Text("정확도 (앨범 '\(RecordingMode.albumName)')").tag(RecordingMode.accuracy)
+          Text("정확도 (보관함 전체, OCR 대상만 OCR)").tag(RecordingMode.libraryAccuracy)
           ForEach(RecordingMode.speedCounts, id: \.self) { count in
             Text("속도 (최신 \(count.formatted())장)").tag(RecordingMode.speed(count: count))
           }
@@ -134,7 +135,7 @@
 
     private func filesSection(_ result: RecordingResult) -> some View {
       Section {
-        if result.mode == .accuracy {
+        if result.mode.recordsSamples {
           if let samplesFile = result.samplesFile {
             self.fileRow(samplesFile, title: "샘플 초안 \(result.recordedSampleCount)장")
           } else {
@@ -146,7 +147,7 @@
         Text("결과 파일")
       } footer: {
         VStack(alignment: .leading, spacing: 4) {
-          if result.mode == .accuracy, result.samplesFile != nil {
+          if result.mode.recordsSamples, result.samplesFile != nil {
             Text("OCR 텍스트가 들어 있습니다. AirDrop 이나 '파일에 저장'의 '나의 iPhone' 위치로만 옮기세요.")
           }
           if result.fallbackCount > 0 {
