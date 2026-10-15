@@ -10,6 +10,7 @@ import Testing
 /// 샘플 형식은 기록 도구의 `SampleDraft`(RecordingOutput.swift)와 짝이다. 한쪽을 바꾸면 다른 쪽도 맞춘다.
 /// 기록 도구로 기록하기 전에 직접 만든 시드 샘플(라벨·OCR 줄이 실기기 값이 아니고 라벨은 0.1 이상만)이 함께 있다.
 /// 시드 샘플 이름은 `시드 · ` 로 시작하고, 실기기 샘플이 카테고리마다 모이면 지운다.
+/// 실기기 샘플 이름은 `실기기 · ` 로 시작하고, OCR 줄은 공백만 남기고 모든 글자를 `○` 로 가렸다(글자 수는 유지된다).
 struct ClassificationAccuracyTests {
   @Test("샘플 이미지를 기대 카테고리로 분류한다", arguments: ClassificationSample.all)
   func classifiesSample(_ sample: ClassificationSample) {
@@ -60,11 +61,20 @@ struct ClassificationAccuracyTests {
         ImageLabel(identifier: "document", confidence: belowMinimum),
       ],
       text: ["영수증", "합계 9,000"],
+      ocrSkipped: nil,
       expected: [.food],
       knownIssue: nil
     )
 
     #expect(sample.classify() == [.food])
+  }
+
+  @Test("OCR 하지 않고 기록한 샘플은 OCR 대상이 아니다")
+  func ocrSkippedSamplesStayOutsideTextRecognition() {
+    for sample in ClassificationSample.all where sample.ocrSkipped == true {
+      // 판정 규칙이 바뀌어 OCR 대상이 되면 빈 `text` 가 틀린 입력이 된다. 앨범 모드로 다시 기록해 OCR 줄을 채운다.
+      #expect(!sample.needsTextRecognition, "\(sample.name): OCR 대상이 되었으니 앨범 모드로 다시 기록한다")
+    }
   }
 
   @Test("샘플 이름은 겹치지 않는다")
@@ -76,6 +86,7 @@ struct ClassificationAccuracyTests {
 }
 
 /// 이미지 한 장의 분류 입력과 기대 결과. OCR 줄(`text`)은 OCR 대상 판정과 관계없이 기록해 두어, 판정 규칙을 바꿔도 다시 기록하지 않는다.
+/// 예외로 기록 도구의 보관함 전체 정확도 모드는 OCR 대상만 OCR 해, 나머지 샘플은 `ocrSkipped` 가 true 이고 `text` 가 비어 있다.
 /// 라벨도 같은 이유로 신뢰도 기준보다 낮은 것까지 기록해 두고, 분류할 때 기준으로 거른다.
 /// 위치는 좌표 대신 있는지만 남긴다.
 struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
@@ -90,6 +101,8 @@ struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
   let asset: Asset
   let labels: [ImageLabel]
   let text: [String]
+  /// OCR 대상이 아니어서 OCR 하지 않고 기록했는지. true 면 `text` 가 비어 있고, OCR 대상이 되면 다시 기록해야 한다.
+  let ocrSkipped: Bool?
   let expected: Set<ImageCategory>
   /// 사용자와 합의해 미룬 오분류의 이유와 지울 시점(이유 끝에 ` — <지울 시점>에서 지운다`). 있으면 `withKnownIssue` 로 감싼다
   /// (docs/CONVENTIONS.md §3).
@@ -100,8 +113,23 @@ struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
   /// 인덱서와 같은 순서로 분류한다: 라벨을 신뢰도 기준으로 거르고, OCR 대상이 아니면 OCR 줄 없이 규칙 분류기에 넘긴다.
   /// 기록 도구의 `predicted` 도 같은 계산이다.
   func classify() -> Set<ImageCategory> {
-    let labels = self.labels.filter { $0.confidence >= ClassificationRules.minimumLabelConfidence }
-    let asset = ImageAsset(
+    let textLines = self.needsTextRecognition
+      ? self.text.map { RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero) }
+      : []
+    return RuleClassifier.classify(asset: self.imageAsset, labels: self.ruleLabels, textLines: textLines)
+  }
+
+  /// 운영 기준으로 OCR 대상인지.
+  var needsTextRecognition: Bool {
+    TextRecognitionPolicy.needsTextRecognition(asset: self.imageAsset, labels: self.ruleLabels)
+  }
+
+  private var ruleLabels: [ImageLabel] {
+    self.labels.filter { $0.confidence >= ClassificationRules.minimumLabelConfidence }
+  }
+
+  private var imageAsset: ImageAsset {
+    ImageAsset(
       id: self.name,
       creationDate: nil,
       coordinate: self.asset.hasLocation ? Coordinate(latitude: 37.5665, longitude: 126.978) : nil,
@@ -109,11 +137,6 @@ struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
       pixelHeight: self.asset.pixelHeight,
       isScreenshot: self.asset.isScreenshot
     )
-    let needsText = TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: labels)
-    let textLines = needsText
-      ? self.text.map { RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero) }
-      : []
-    return RuleClassifier.classify(asset: asset, labels: labels, textLines: textLines)
   }
 
   /// 테스트 인자로 쓰려고 실패하면 비워 둔다. 읽기 실패는 `loadsSamples` 가 알린다.
