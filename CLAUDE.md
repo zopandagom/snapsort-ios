@@ -17,7 +17,7 @@ Debug 빌드 전용 개발 도구는 CONVENTIONS §4.
 | `make generate` | Tuist 로 워크스페이스 생성 후 Xcode 로 열기 (`.xcodeproj` 는 커밋하지 않는다). 열지 않으려면 `make project` |
 | `make lint` / `make format` | SwiftFormat + SwiftLint (아키텍처 규칙 포함) |
 | `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) + git 훅 테스트 |
-| `make test-hooks` | git 훅 동작 테스트: 임시 레포에서 main 커밋·push 차단 확인 |
+| `make test-hooks` | git 훅 동작 테스트: 임시 레포에서 main 커밋·push 차단과 기능 브랜치 통과 확인 |
 
 ## 작업 흐름 (`/verify`·`/arch-review`·`/micro-commit` 은 서브에이전트로 실행되어 요약만 돌려주고, `/pr` 은 현재 대화에서 실행된다)
 | 순서 | 스킬 | 하는 일 |
