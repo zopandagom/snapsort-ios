@@ -1,6 +1,7 @@
 #!/bin/bash
 # main 브랜치에서 머지 커밋을 만드는 것을 막는다 (make bootstrap 이 연결. 실수 방지, 기준은 pre-commit 의 main 검사와 같다).
-# main 에서의 비 fast-forward `git merge`·`git pull` 은 pre-commit 이 아니라 이 훅을 부른다.
+# main 에서 비 fast-forward `git merge`·`git pull` 이 바로 머지 커밋을 만들 때는 pre-commit 이 아니라 이 훅이 불린다.
+# 충돌을 해결한 뒤나 --no-commit 뒤의 git commit(merge --continue 포함)은 pre-commit 의 main 검사가 막는다.
 # fast-forward 는 커밋을 만들지 않아 훅이 불리지 않으므로 `git pull --ff-only` 로 main 을 최신화하는 흐름은 막지 않는다.
 # detached HEAD 는 브랜치 이름이 비어 통과한다.
 # 우회가 꼭 필요하면: git merge --no-verify
