@@ -43,7 +43,7 @@ struct IndexingClientImplTwoPassTests {
     let fixture = Fixture(
       library: [gift, note, blank, meal],
       labels: [
-        "note": [ImageLabel(identifier: "document", confidence: 0.8)],
+        "note": [ImageLabel(identifier: "receipt", confidence: 0.8)],
         "meal": [ImageLabel(identifier: "food", confidence: 0.8)],
       ],
       text: ["gift": ["교환처 GS25", "유효기간 2026.12.31"]]
@@ -58,13 +58,13 @@ struct IndexingClientImplTwoPassTests {
     #expect(classified["meal"]?.categories == [.food])
     #expect(classified["gift"]?.textRecognition == .pending)
     #expect(classified["gift"]?.categories == [])
-    #expect(classified["note"]?.categories == [.document])
+    #expect(classified["note"]?.categories == [.receipt])
     #expect(classified["blank"]?.categories == [])
 
     let stored = Dictionary(uniqueKeysWithValues: fixture.store.images.map { ($0.id, $0) })
     #expect(stored["gift"]?.textLines?.map(\.text) == ["교환처 GS25", "유효기간 2026.12.31"])
     #expect(stored["gift"]?.categories == [.gifticon])
-    #expect(stored["note"]?.categories == [.document])
+    #expect(stored["note"]?.categories == [.receipt])
     // 글자를 읽어도 아무것도 못 찾은 이미지만 기타다.
     #expect(stored["blank"]?.textRecognition == .recognized([]))
     #expect(stored["blank"]?.categories == [.other])

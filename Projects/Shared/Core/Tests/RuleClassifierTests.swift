@@ -1,6 +1,6 @@
-import Core
 import CoreGraphics
 import Testing
+@testable import Core
 
 struct RuleClassifierTests {
   @Test(
@@ -11,14 +11,26 @@ struct RuleClassifierTests {
       ("receipt", .receipt),
       ("shopping_cart", .shopping),
       ("map", .map),
-      ("document", .document),
-      ("handwriting", .document),
     ]
   )
   func classifiesInformationLabel(identifier: String, expected: ImageCategory) {
     let categories = RuleClassifier.classify(asset: screenshot, labels: [label(identifier)], textLines: [])
 
     #expect(categories == [expected])
+  }
+
+  @Test("문서 라벨은 OCR 글자가 기준 이상일 때만 문서로 정한다", arguments: ["document", "handwriting"])
+  func classifiesDocumentLabelWithEnoughText(identifier: String) {
+    let text = String(repeating: "가", count: ClassificationRules.minimumDocumentTextLength)
+    let enough = RuleClassifier.classify(asset: photo, labels: [label(identifier)], textLines: [line(text)])
+    let tooShort = RuleClassifier.classify(
+      asset: photo,
+      labels: [label(identifier)],
+      textLines: [line(String(text.dropFirst()))]
+    )
+
+    #expect(enough == [.document])
+    #expect(tooShort == [.other])
   }
 
   @Test(
@@ -29,6 +41,7 @@ struct RuleClassifierTests {
       (["상품 상세", "장바구니", "바로구매"], .shopping),
       (["서울역 → 강남역", "대중교통 32분", "도보 5분"], .map),
       (["홍길동", "메시지 입력"], .chat),
+      (["내 쿠폰함", "000000000000 코드번호 복사", "스타벅스"], .gifticon),
     ]
   )
   func classifiesKeywords(texts: [String], expected: ImageCategory) {
@@ -83,32 +96,24 @@ struct RuleClassifierTests {
     #expect(categories == [.gifticon])
   }
 
-  @Test("영문 키워드는 대소문자를 가리지 않는다")
-  func matchesCaseInsensitively() {
-    let categories = RuleClassifier.classify(asset: screenshot, labels: [], textLines: [line("iMessage")])
-
-    #expect(categories == [.chat])
-  }
-
   @Test("말풍선 시각 줄이 두 개 이상이면 대화 캡처로 정한다")
   func classifiesChatTimestamps() {
     let categories = RuleClassifier.classify(
       asset: screenshot,
       labels: [],
-      textLines: [line("9:41"), line("내일 몇 시에 봐?"), line("오후 3:12"), line("7시 어때"), line("3:15 PM")]
+      textLines: [line("9:41"), line("내일 몇 시에 봐?"), line("오후 3:12"), line("7시 어때"), line("오후 3:15")]
     )
 
     #expect(categories == [.chat])
   }
 
   @Test(
-    "오전·오후, AM·PM 말풍선 시각을 모두 알아본다",
+    "오전·오후 말풍선 시각을 안 읽은 수가 붙어도 알아본다",
     arguments: [
       ["오전 9:05", "오전 11:30"],
       ["오후 3:12", "오후 10:01"],
-      ["9:05 AM", "11:30 am"],
-      ["3:12 PM", "10:01 pm"],
-      ["알겠어 오후 3:12", "고마워 오후 3:13"],
+      ["오전 11:59", "오후 12:01"],
+      ["1오후 3:12", "오후 3:13 2"],
     ]
   )
   func recognizesChatTimestampForms(texts: [String]) {
@@ -141,58 +146,45 @@ struct RuleClassifierTests {
     #expect(categories == [.other])
   }
 
-  /// 시각이 줄마다 붙는 다른 화면도 말풍선 시각 패턴에 걸린다. 정확도 측정 작업에서 규칙을 좁히면 `withKnownIssue` 를 지운다.
+  /// 통화 기록·알림 센터는 최신순이라 시각이 줄고, 항공권은 시각이 뒤섞이며, 캘린더·안내문은 시각이 문장 속에 있다.
+  /// 탑승권은 영문 AM·PM 이라 세지 않는다.
   @Test(
     "말풍선이 아닌 시각 줄이 여러 개인 화면은 대화 캡처가 아니다",
     arguments: [
       ["최근 통화", "엄마", "휴대전화", "오후 3:12", "김철수", "휴대전화", "오전 11:30"],
       ["알림 센터", "카카오페이", "결제가 완료되었습니다", "오후 3:12", "택배", "배송이 시작되었습니다", "오전 9:05"],
       ["10월 11일 일요일", "팀 회의", "오후 3:00 ~ 오후 4:00", "저녁 약속", "오후 7:00 ~ 오후 9:00"],
+      ["출발", "오후 5:20", "오전 1:40", "가는 편", "오후 8:10", "오전 7:35"],
+      ["Boarding Pass", "Boarding", "8:20 am", "Departs", "9:05 am"],
+      ["평일 운영 - 오전 10:30", "주말 운영 - 오전 11:00"],
     ]
   )
   func ignoresNonChatTimestamps(texts: [String]) {
     let categories = RuleClassifier.classify(asset: screenshot, labels: [], textLines: texts.map(line))
 
-    withKnownIssue("말풍선 시각 패턴이 통화 기록·알림 센터·캘린더 시각과 구분되지 않는다") {
-      #expect(!categories.contains(.chat))
-    }
+    #expect(!categories.contains(.chat))
   }
 
-  @Test(
-    "촬영 사진은 라벨로 사진형 카테고리를 정한다",
-    arguments: [
-      ("food", ImageCategory.food),
-      ("dessert", .food),
-      ("people", .people),
-      ("child", .people),
-      ("dog", .pet),
-      ("cat", .pet),
-      ("mountain", .landscape),
-      ("beach", .landscape),
-    ]
-  )
-  func classifiesPhotoLabel(identifier: String, expected: ImageCategory) {
-    let categories = RuleClassifier.classify(asset: photo, labels: [label(identifier)], textLines: [])
-
-    #expect(categories == [expected])
-  }
-
-  @Test("스크린샷에는 사진형 카테고리를 붙이지 않는다")
-  func skipsPhotoCategoriesOnScreenshot() {
-    let categories = RuleClassifier.classify(asset: screenshot, labels: [label("food"), label("people")], textLines: [])
-
-    #expect(categories == [.other])
-  }
-
-  @Test("기기 스크린샷이 아니어도 screenshot 라벨이 있으면 사진형 카테고리를 붙이지 않는다")
-  func skipsPhotoCategoriesOnScreenshotLabel() {
+  @Test("자정을 넘긴 대화도 시각이 늘어난 것으로 본다")
+  func classifiesChatAcrossMidnight() {
     let categories = RuleClassifier.classify(
-      asset: photo,
-      labels: [label("screenshot"), label("food"), label("people")],
-      textLines: []
+      asset: screenshot,
+      labels: [],
+      textLines: ["오후 11:58", "자?", "오전 12:03"].map(line)
     )
 
-    #expect(categories == [.other])
+    #expect(categories == [.chat])
+  }
+
+  @Test("OCR 이 좌우 말풍선 순서를 조금 섞어도 시각이 대체로 늘면 대화 캡처다")
+  func classifiesMostlyRisingTimestamps() {
+    let categories = RuleClassifier.classify(
+      asset: screenshot,
+      labels: [],
+      textLines: ["오후 7:21", "잘 들어갔어?", "오후 7:19", "응 고마워", "오후 7:21", "오후 7:22"].map(line)
+    )
+
+    #expect(categories == [.chat])
   }
 
   @Test("여러 카테고리에 동시에 속할 수 있다")
@@ -229,7 +221,7 @@ struct RuleClassifierTests {
   }
 
   @Test(
-    "라벨이 같으면 줄을 더해도 기타 밖의 카테고리가 빠지지 않는다",
+    "라벨이 같으면 OCR 전 결과에 줄을 더해도 기타 밖의 카테고리가 빠지지 않는다",
     arguments: [
       (screenshot, ["receipt"]),
       (screenshot, ["screenshot"]),
@@ -247,6 +239,97 @@ struct RuleClassifierTests {
     )
 
     #expect(withoutText.subtracting([.other]).isSubset(of: withText))
+  }
+}
+
+/// 사진형 카테고리(라벨·신뢰도 기준·그림·스크린샷) 규칙.
+struct RuleClassifierPhotoTests {
+  @Test(
+    "촬영 사진은 라벨로 사진형 카테고리를 정한다",
+    arguments: [
+      ("food", ImageCategory.food),
+      ("dessert", .food),
+      ("people", .people),
+      ("child", .people),
+      ("dog", .pet),
+      ("cat", .pet),
+      ("mountain", .landscape),
+      ("beach", .landscape),
+    ]
+  )
+  func classifiesPhotoLabel(identifier: String, expected: ImageCategory) {
+    let categories = RuleClassifier.classify(asset: photo, labels: [label(identifier)], textLines: [])
+
+    #expect(categories == [expected])
+  }
+
+  @Test(
+    "인물·풍경 라벨은 카테고리별 신뢰도 기준 이상일 때만 쓴다",
+    arguments: [("people", ImageCategory.people), ("sky", .landscape)]
+  )
+  func usesPhotoLabelMinimumConfidence(identifier: String, category: ImageCategory) throws {
+    let minimum = try #require(ClassificationRules.photoLabelMinimumConfidence[category])
+    let atMinimum = RuleClassifier.classify(
+      asset: photo,
+      labels: [ImageLabel(identifier: identifier, confidence: minimum)],
+      textLines: []
+    )
+    let below = RuleClassifier.classify(
+      asset: photo,
+      labels: [ImageLabel(identifier: identifier, confidence: minimum - 0.01)],
+      textLines: []
+    )
+
+    #expect(atMinimum == [category])
+    #expect(below == [.other])
+  }
+
+  @Test("인물이 있으면 하늘·바다가 보여도 풍경을 붙이지 않는다")
+  func skipsLandscapeWithPeople() {
+    let categories = RuleClassifier.classify(asset: photo, labels: [label("people"), label("sky")], textLines: [])
+
+    #expect(categories == [.people])
+  }
+
+  @Test("그림·일러스트에는 사진형 카테고리를 붙이지 않는다", arguments: ["illustrations", "painting"])
+  func skipsPhotoCategoriesOnDrawing(identifier: String) {
+    let drawing = RuleClassifier.classify(
+      asset: photo,
+      labels: [
+        ImageLabel(identifier: identifier, confidence: ClassificationRules.drawingMinimumConfidence),
+        label("dog"),
+      ],
+      textLines: []
+    )
+    let faintDrawing = RuleClassifier.classify(
+      asset: photo,
+      labels: [
+        ImageLabel(identifier: identifier, confidence: ClassificationRules.drawingMinimumConfidence - 0.01),
+        label("dog"),
+      ],
+      textLines: []
+    )
+
+    #expect(drawing == [.other])
+    #expect(faintDrawing == [.pet])
+  }
+
+  @Test("스크린샷에는 사진형 카테고리를 붙이지 않는다")
+  func skipsPhotoCategoriesOnScreenshot() {
+    let categories = RuleClassifier.classify(asset: screenshot, labels: [label("food"), label("people")], textLines: [])
+
+    #expect(categories == [.other])
+  }
+
+  @Test("기기 스크린샷이 아니어도 screenshot 라벨이 있으면 사진형 카테고리를 붙이지 않는다")
+  func skipsPhotoCategoriesOnScreenshotLabel() {
+    let categories = RuleClassifier.classify(
+      asset: photo,
+      labels: [label("screenshot"), label("food"), label("people")],
+      textLines: []
+    )
+
+    #expect(categories == [.other])
   }
 }
 

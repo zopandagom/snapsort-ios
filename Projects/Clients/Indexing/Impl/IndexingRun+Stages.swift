@@ -75,7 +75,7 @@ extension IndexingRun {
   }
 
   /// OCR 대기 이미지의 카테고리: 라벨만으로 정한 규칙 분류에서 `.other` 를 뺀 것.
-  /// 규칙 분류는 줄을 더하면 카테고리가 늘기만 하므로(Core `RuleClassifier`), 2단계는 카테고리를 더하기만 한다.
+  /// 규칙 분류는 OCR 전(줄 없음)의 결과에 줄을 더하면 카테고리가 늘기만 하므로(Core `RuleClassifier`), 2단계는 카테고리를 더하기만 한다.
   /// `.other` 를 빼 두어 "기타" 수가 1단계에 부풀었다가 줄지 않게 하고, 글자를 읽어도 아무것도 못 찾은 이미지만 2단계 뒤 `.other` 가 된다.
   static func pendingCategories(asset: ImageAsset, labels: [ImageLabel]) -> Set<ImageCategory> {
     RuleClassifier.classify(asset: asset, labels: labels, textLines: []).subtracting([.other])
