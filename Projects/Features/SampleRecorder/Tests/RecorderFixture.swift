@@ -34,6 +34,8 @@
     ///   - largestImages: 원본(`.largestAvailable`)으로 이 이미지를 준다. OCR 해상도 비교에서 줄일 만큼 큰 원본을 흉내 낸다.
     ///   - recognizeBySize: OCR 입력 크기(폭·높이)로 결과를 고른다. nil 을 돌려주면 폭으로 이미지를 찾는 기본 규칙을 쓴다.
     ///     줄인 이미지는 폭이 바뀌어 기본 규칙으로 찾지 못하기 때문이다. 설정하면 OCR 기록은 `ocr:<폭>x<높이>` 다.
+    ///   - fetchGate: 보관함·앨범 조회가 결과를 주기 전에 부른다.
+    ///   - loadGate: 이미지 읽기가 결과를 주기 전에 식별자를 넘겨 부른다.
     init(
       access: PhotoAccessState = .authorized,
       album: [ImageAsset]? = nil,
@@ -49,6 +51,7 @@
       largestImages: [ImageAsset.ID: AnalysisImage] = [:],
       recognizeBySize: (@Sendable (Int, Int) async -> Result<[String], ImageAnalysisError>?)? = nil,
       fetchGate: (@Sendable () async -> Void)? = nil,
+      loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil,
       deviceConditions: @escaping @Sendable () -> DeviceConditions = { normalConditions },
       now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) }
     ) {
@@ -67,7 +70,8 @@
         imageAssets: library,
         loadImageResults: loadResults,
         albums: album.map { [RecordingMode.albumName: $0] } ?? [:],
-        fetchGate: fetchGate
+        fetchGate: fetchGate,
+        loadGate: loadGate
       )
       self.imageAnalysis = ImageAnalysisClientFake(
         classify: { image in

@@ -7,6 +7,8 @@
   public enum RecordingMode: Sendable, Hashable {
     /// 앨범 `albumName` 의 이미지를 앨범 순서로 기록한다. 정확도 샘플 초안과 측정 파일을 만든다.
     case accuracy
+    /// 보관함 전체를 최신순으로 기록한다. OCR 은 운영 기준 OCR 대상만 한다. 정확도 샘플 초안과 측정 파일을 만든다.
+    case libraryAccuracy
     /// 보관함 최신 `count` 장의 단계별 시간을 잰다. 측정 파일만 만든다.
     case speed(count: Int)
     /// 보관함 최신 `count` 장 중 OCR 대상(운영 기준)의 원본을 낮은 상한(`OCRResolutionCap.all`)으로 줄여 다시 OCR 하고
@@ -21,9 +23,23 @@
     var fileTag: String {
       switch self {
       case .accuracy: "accuracy"
+      case .libraryAccuracy: "libraryAccuracy"
       case let .speed(count): "speed\(count)"
       case let .ocrResolution(count): "ocrResolution\(count)"
       }
+    }
+
+    /// 보관함 최신 몇 장을 고르는지. 앨범이나 보관함 전체를 읽는 모드는 nil.
+    var latestCount: Int? {
+      switch self {
+      case .accuracy, .libraryAccuracy: nil
+      case let .speed(count), let .ocrResolution(count): count
+      }
+    }
+
+    /// 정확도 샘플 초안을 만드는지.
+    var recordsSamples: Bool {
+      self == .accuracy || self == .libraryAccuracy
     }
   }
 
@@ -77,11 +93,11 @@
   public enum RecordingFailure: Sendable, Equatable {
     /// 사진을 읽을 권한이 없다.
     case notAuthorized
-    /// 정확도 모드는 사용자 앨범을 읽어야 해서 전체 접근에서만 된다.
+    /// 정확도 모드는 사용자 앨범을 읽어야 해서, 보관함 전체 정확도 모드는 고른 사진만으로는 보관함 전체가 아니라서 전체 접근에서만 된다.
     case limitedAccess
     case albumNotFound
     case albumEmpty
-    /// 보관함에서 고르는 모드(속도·OCR 해상도 비교)인데 보관함에 이미지가 없다.
+    /// 보관함에서 고르는 모드(보관함 전체 정확도·속도·OCR 해상도 비교)인데 보관함에 이미지가 없다.
     case noImages
   }
 
@@ -89,7 +105,7 @@
     public let mode: RecordingMode
     /// 화면에 보이는 요약. 측정 파일의 `summary` 와 같다.
     public let summary: TimingSummary
-    /// 정확도 모드의 샘플 초안. 정확도 모드가 아니거나 기록한 샘플이 0장이면 nil.
+    /// 샘플을 기록하는 모드(`recordsSamples`)의 샘플 초안. 그 밖의 모드거나 기록한 샘플이 0장이면 nil.
     public let samplesFile: FileOutput?
     public let timingFile: FileOutput
     public let recordedSampleCount: Int
@@ -129,7 +145,7 @@
       case ocr
     }
 
-    /// 처리 순서(정확도 모드는 앨범 순서), 0부터.
+    /// 처리 순서(정확도 모드는 앨범 순서, 보관함 전체 정확도 모드는 최신순), 0부터.
     public let index: Int
     public let reason: Reason
     public let stage: Stage

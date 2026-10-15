@@ -16,7 +16,7 @@
 
   /// 이미지 한 장을 잰 결과.
   enum MeasureOutcome: Sendable {
-    /// 정확도 모드면 샘플 초안도 준다.
+    /// 샘플을 기록하는 모드(`recordsSamples`)면 샘플 초안도 준다.
     case recorded(ImageMeasurement, SampleDraft?)
     case skipped(ImageMeasurement, SkippedImage)
     /// 취소되어 이 이미지는 남기지 않는다.
@@ -93,7 +93,7 @@
     /// 이미지 한 장을 운영 인덱서와 같은 순서로 분석하며 단계마다 시간을 잰다.
     /// 정확도 모드는 OCR 대상이 아니어도 원본을 읽어 OCR 한다(판정 규칙을 바꿔도 다시 기록하지 않도록).
     /// 그래서 원본 로드나 OCR 에 실패하면 OCR 대상이 아니어도 건너뛴다. OCR 줄 없이 기록하면 OCR 대상 조건을 바꾸는 실험에서
-    /// 그 샘플이 틀린 입력이 되기 때문이다.
+    /// 그 샘플이 틀린 입력이 되기 때문이다. 보관함 전체 정확도 모드는 시간 때문에 OCR 대상만 OCR 하고, 나머지 샘플에 `ocrSkipped` 를 단다.
     /// OCR 해상도 비교 모드는 OCR 대상(운영 기준)일 때만 원본을 읽어 기준과 낮은 상한을 OCR 한다. 기준 실패는 속도 모드처럼 건너뛰고,
     /// 낮은 상한 실패는 그 상한만 실패로 기록한다.
     @concurrent
@@ -125,14 +125,16 @@
 
         measurement.totalMs = start.duration(to: clock.now).milliseconds
         measurement.pipelineMs = Self.pipelineMs(of: measurement, needsText: needsText)
-        guard mode == .accuracy else { return .recorded(measurement, nil) }
-        // Core 테스트 `ClassificationSample.classify()` 와 같은 계산이다.
-        let predicted = RuleClassifier.classify(
+        guard mode.recordsSamples else { return .recorded(measurement, nil) }
+        let draft = SampleDraft(
+          index: index,
+          mode: mode,
           asset: asset,
-          labels: ruleLabels,
-          textLines: needsText ? textLines : []
+          labels: labels,
+          ruleLabels: ruleLabels,
+          textLines: textLines,
+          needsText: needsText
         )
-        let draft = SampleDraft(index: index, asset: asset, labels: labels, textLines: textLines, predicted: predicted)
         return .recorded(measurement, draft)
       } catch {
         switch error {
@@ -160,7 +162,7 @@
 
     // MARK: - Private
 
-    /// 권한을 확인하고 대상 이미지를 조회한다. 속도·OCR 해상도 비교 모드는 보관함 최신 N장을 고르고,
+    /// 권한을 확인하고 대상 이미지를 조회한다. 보관함 전체 정확도 모드는 보관함 전체를, 속도·OCR 해상도 비교 모드는 보관함 최신 N장을 고르고,
     /// 속도 모드는 인덱서처럼 보관함 전체로 여행 판정 시간을 한 번 잰다(결과는 버린다).
     /// 기기 상태 시작값은 권한 확인 뒤 조회 직전에 읽는다. `deviceConditions` 는 시작값 → 이미지마다 → 끝값 순서로 부르고,
     /// 여기서 실패하면 끝값은 읽지 않는다.
@@ -170,7 +172,7 @@
     ) async -> FetchOutcome {
       let access = self.photoLibrary.accessState()
       guard access.canRead else { return .failed(.notAuthorized) }
-      if mode == .accuracy, access == .limited {
+      if mode.recordsSamples, access == .limited {
         return .failed(.limitedAccess)
       }
       let conditionsAtStart = self.deviceConditions()
@@ -186,13 +188,13 @@
           targets: album,
           conditionsAtStart: conditionsAtStart
         ))
-      case let .speed(count), let .ocrResolution(count):
+      case .libraryAccuracy, .speed, .ocrResolution:
         let library = await self.photoLibrary.fetchImageAssets()
         guard !library.isEmpty else { return .failed(.noImages) }
         var run = RecordingRun(
           mode: mode,
           access: access,
-          targets: Array(library.prefix(count)),
+          targets: mode.latestCount.map { Array(library.prefix($0)) } ?? library,
           conditionsAtStart: conditionsAtStart
         )
         run.libraryCount = library.count
@@ -339,7 +341,7 @@
         nil
       }
       let timeZone = calendar.timeZone
-      let samplesFile: FileOutput? = self.mode == .accuracy && !self.drafts.isEmpty
+      let samplesFile: FileOutput? = self.mode.recordsSamples && !self.drafts.isEmpty
         ? RecordingOutput.encode(
           self.drafts,
           fileName: RecordingOutput.samplesFileName(at: recordedAt, timeZone: timeZone)

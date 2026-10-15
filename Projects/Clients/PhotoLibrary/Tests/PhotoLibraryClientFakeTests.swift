@@ -96,4 +96,28 @@ struct PhotoLibraryClientFakeTests {
     #expect(library == ["a"])
     #expect(album == ["b"])
   }
+
+  @Test("읽기 대기를 주면 요청을 기록한 뒤 식별자를 넘겨 기다리고, 풀린 뒤에 결과를 준다")
+  func waitsForLoadGate() async throws {
+    let (signal, release) = AsyncStream.makeStream(of: Void.self)
+    let released = Task { for await _ in signal {} }
+    let waitingIDs = Mutex<[String]>([])
+    let fake = PhotoLibraryClientFake(
+      loadImageResults: ["a": .success(.stub(width: 7))],
+      loadGate: { id in
+        waitingIDs.withLock { $0.append(id) }
+        await released.value
+      }
+    )
+
+    let load = Task { try await fake.loadImage(id: "a", size: .thumbnail) }
+    while waitingIDs.withLock({ $0 }).isEmpty {
+      await Task.yield()
+    }
+    #expect(fake.loadImageRequests == [LoadImageRequest(id: "a", size: .thumbnail)])
+    release.finish()
+
+    #expect(try await load.value.cgImage.width == 7)
+    #expect(waitingIDs.withLock { $0 } == ["a"])
+  }
 }

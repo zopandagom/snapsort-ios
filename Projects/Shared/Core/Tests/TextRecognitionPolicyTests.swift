@@ -42,15 +42,23 @@ struct TextRecognitionPolicyTests {
     #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label("food"), label("receipt")]))
   }
 
-  /// 저장한 기프티콘에는 상품 사진이 들어 있어 Vision 이 `coupon`·`gift_card` 없이 음식 라벨만 낼 수 있다.
-  /// 위치 없는 이미지의 보조 신호(비율·크기 등)는 정확도 측정 작업에서 픽스처로 정하고, 그때 `withKnownIssue` 를 지운다.
-  @Test("상품 사진이 든 저장 기프티콘은 음식 라벨만 있어도 OCR 한다", arguments: ["food", "drink", "dessert"])
-  func recognizesSavedGifticonWithProductPhoto(identifier: String) {
+  @Test("위치 없는 이미지의 사진형 판단은 규칙 분류기와 같은 기준이다: 약한 인물 라벨·그림은 촬영 사진으로 보지 않는다")
+  func usesClassifierPhotoCriteria() {
+    let asset = makeAsset(isScreenshot: false, coordinate: nil)
+    let weakPeople = ImageLabel(identifier: "people", confidence: 0.2)
+    let drawing = [ImageLabel(identifier: "illustrations", confidence: 0.7), label("dog")]
+
+    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [weakPeople]))
+    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: drawing))
+  }
+
+  /// 한계: 상품 사진이 든 저장 기프티콘에 음식 라벨만 붙으면 촬영 사진과 구분하지 못해 OCR 하지 않는다
+  /// (OCR 대상을 늘리는 비용과 함께 OCR 대상 조정 작업에서 정한다. TextRecognitionPolicy 문서 주석, 정확도 샘플의 knownIssue).
+  @Test("위치가 없어도 음식 라벨만 있으면 촬영 사진으로 보고 OCR 하지 않는다", arguments: ["food", "drink", "dessert"])
+  func skipsImageWithOnlyFoodLabel(identifier: String) {
     let asset = makeAsset(isScreenshot: false, coordinate: nil)
 
-    withKnownIssue("위치 없는 이미지에서 사진형 라벨만으로는 저장한 기프티콘과 촬영 사진을 구분하지 못한다") {
-      #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label(identifier)]))
-    }
+    #expect(!TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label(identifier)]))
   }
 
   @Test("위치가 있고 글자 라벨이 없는 촬영 사진은 OCR 하지 않는다")

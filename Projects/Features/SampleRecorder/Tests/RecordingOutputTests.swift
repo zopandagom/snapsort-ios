@@ -19,6 +19,7 @@
         asset: .init(isScreenshot: true, hasLocation: false, pixelWidth: 1179, pixelHeight: 2556),
         labels: [.init(identifier: "screenshot", confidence: 0.912)],
         text: ["선물하기"],
+        ocrSkipped: nil,
         predicted: ["gifticon"]
       )
 
@@ -34,6 +35,23 @@
       #expect(label["confidence"] as? Double == 0.912)
     }
 
+    @Test("OCR 하지 않은 샘플만 ocrSkipped 키를 쓴다")
+    func sampleDraftOCRSkippedKey() throws {
+      let skipped = SampleDraft(
+        name: "보관함 00001",
+        asset: .init(isScreenshot: false, hasLocation: true, pixelWidth: 4032, pixelHeight: 3024),
+        labels: [.init(identifier: "food", confidence: 0.8)],
+        text: [],
+        ocrSkipped: true,
+        predicted: ["food"]
+      )
+
+      let file = try #require(RecordingOutput.encode([skipped], fileName: "draft.json").file)
+      let sample = try #require(try (JSONSerialization.jsonObject(with: file.data) as? [[String: Any]])?.first)
+
+      #expect(sample["ocrSkipped"] as? Bool == true)
+    }
+
     @Test("유한하지 않은 신뢰도가 들면 그 파일만 만들지 못한다")
     func failsToEncodeNonFiniteConfidence() {
       let draft = SampleDraft(
@@ -41,6 +59,7 @@
         asset: .init(isScreenshot: false, hasLocation: false, pixelWidth: 1, pixelHeight: 1),
         labels: [.init(identifier: "food", confidence: RecordingOutput.truncatedConfidence(.nan))],
         text: [],
+        ocrSkipped: nil,
         predicted: []
       )
       let summary = TimingSummary.make(from: [], thermalChanges: [])

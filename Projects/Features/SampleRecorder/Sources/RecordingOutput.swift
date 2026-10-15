@@ -40,21 +40,35 @@
     let asset: Asset
     let labels: [Label]
     let text: [String]
+    /// 보관함 전체 정확도 모드에서 OCR 대상이 아니라 OCR 하지 않았으면 true(`text` 가 빈 것이 글자가 없어서가 아니다). 그 밖에는 키가 빠진다.
+    let ocrSkipped: Bool?
     /// 규칙 분류 결과의 rawValue 를 정렬한 것.
     let predicted: [String]
   }
 
   extension SampleDraft {
-    /// 처리 순서 `index` 의 앨범 이미지. 라벨은 받은 순서(신뢰도 높은 순) 그대로 두고 신뢰도를 내린다.
+    /// 보관함 전체 정확도 샘플 이름. 기록 화면의 샘플 보기도 같은 번호로 보인다.
+    static func librarySampleName(_ number: Int) -> String {
+      String(format: "보관함 %05d", number)
+    }
+
+    /// 처리 순서 `index` 의 이미지. 이름은 앨범 모드면 `앨범 001`, 보관함 전체면 최신순 `보관함 00001` 이다.
+    /// 라벨은 받은 순서(신뢰도 높은 순) 그대로 두고 신뢰도를 내린다. `predicted` 는 운영 기준으로 거른 `ruleLabels` 와
+    /// OCR 대상(`needsText`)일 때만 OCR 줄로 계산한다(Core 테스트 `ClassificationSample.classify()` 와 같은 계산).
     init(
       index: Int,
+      mode: RecordingMode,
       asset: ImageAsset,
       labels: [ImageLabel],
+      ruleLabels: [ImageLabel],
       textLines: [RecognizedTextLine],
-      predicted: Set<ImageCategory>
+      needsText: Bool
     ) {
+      let predicted = RuleClassifier.classify(asset: asset, labels: ruleLabels, textLines: needsText ? textLines : [])
       self.init(
-        name: String(format: "앨범 %03d", index + 1),
+        name: mode == .libraryAccuracy
+          ? Self.librarySampleName(index + 1)
+          : String(format: "앨범 %03d", index + 1),
         asset: Asset(
           isScreenshot: asset.isScreenshot,
           hasLocation: asset.coordinate != nil,
@@ -65,6 +79,7 @@
           Label(identifier: $0.identifier, confidence: RecordingOutput.truncatedConfidence($0.confidence))
         },
         text: textLines.map(\.text),
+        ocrSkipped: mode == .libraryAccuracy && !needsText ? true : nil,
         predicted: predicted.map(\.rawValue).sorted()
       )
     }
@@ -105,17 +120,13 @@
       conditionsAtEnd: DeviceConditions,
       recordedAt: Date
     ) {
-      switch run.mode {
-      case .accuracy:
-        self.mode = "accuracy"
-        self.requestedCount = nil
-      case let .speed(count):
-        self.mode = "speed"
-        self.requestedCount = count
-      case let .ocrResolution(count):
-        self.mode = "ocrResolution"
-        self.requestedCount = count
+      self.mode = switch run.mode {
+      case .accuracy: "accuracy"
+      case .libraryAccuracy: "libraryAccuracy"
+      case .speed: "speed"
+      case .ocrResolution: "ocrResolution"
       }
+      self.requestedCount = run.mode.latestCount
       self.libraryCount = run.libraryCount
       self.processedCount = run.measurements.count
       self.recordedAt = recordedAt
@@ -159,7 +170,7 @@
       "저장소 저장·삭제 시간은 재지 않는다.",
       "인덱서가 이미 읽은 썸네일은 사진 캐시로 더 빠를 수 있다.",
       "첫 이미지에는 Vision 모델 로딩이 들어간다(firstImagePipelineMs 로 따로 본다).",
-      "정확도 모드는 OCR 대상이 아니어도 OCR 하므로 운영 시간은 pipeline 으로 본다.",
+      "앨범 정확도 모드는 OCR 대상이 아니어도 OCR 하므로 운영 시간은 pipeline 으로 본다.",
       "totalMs 는 메인 밖에서 잰 한 장의 경과 시간이며 화면 갱신을 포함하지 않는다.",
       "발열 상태는 이미지 시작 시점마다 읽어 이미지 사이의 짧은 변화는 놓칠 수 있다.",
       "인덱서는 분류와 OCR 을 두 단계로 나눠 돌리므로, 원본 로드는 실제로 썸네일 로드와 떨어진 시점에 일어난다(사진 캐시 효과가 다를 수 있다).",

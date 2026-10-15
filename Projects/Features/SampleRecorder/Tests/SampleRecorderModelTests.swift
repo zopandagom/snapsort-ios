@@ -31,6 +31,8 @@
       #expect(samples.map { $0["name"] as? String } == ["앨범 001", "앨범 002"])
       #expect(samples.map { $0["predicted"] as? [String] } == [["gifticon"], ["food"]])
       #expect(samples.map { $0["text"] as? [String] } == [["선물하기", "유효기간 2026.12.31"], ["메뉴판"]])
+      // 앨범 모드는 OCR 대상이 아니어도 OCR 하므로 `ocrSkipped` 키가 없다.
+      #expect(samples.map { $0["ocrSkipped"] as? Bool } == [nil, nil])
       #expect(result.recordedSampleCount == 2)
     }
 
@@ -82,6 +84,42 @@
         "load:a:thumbnail", "classify:a", "load:a:largest", "ocr:a",
         "load:b:thumbnail", "classify:b", "load:b:largest", "ocr:b",
       ])
+    }
+
+    // MARK: - 보관함 전체 정확도 모드
+
+    @Test("보관함 전체 정확도 모드는 보관함 전체를 최신순으로 기록하고, OCR 대상만 OCR 하며 나머지는 ocrSkipped 로 표시한다")
+    func libraryAccuracyRecordsWholeLibrary() async throws {
+      let fixture = RecorderFixture(
+        album: [.stub(id: "album")],
+        library: [.stub(id: "gift", isScreenshot: true), .stub(id: "meal", coordinate: seoul)],
+        labels: [
+          "gift": [ImageLabel(identifier: "screenshot", confidence: 0.9)],
+          "meal": [ImageLabel(identifier: "food", confidence: 0.8)],
+        ],
+        text: ["gift": ["선물하기", "유효기간 2026.12.31"], "meal": ["메뉴판"]]
+      )
+
+      await fixture.record(.libraryAccuracy)
+
+      let result = try #require(fixture.model.phase.result)
+      #expect(fixture.log.all == [
+        "load:gift:thumbnail",
+        "classify:gift",
+        "load:gift:largest",
+        "ocr:gift",
+        "load:meal:thumbnail",
+        "classify:meal",
+      ])
+      let samples = try jsonArray(result.samplesFile)
+      #expect(samples.map { $0["name"] as? String } == ["보관함 00001", "보관함 00002"])
+      #expect(samples.map { $0["predicted"] as? [String] } == [["gifticon"], ["food"]])
+      #expect(samples.map { $0["text"] as? [String] } == [["선물하기", "유효기간 2026.12.31"], []])
+      #expect(samples.map { $0["ocrSkipped"] as? Bool } == [nil, true])
+      let timing = try jsonObject(result.timingFile)
+      #expect(timing["mode"] as? String == "libraryAccuracy")
+      #expect(timing["libraryCount"] as? Int == 2)
+      #expect(timing["requestedCount"] == nil)
     }
 
     // MARK: - 속도 모드
@@ -162,6 +200,8 @@
         (.authorized, .speed(count: 100), nil, .noImages),
         (.denied, .ocrResolution(count: 100), nil, .notAuthorized),
         (.authorized, .ocrResolution(count: 100), nil, .noImages),
+        (.limited, .libraryAccuracy, nil, .limitedAccess),
+        (.authorized, .libraryAccuracy, nil, .noImages),
       ]
     )
     func failsBeforeProcessing(

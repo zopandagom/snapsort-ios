@@ -20,7 +20,10 @@ public enum ClassificationRules {
     InformationRule(
       category: .gifticon,
       labels: ["coupon", "gift_card"],
-      keywords: ["유효기간", "사용기한", "교환처", "교환권", "선물하기", "기프티콘", "기프트카드", "모바일쿠폰", "쿠폰번호", "상품권"],
+      keywords: [
+        "유효기간", "사용기한", "교환처", "교환권", "교환수량", "선물하기", "기프티콘", "기프트카드", "모바일쿠폰", "쿠폰번호",
+        "쿠폰함", "코드번호", "상품권",
+      ],
       minimumKeywordMatches: 2
     ),
     InformationRule(
@@ -35,7 +38,7 @@ public enum ClassificationRules {
     InformationRule(
       category: .chat,
       labels: [],
-      keywords: ["메시지입력", "imessage", "문자메시지"],
+      keywords: ["메시지입력", "문자메시지"],
       minimumKeywordMatches: 1
     ),
     InformationRule(
@@ -61,12 +64,27 @@ public enum ClassificationRules {
     ),
   ]
 
-  /// 대화 캡처에서 말풍선마다 붙는 시각(예: "오후 3:12", "3:12 PM"). 정규화한 줄 텍스트에 대조한다.
-  /// 상태 막대 시각("9:41")은 오전·오후 표시가 없어 걸리지 않는다.
+  /// 대화 캡처에서 말풍선 옆에 따로 한 줄로 읽히는 시각(예: "오후 3:12"). 정규화한 줄 전체에 대조한다.
+  /// 앞뒤의 숫자 1~2자리는 OCR 이 시각과 붙여 읽은 안 읽은 수("1오후 3:12", "오전 11:182")다.
+  /// 상태 막대 시각("9:41")은 오전·오후 표시가 없고, 문장 속 시각("미사 오전 11:30")은 줄 전체가 아니어서 걸리지 않는다.
+  /// 영문 AM·PM 은 탑승권·예약 확인 화면의 시각과 구분되지 않아(실기기 보관함 샘플) 세지 않는다.
   /// `Regex` 가 `Sendable` 이 아니어서 정적 저장 프로퍼티 대신 계산 프로퍼티로 둔다. 쓰는 쪽은 한 번 만들어 재사용한다.
-  static var chatTimestampPattern: Regex<Substring> { #/오[전후]\d{1,2}:\d{2}|\d{1,2}:\d{2}[ap]m/# }
-  /// 대화 캡처로 보는 말풍선 시각 줄 수.
+  static var chatTimestampPattern: Regex<Substring> { #/\d{0,2}오[전후]\d{1,2}:\d{2}\d{0,2}/# }
+
+  /// 대화 캡처로 보는 말풍선 시각 줄 수. 시각은 대체로 오름차순이어야 한다(`RuleClassifier`).
+  /// 최신순으로 쌓이는 통화 기록·알림 센터와 시각이 뒤섞인 항공권을 거른다.
   static let minimumChatTimestampLines = 2
+
+  /// 정보형 라벨로 문서를 정할 때 필요한 OCR 글자 수(공백 제외). 사람·물건 사진에 약하게 붙는 `document` 라벨을 거른다.
+  static let minimumDocumentTextLength = 30
+
+  /// 사진형 카테고리별 라벨 신뢰도 기준. 없으면 `minimumLabelConfidence` 를 쓴다.
+  /// 인물·풍경 라벨은 신뢰도가 낮을 때 그림·음식·동물 사진에도 붙는다(실기기 보관함 샘플).
+  static let photoLabelMinimumConfidence: [ImageCategory: Float] = [.people: 0.3, .landscape: 0.4]
+
+  /// 그림·일러스트에 붙는 라벨. 이 신뢰도 이상이면 그린 인물·동물을 사진형으로 묶지 않는다.
+  static let drawingLabels: Set<String> = ["illustrations", "painting"]
+  static let drawingMinimumConfidence: Float = 0.5
 
   /// 사진형 카테고리를 정하는 라벨. 여행은 위치·날짜로 판정하므로 여기 없다.
   static let photoLabels: [ImageCategory: Set<String>] = [
@@ -87,9 +105,6 @@ public enum ClassificationRules {
 
   /// OCR 대상으로 보는 라벨: 정보형 카테고리 라벨 + 글자가 많은 라벨.
   static let textLabels: Set<String> = informationRules.reduce(into: textHeavyLabels) { $0.formUnion($1.labels) }
-
-  /// 사진형 카테고리 라벨 전체. 위치 없는 이미지가 촬영 사진인지 가르는 데 쓴다.
-  static let allPhotoLabels: Set<String> = photoLabels.values.reduce(into: []) { $0.formUnion($1) }
 
   /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각 패턴 대조와 키워드 표 형식 검사에 쓴다.
   static func normalize(_ text: String) -> String {
