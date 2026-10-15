@@ -47,7 +47,6 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 6. 결정이 바뀌었으면 문서 갱신을 같은 PR 에 포함한다 (별도 커밋, type 은 CONVENTIONS §5 마이크로 커밋 표).
 
 ## 완료 기준 (Definition of Done)
-- [ ] (작업 범위를 정했으면) 수용 확인 통과 (PR 본문 "범위" 절, CONVENTIONS §6)
 - [ ] `/pr` 의 마지막 커밋 검사 PASS·SKIP, 필수 체크 `ci-result` 통과, 머지 전 확인 충족 (CONVENTIONS §5 "리뷰 지적 처리")
 - [ ] CONVENTIONS §3 이 요구하는 테스트 (미뤘으면 그 보류 기록, CONVENTIONS §5 "리뷰 지적 처리")
 - [ ] Example 앱에서 주요 상태(정상/빈 상태/권한 거부/오류) 확인
