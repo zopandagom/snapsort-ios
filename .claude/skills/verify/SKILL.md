@@ -22,7 +22,7 @@ CI(`.github/workflows/ci.yml`)와 같은 Makefile 타깃으로 검증한다. 로
    - `make test` 는 xcodebuild 전에 git 훅 테스트(`test-hooks`)를 먼저 돌린다.
 3. **실패 분석**
    - 훅 테스트 실패는 출력의 `FAIL <사례>` 줄과 그 아래 들여쓴 출력을 보고한다 (xcodebuild 까지 가지 않아 결과 번들이 없다).
-   - 컴파일 오류는 xcbeautify 출력의 `error:` 줄만 보면 된다.
+   - 빌드 오류는 xcbeautify 출력의 `❌` 줄과 `error:` 줄을 본다 (컴파일 오류는 xcbeautify 가 `error:` 를 지우고 `❌` 만 남긴다).
    - 테스트 실패는 결과 번들에서 요약을 읽는다.
      ```bash
      xcrun xcresulttool get test-results summary --path build/TestResults.xcresult \

@@ -38,7 +38,7 @@ trap 'rm -f "$log"' EXIT
 for check in "${checks[@]}"; do
   if ! bash -c "$check" >>"$log" 2>&1; then
     echo "FAIL  $subject ($check)"
-    grep -E '^FAIL|error|✖|failed|Error' "$log" | head -10 | sed 's/^/      /'
+    grep -E '^FAIL|❌|error|✖|failed|Error' "$log" | head -10 | sed 's/^/      /'
     exit 1
   fi
 done
