@@ -35,7 +35,7 @@ test: project
 		-resultBundlePath $(RESULT_BUNDLE) \
 		CODE_SIGNING_ALLOWED=NO | $(MISE) xcbeautify
 
-## git 훅 동작 테스트: 임시 레포에서 main 커밋·push 차단과 기능 브랜치 통과 확인 (make test 가 포함)
+## git 훅 동작 테스트: 임시 레포에서 main 커밋·머지 커밋·push 차단과 기능 브랜치 통과 확인 (make test 가 포함)
 test-hooks:
 	./.githooks/test-hooks.sh
 
