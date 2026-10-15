@@ -11,6 +11,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   private let loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>]
   private let albums: [String: [ImageAsset]]
   private let fetchGate: (@Sendable () async -> Void)?
+  private let loadGate: (@Sendable (ImageAsset.ID) async -> Void)?
   private let state: Mutex<State>
 
   private struct State {
@@ -29,6 +30,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   /// 던진다.
   /// `albums` 는 앨범 제목별 이미지다. 없는 제목은 nil 이다.
   /// `fetchGate` 를 주면 두 조회가 결과를 주기 전에 기다린다. 조회 도중의 취소를 흉내 낸다.
+  /// `loadGate` 를 주면 `loadImage` 가 요청을 기록한 뒤, 취소를 확인하고 결과를 주기 전에 식별자를 넘겨 기다린다. 읽기 도중의 취소를 흉내 낸다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
     stateAfterRequest: PhotoAccessState = .authorized,
@@ -36,13 +38,15 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     imageAssetsAfterPicker: [ImageAsset]? = nil,
     loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:],
     albums: [String: [ImageAsset]] = [:],
-    fetchGate: (@Sendable () async -> Void)? = nil
+    fetchGate: (@Sendable () async -> Void)? = nil,
+    loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil
   ) {
     self.stateAfterRequest = stateAfterRequest
     self.imageAssetsAfterPicker = imageAssetsAfterPicker
     self.loadImageResults = loadImageResults
     self.albums = albums
     self.fetchGate = fetchGate
+    self.loadGate = loadGate
     self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
   }
 
@@ -84,6 +88,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   public func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage {
     self.state.withLock { $0.loadImageRequests.append(LoadImageRequest(id: id, size: size)) }
+    await self.loadGate?(id)
     if Task.isCancelled {
       throw .cancelled
     }
