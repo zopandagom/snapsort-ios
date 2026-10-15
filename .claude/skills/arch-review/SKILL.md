@@ -1,7 +1,7 @@
 ---
 name: arch-review
-description: SnapSort 변경분을 docs/ARCHITECTURE.md·docs/CONVENTIONS.md 기준으로 읽기 전용 리뷰한다 (단방향 MV, 모듈 경계, Swift 6 동시성, 개인정보, 테스트 누락, 문서 정합성, 하네스). 구현을 마치고 /verify 가 통과한 뒤 커밋 전에, 또는 사용자가 "리뷰", "검토"를 요청할 때 사용한다. 인자로 비교 기준(예: origin/main, HEAD~3)을 줄 수 있고, 없으면 커밋되지 않은 변경 + origin/main 이후 커밋 전체를 본다.
-argument-hint: "[base-ref]"
+description: SnapSort 변경분을 docs/ARCHITECTURE.md·docs/CONVENTIONS.md 기준으로 읽기 전용 리뷰한다 (단방향 MV, 모듈 경계, Swift 6 동시성, 개인정보, 테스트 누락, 문서 정합성, 하네스). 구현을 마치고 /verify 가 통과한 뒤 커밋 전에, 또는 사용자가 "리뷰", "검토"를 요청할 때 사용한다. 인자로 비교 기준(예: origin/main, HEAD~3)과 그 뒤에 작업 범위(In/Out·위협 모델)를 줄 수 있고, 비교 기준이 없으면 커밋되지 않은 변경 + origin/main 이후 커밋 전체를 본다.
+argument-hint: "[base-ref] [작업 범위]"
 context: fork
 agent: Explore
 ---
@@ -13,7 +13,7 @@ agent: Explore
 ## 1. 기준과 변경분 읽기
 
 1. 규칙 문서를 먼저 읽는다: `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`. 무엇을 어떤 심각도로 지적할지는 CONVENTIONS §5 "리뷰 기준"을 따른다.
-2. 변경분을 모은다. 기준: `$ARGUMENTS` (비어 있으면 `origin/main`. CONVENTIONS §5 "리뷰 기준"의 범위. 최신 origin/main 이 필요하면 부르는 쪽이 `git fetch` 한다. `/pr` 은 §1 에서 한다).
+2. 변경분을 모은다. 기준: `$ARGUMENTS` 의 첫 단어가 `git rev-parse --verify -q "<첫 단어>^{commit}"` 로 커밋을 가리키면 그것, 아니면(인자가 없거나 범위만 준 경우) `origin/main` (CONVENTIONS §5 "리뷰 기준"의 범위. 최신 origin/main 이 필요하면 부르는 쪽이 `git fetch` 한다. `/pr` 은 §1 에서 한다). 기준으로 쓰지 않은 나머지 인자 전체가 작업 범위다 (CONVENTIONS §5 "리뷰 기준"의 범위. 없으면 Out 이 없다).
    ```bash
    git diff --stat <base>...HEAD; git diff <base>...HEAD   # 커밋된 변경
    git diff HEAD; git status --short                      # 아직 커밋되지 않은 변경 (새 파일은 직접 Read)
@@ -31,14 +31,14 @@ agent: Explore
 7. **문서 정합성**: 이번 변경과 관련된 문서 줄(CONVENTIONS §5 "리뷰 기준")이 바뀐 코드·규칙과 다르게 설명함. 문서 범위를 바뀐 타입·함수·동작 이름과 바뀐 규칙의 핵심 문구로 grep 해서 찾는다.
 8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`): 스크립트 정확성, 실패해도 통과하는 경로(fail-open), 함께 지킬 수 없는 규칙(실제로 부딪히는 흐름을 들 수 있을 때).
 
-**보고하지 않는 것·범위 밖**: CONVENTIONS §5 "리뷰 기준"을 따른다. 변경분 밖에 원래 있던 문제는 표에 넣지 않고 표 아래에 `범위 밖: 위치 · 문제` 로 한 줄씩 적는다 (🔴 에 해당하면 앞에 🔴).
+**보고하지 않는 것·범위 밖**: CONVENTIONS §5 "리뷰 기준"을 따른다. 범위 밖(CONVENTIONS §5 "리뷰 기준"의 범위)은 표에 넣지 않고 표 아래에 `범위 밖: 위치 · 문제` 로 한 줄씩 적는다 (🔴 에 해당하면 앞에 🔴, Out 이면 끝에 `(Out)`).
 
 ## 3. 보고 형식
 
 확신이 있는 것만 보고한다. 추측이면 "확인 필요"로 표시한다.
 
 ```
-## 리뷰 결과: <base>...HEAD (+ 미커밋 N개 파일)
+## 리뷰 결과: <base>...HEAD (+ 미커밋 N개 파일) · 작업 범위: <받은 In/Out 한 줄 또는 없음>
 
 | # | 심각도 | 위치 | 문제 | 규칙 | 수정 방향 |
 |---|---|---|---|---|---|
