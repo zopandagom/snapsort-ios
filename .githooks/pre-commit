@@ -10,6 +10,7 @@
 set -euo pipefail
 
 if [[ $(git branch --show-current) == main ]]; then
+  # 문구는 test-hooks.sh 가 확인한다.
   echo "main 브랜치에 직접 커밋할 수 없습니다. 기능 브랜치를 만들어 커밋하세요: git switch -c feat/<요약> (fix/…, chore/…)" >&2
   exit 1
 fi

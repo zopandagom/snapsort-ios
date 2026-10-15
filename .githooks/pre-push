@@ -3,6 +3,7 @@
 # 우회가 꼭 필요하면: git push --no-verify
 while read -r _ _ remote_ref _; do
   if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    # 문구는 test-hooks.sh 가 확인한다.
     echo "main 으로 직접 push 할 수 없습니다. PR 로 머지하세요." >&2
     exit 1
   fi

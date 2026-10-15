@@ -19,8 +19,10 @@ CI(`.github/workflows/ci.yml`)와 같은 Makefile 타깃으로 검증한다. 로
    - 그래도 남는 오류는 대부분 아키텍처 규칙(`.swiftlint.yml` 의 `custom_rules`)이다. 억제 주석으로 숨기지 않고(CONVENTIONS §6) docs/ARCHITECTURE.md 에 맞게 코드를 고친다.
 2. **Build & Test** — `make test` (timeout 은 10분으로 넉넉하게)
    - 모든 모듈의 테스트가 `SnapSort-Workspace` 스킴 하나로 실행된다.
+   - `make test` 는 xcodebuild 전에 git 훅 테스트(`test-hooks`)를 먼저 돌린다.
 3. **실패 분석**
-   - 컴파일 오류는 xcbeautify 출력의 `error:` 줄만 보면 된다.
+   - 훅 테스트 실패는 출력의 `FAIL <사례>` 줄과 그 아래 들여쓴 출력을 보고한다 (xcodebuild 까지 가지 않아 결과 번들이 없다).
+   - 빌드 오류는 xcbeautify 출력의 `❌` 줄과 `error:` 줄을 본다 (컴파일 오류는 xcbeautify 가 `error:` 를 지우고 `❌` 만 남긴다).
    - 테스트 실패는 결과 번들에서 요약을 읽는다.
      ```bash
      xcrun xcresulttool get test-results summary --path build/TestResults.xcresult \
