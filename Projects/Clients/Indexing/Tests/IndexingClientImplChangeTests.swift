@@ -19,9 +19,9 @@ struct IndexingClientImplChangeTests {
     _ = await progress.next { $0.isFinished }
     fixture.classifyFailures.removeAll()
     fixture.photoLibrary.sendReloadAll(imageAssets: library)
-    let finished = await progress.next { $0.indexedCount == 2 }
+    let finished = await progress.next { $0.indexedCount == 2 && $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 2))
   }
 
   @Test("보관함 변경으로 추가된 이미지를 분석하고 삭제된 이미지의 결과를 지운다")
@@ -34,7 +34,7 @@ struct IndexingClientImplChangeTests {
     fixture.photoLibrary.sendIncrementalChange(inserted: [added], removed: ["a"])
     let finished = await progress.next { $0.isFinished && fixture.store.images.map(\.id) == ["added", "b"] }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 3))
     #expect(fixture.store.deletedBatches == [["a"]])
   }
 
@@ -66,7 +66,7 @@ struct IndexingClientImplChangeTests {
     fixture.photoLibrary.sendReloadAll(imageAssets: [.stub(id: "b"), added])
     let finished = await progress.next { $0.isFinished && fixture.store.images.map(\.id) == ["b", "c"] }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 3))
   }
 
   @Test("실행 중에 읽기 권한을 잃으면 저장 결과를 지우지 않고 끝낸다")
@@ -92,7 +92,7 @@ struct IndexingClientImplChangeTests {
     fixture.photoLibrary.sendReloadAll(imageAssets: [.stub(id: "selected")], accessState: .limited)
     let finished = await progress.next { $0.totalCount == 1 && $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0, recognizedTextCount: 2))
     #expect(fixture.store.images.map(\.id) == ["selected"])
   }
 
@@ -125,9 +125,9 @@ struct IndexingClientImplChangeTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     _ = await progress.next { $0.isFinished }
     fixture.photoLibrary.sendIncrementalChange(inserted: [icloud, later])
-    let finished = await progress.next { $0.totalCount == 2 && $0.indexedCount == 1 }
+    let finished = await progress.next { $0.totalCount == 2 && $0.indexedCount == 1 && $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 1, skippedCount: 1))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 1, skippedCount: 1, recognizedTextCount: 1))
     #expect(fixture.photoLibrary.loadImageRequests.count { $0.id == "icloud" } == 1)
   }
 }
