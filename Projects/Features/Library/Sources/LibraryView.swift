@@ -47,6 +47,7 @@ public struct LibraryView: View {
 
   /// 분석 중일 때와 멈췄을 때만 보인다. 정상으로 다 분석하면 숨기되, 미룬 이미지가 있으면 그 수는 남겨 안내한다.
   /// `isFinished` 는 미룬 수까지 더해 판단하므로, 숨기기만 하면 iCloud 에만 있는 사진처럼 분류되지 않은 이유가 사라진다.
+  /// 분석 중이면 진행률의 `phase` 로 분류 중(1단계) 막대와 글자 읽는 중(2단계) 막대를 나눠 보인다.
   /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
   /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
   @ViewBuilder
@@ -64,7 +65,7 @@ public struct LibraryView: View {
           .font(.subheadline)
         }
       }
-    } else if let progress = self.model.indexingProgress, !progress.isFinished {
+    } else if let progress = self.model.indexingProgress, progress.phase == .classifying {
       let doneCount = progress.indexedCount + progress.skippedCount
       Section {
         ProgressView(value: Double(doneCount), total: Double(max(progress.totalCount, 1))) {
@@ -77,6 +78,27 @@ public struct LibraryView: View {
           Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
         }
       }
+    } else if let progress = self.model.indexingProgress, progress.phase == .recognizingText {
+      // 분모는 이번 실행에서 남은 일이다. 새 사진이 대기에 더해지면 늘어난다.
+      let doneCount = progress.recognizedTextCount + progress.skippedTextCount
+      let totalCount = doneCount + progress.pendingTextCount
+      Section {
+        ProgressView(value: Double(doneCount), total: Double(max(totalCount, 1))) {
+          Text("글자 읽는 중")
+        } currentValueLabel: {
+          Text("\(doneCount)/\(totalCount)장")
+        }
+      } footer: {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("사진 분류는 끝났습니다. 기프티콘·영수증 같은 캡처는 글자를 읽으며 채웁니다.")
+          if progress.skippedTextCount > 0 {
+            Text("글자를 읽지 못한 \(progress.skippedTextCount)장은 다음에 다시 시도합니다.")
+          }
+          if progress.skippedCount > 0 {
+            Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
+          }
+        }
+      }
     } else if self.model.isIndexing {
       Section {
         HStack(spacing: 12) {
@@ -84,10 +106,11 @@ public struct LibraryView: View {
           Text("이미지 분류 준비 중")
         }
       }
-    } else if let progress = self.model.indexingProgress, progress.skippedCount > 0 {
+    } else if let progress = self.model.indexingProgress, progress.skippedCount + progress.skippedTextCount > 0 {
+      // 1단계·2단계 미룸은 이용자에게 같은 이유(iCloud 에만 있거나 읽을 수 없음)라 합쳐 센다.
       Section {
         Label(
-          "읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다",
+          "읽지 못한 \(progress.skippedCount + progress.skippedTextCount)장은 다음에 다시 시도합니다",
           systemImage: "icloud.slash"
         )
         .font(.subheadline)
@@ -97,13 +120,17 @@ public struct LibraryView: View {
     }
   }
 
-  /// 다 분석한 뒤 증분 반영 중에 멈추면 마지막 진행률이 n/n 이므로, 개수 대신 새 사진을 분류하지 못했다고 안내한다.
+  /// 멈춘 단계로 고른다. 다 분석한 뒤 증분 반영 중에 멈추면 마지막 진행률이 n/n 이므로, 개수 대신 새 사진을 분류하지 못했다고 안내한다.
   private var stoppedText: String {
     guard let progress = self.model.indexingProgress else { return "분류를 마치지 못했습니다" }
-    if progress.isFinished {
+    switch progress.phase {
+    case .classifying:
+      return "분류를 마치지 못했습니다 (\(progress.indexedCount + progress.skippedCount)/\(progress.totalCount))"
+    case .recognizingText:
+      return "글자 읽기를 마치지 못했습니다 (남은 \(progress.pendingTextCount)장)"
+    case .finished:
       return "새 사진을 분류하지 못했습니다"
     }
-    return "분류를 마치지 못했습니다 (\(progress.indexedCount + progress.skippedCount)/\(progress.totalCount))"
   }
 
   /// 이미지가 있는 카테고리만 보여 주고, 하나도 없으면 섹션째 숨긴다.
@@ -128,6 +155,10 @@ public struct LibraryView: View {
         // 여행은 고른 사진만으로 판정하므로 제한 접근이면 실제 여행과 다를 수 있다 (docs/ARCHITECTURE.md §4 여행 판정).
         if group == .photo, self.model.isLimited, self.model.categoryCounts[.travel] != nil {
           Text("선택한 사진만으로 여행을 찾아 정확하지 않을 수 있습니다.")
+        }
+        // 정보형 카테고리는 2단계에서 글자를 읽으며 더해진다 (docs/ARCHITECTURE.md §4 인덱싱).
+        if group == .information, self.model.isIndexing, self.model.indexingProgress?.phase == .recognizingText {
+          Text("글자를 읽는 중이라 개수가 늘어날 수 있습니다.")
         }
       }
     }
