@@ -42,11 +42,12 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 1. 로드맵의 주차 목표와 완료 기준을 확인 → 작업 단위로 쪼갠다.
 2. `feat|fix|chore/<요약>` 브랜치 생성 (주차 표시 없이, CONVENTIONS §5).
 3. Client 가 필요하면 **Interface 먼저** 설계(프로토콜 + 값 타입) → Fake → Feature Model + 테스트 → Impl 순서. Impl 없이도 Example 앱으로 화면을 확인할 수 있다.
-4. 역할 단위로 구현 → `/verify` → `/arch-review`. 새 상태·실패 경로가 생기는 구현과 그 리뷰 지적 수정은 팀으로 한다 (CONVENTIONS §6 "팀 구현"). 커밋은 사용자 지시로 `/micro-commit` (CONVENTIONS §5).
+4. 역할 단위로 작업 범위·수용 확인을 정하고 구현 → `/verify` → `/arch-review`. 새 상태·실패 경로가 생기는 구현과 그 리뷰 지적 수정은 팀으로 한다 (CONVENTIONS §6 "팀 구현"). 커밋은 사용자 지시로 `/micro-commit` (CONVENTIONS §5).
 5. 사용자 지시로 `/pr` (마지막 커밋 검사(빌드에 영향이 있으면 lint·빌드·테스트) + 전체 `/arch-review` → PR 생성, 유형 라벨) → CI + Claude 리뷰 → 리뷰 반영 커밋도 `/pr` 로 push (CI 지적에 답) → 머지 전 확인 뒤 Merge commit 으로 머지 (CONVENTIONS §5 "리뷰 지적 처리").
 6. 결정이 바뀌었으면 문서 갱신을 같은 PR 에 포함한다 (별도 커밋, type 은 CONVENTIONS §5 마이크로 커밋 표).
 
 ## 완료 기준 (Definition of Done)
+- [ ] (작업 범위를 정했으면) 수용 확인 통과 (PR 본문 "범위" 절, CONVENTIONS §6)
 - [ ] `/pr` 의 마지막 커밋 검사 PASS·SKIP, 필수 체크 `ci-result` 통과, 머지 전 확인 충족 (CONVENTIONS §5 "리뷰 지적 처리")
 - [ ] CONVENTIONS §3 이 요구하는 테스트 (미뤘으면 그 보류 기록, CONVENTIONS §5 "리뷰 지적 처리")
 - [ ] Example 앱에서 주요 상태(정상/빈 상태/권한 거부/오류) 확인
