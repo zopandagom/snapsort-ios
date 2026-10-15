@@ -94,7 +94,7 @@ git log --format=%s origin/main..HEAD | sed -E 's/^([a-z]+)(\([^)]*\))?!?:.*/\1/
     - 합의 줄: 새 `withKnownIssue` 마다(정확도 샘플은 샘플마다) (형식 CONVENTIONS §3).
     - CI 리뷰 갈음 PR 이면 "CI 리뷰는 워크플로 파일 변경으로 건너뜀 (로컬 /arch-review 로 갈음)" 한 줄.
   - **스크린샷 (선택)**: 비워 두고 주석만 남긴다. 사용자가 직접 첨부한다.
-- 본문은 임시 파일로 작성해 `--body-file` 로 넘긴다 (명령줄에 `git push … main` 같은 문자열이 들어가면 main 보호 훅이 오인한다).
+- 본문은 임시 파일로 작성해 `--body-file` 로 넘긴다 (본문의 백틱·`$` 가 셸에서 풀리지 않도록).
 
 ## 5. push 와 PR 생성
 ```bash

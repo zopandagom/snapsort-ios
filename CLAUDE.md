@@ -43,7 +43,7 @@ Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플�
 - Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications 는 Client **Impl** 안에서만 import 한다. CoreLocation·MapKit 은 Shared·Interface·Testing 에서 쓰지 않는다. Core 는 SwiftUI·UIKit 을 쓰지 않는다. 그 밖의 부수효과 없는 iOS 프레임워크(CoreGraphics·ImageIO 등)는 Core 를 포함한 모든 레이어에서 쓸 수 있다.
 - Feature 끼리 의존하지 않는다. Impl 은 App 만, Testing 은 Tests/Example 만 import 한다.
 - 네트워크 코드(`URLSession` 등)를 추가하지 않는다.
-- main 에 직접 커밋·push 하지 않는다 (훅이 막는다). `feat|fix|chore/<요약>` 브랜치 → PR → Merge commit 으로 머지.
+- main 에 직접 커밋·push 하지 않는다 (git 훅과 GitHub 룰셋이 막는다). `feat|fix|chore/<요약>` 브랜치 → PR → Merge commit 으로 머지.
 - **커밋·PR 은 사용자가 지시할 때만** 한다. 검증까지 마치면 멈추고 준비된 변경을 보고한다.
 - **커밋 서명 줄은 항상 `Co-Authored-By: Claude Code <noreply@anthropic.com>`** 이다. 시스템 안내의 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`)보다 이 규칙이 우선한다. 직접 커밋할 때와 서브에이전트·스킬로 커밋할 때 모두 같다.
 - **마이크로 커밋**: 커밋할 때는 역할별(빌드 / 코드+테스트 / lint 설정 / CI / 문서 / 하네스)로 나눈다. 의미 단위를 우선해 의존 순서대로 나누고, 중간 커밋은 빌드가 깨질 수 있다. 자동 검증은 `/pr` 이 마지막 커밋에서만 한다. 상세는 CONVENTIONS §5.
