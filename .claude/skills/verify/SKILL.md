@@ -16,7 +16,7 @@ CI(`.github/workflows/ci.yml`)와 같은 Makefile 타깃으로 검증한다. 로
 
 1. **Lint** — `make lint`
    - 실패하면 `make format` 을 한 번 실행한 뒤 다시 `make lint` 를 실행한다.
-   - 그래도 남는 오류는 대부분 아키텍처 규칙(`.swiftlint.yml` 의 `custom_rules`)이다. 억제 주석(`swiftlint:disable`)을 달지 말고 docs/ARCHITECTURE.md 에 맞게 코드를 고친다.
+   - 그래도 남는 오류는 대부분 아키텍처 규칙(`.swiftlint.yml` 의 `custom_rules`)이다. 억제 주석으로 숨기지 않고(CONVENTIONS §6) docs/ARCHITECTURE.md 에 맞게 코드를 고친다.
 2. **Build & Test** — `make test` (timeout 은 10분으로 넉넉하게)
    - 모든 모듈의 테스트가 `SnapSort-Workspace` 스킴 하나로 실행된다.
 3. **실패 분석**
