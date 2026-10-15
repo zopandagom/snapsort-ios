@@ -22,8 +22,10 @@
         List {
           self.modeSection
           self.controlSection
+          SamplePreviewSection(model: self.model)
           self.phaseSection
         }
+        .scrollDismissesKeyboard(.immediately)
         .navigationTitle("기록")
         .toolbar {
           ToolbarItem(placement: .cancellationAction) {
