@@ -23,7 +23,9 @@
     case cancelled
   }
 
-  /// `IndexingRun.analyze(_:)`(IndexingClientImpl.swift)와 같은 순서로 한 장씩 분석하며 단계별 시간을 잰다. 한쪽 순서를 바꾸면 다른 쪽도 맞춘다.
+  /// 인덱서의 두 단계와 같은 내용으로 한 장씩 분석하며 단계별 시간을 잰다: 1단계 `IndexingRun.classify(_:)`(썸네일 로드 → 분류 → 대상 판정),
+  /// 2단계 `IndexingRun.recognize(_:asset:)`(원본 로드 → OCR → 규칙 분류)(IndexingRun+Stages.swift). 인덱서는 단계별로 모아 돌리고
+  /// 이 도구는 한 장에서 두 단계를 이어 잰다. 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다.
   /// OCR 해상도 비교 모드는 OCR 대상의 원본을 낮은 상한으로 줄여 다시 OCR 하고 기준과 비교한다(`compareResolutions`).
   /// 모든 시간은 메인 밖에서 `ContinuousClock` 으로 잰다.
   struct SampleRecording: Sendable {

@@ -50,9 +50,39 @@ extension IndexingClientFake {
     progress: [IndexingProgress(totalCount: 128, indexedCount: 40, skippedCount: 0)]
   )
 
-  /// 모두 분석해 진행률을 숨기고, 읽지 못해 미룬 8장만 안내하는 상태.
+  /// 모두 분류하고 캡처 34장 중 12장의 글자를 읽었고 1장은 읽지 못해 미룬 상태로 계속 읽는 중이다.
+  static let previewRecognizingText = IndexingClientFake(
+    progress: [IndexingProgress(
+      totalCount: 128,
+      indexedCount: 126,
+      skippedCount: 2,
+      pendingTextCount: 21,
+      recognizedTextCount: 12,
+      skippedTextCount: 1
+    )],
+    finishesAfterProgress: false
+  )
+
+  /// 글자를 읽다가 21장을 남기고 멈춘 상태.
+  static let previewTextStopped = IndexingClientFake(
+    progress: [IndexingProgress(
+      totalCount: 128,
+      indexedCount: 128,
+      skippedCount: 0,
+      pendingTextCount: 21,
+      recognizedTextCount: 12
+    )]
+  )
+
+  /// 모두 분석해 진행률을 숨기고, 읽지 못해 미룬 8장(1단계 5장 + 글자 3장)만 안내하는 상태.
   static let previewFinished = IndexingClientFake(
-    progress: [IndexingProgress(totalCount: 128, indexedCount: 120, skippedCount: 8)],
+    progress: [IndexingProgress(
+      totalCount: 128,
+      indexedCount: 123,
+      skippedCount: 5,
+      recognizedTextCount: 30,
+      skippedTextCount: 3
+    )],
     finishesAfterProgress: false
   )
 }
@@ -69,7 +99,7 @@ extension PhotoStoreClientFake {
         IndexedImage(
           asset: .stub(id: "\(category.rawValue)-\(index)"),
           labels: [],
-          textLines: nil,
+          textRecognition: .notNeeded,
           categories: [category]
         )
       }
@@ -96,6 +126,22 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewStopped,
+    photoStore: PhotoStoreClientFake.previewClassified()
+  ))
+}
+
+#Preview("글자 읽는 중") {
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewRecognizingText,
+    photoStore: PhotoStoreClientFake.previewClassified()
+  ))
+}
+
+#Preview("글자 읽기 멈춤") {
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewTextStopped,
     photoStore: PhotoStoreClientFake.previewClassified()
   ))
 }

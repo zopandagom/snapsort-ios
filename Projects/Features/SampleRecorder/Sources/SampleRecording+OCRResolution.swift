@@ -6,7 +6,7 @@
   import PhotoLibraryInterface
 
   /// OCR 해상도 비교 모드의 한 장 측정. `SampleRecording.measure` 가 OCR 대상일 때 부른다.
-  /// 단계 순서는 `SampleRecording` 문서 주석의 규칙(`IndexingRun.analyze` 와 같은 순서)을 따른다.
+  /// 단계 내용은 `SampleRecording` 문서 주석의 규칙(인덱서 `IndexingRun.classify`·`IndexingRun.recognize` 와 같은 단계)을 따른다.
   extension SampleRecording {
     /// 원본(기준)을 읽고 기준과 낮은 상한(`OCRResolutionCap.all`)을 `OCRResolution.variantOrder` 순서로 OCR 한 뒤 기준 대비 지표를 남긴다.
     /// `measurement` 의 원본·OCR 필드는 기준 값이라 pipeline 은 속도 모드와 같은 의미다. 텍스트는 지표를 계산한 뒤 버린다.

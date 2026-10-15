@@ -29,6 +29,42 @@ struct LibraryModelIndexingStateTests {
     await appear.value
   }
 
+  @Test("분류를 마친 뒤 글자를 읽는 동안(2단계)에도 인덱싱 중이고, 대기가 없어지면 인덱싱 중이 아니다")
+  func isIndexingDuringTextPass() async {
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
+    let appear = Task { await model.onAppear() }
+    await waitUntil { indexing.activeRunCount == 1 && model.isIndexing }
+
+    indexing.sendProgress(IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, pendingTextCount: 1))
+    await waitUntil { model.indexingProgress?.pendingTextCount == 1 }
+    #expect(model.isIndexing)
+    indexing.sendProgress(IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 1))
+    await waitUntil { model.indexingProgress?.recognizedTextCount == 1 }
+    #expect(!model.isIndexing)
+
+    appear.cancel()
+    await appear.value
+  }
+
+  @Test("글자를 읽는 도중 스트림이 끝나면 멈춘 것으로 보고 마지막 진행률을 남긴다")
+  func stopsDuringTextPass() async {
+    let last = IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, pendingTextCount: 1)
+    let indexing = IndexingClientFake(progress: [last])
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
+    let appear = Task { await model.onAppear() }
+
+    await waitUntil { model.isIndexingStopped }
+    #expect(!model.isIndexing)
+    #expect(model.indexingProgress == last)
+    #expect(model.indexingProgress?.phase == .recognizingText)
+
+    appear.cancel()
+    await appear.value
+  }
+
   @Test("멈추거나 화면이 사라지면 인덱싱 중이 아니다")
   func isIndexingFalseAfterStopOrCancel() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)

@@ -3,7 +3,7 @@ import Core
 /// 분류 결과 저장소 (SwiftData). 사진과 OCR 텍스트는 기기 안에만 저장한다 (docs/ARCHITECTURE.md §4).
 /// 구현은 PhotoStoreImpl, 테스트 대역은 PhotoStoreTesting 에 있다.
 public protocol PhotoStoreClient: Sendable {
-  /// 분석한 이미지를 저장한다. 같은 식별자가 이미 있으면 새 결과로 바꾼다.
+  /// 분석한 이미지를 저장한다. 같은 식별자가 이미 있으면 새 결과로 바꾼다(OCR 대기 → 읽음도 이것으로 바꾼다).
   func save(_ images: [IndexedImage]) async throws(PhotoStoreError)
 
   /// 보관함에서 지워진 이미지의 결과를 지운다. 없는 식별자는 무시한다.
@@ -11,6 +11,13 @@ public protocol PhotoStoreClient: Sendable {
 
   /// 저장된 이미지 식별자. 증분 인덱싱이 보관함과 비교해 새로 분석할 이미지를 고르는 데 쓴다.
   func indexedIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID>
+
+  /// OCR 을 기다리는(`.pending`) 이미지 식별자. 인덱서 2단계가 할 일을 고르고 진행률의 대기 수를 센다. 순서는 인덱서가 정한다.
+  func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID>
+
+  /// 식별자로 저장된 이미지를 읽는다. 없는 식별자는 빠지고 순서는 정하지 않는다. 인덱서 2단계가 한 배치의 라벨을 읽는 데 쓰므로,
+  /// 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
+  func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage]
 
   /// 그 카테고리에 속한 이미지를 최신순(생성일 없는 이미지는 맨 뒤)으로 돌려준다.
   func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage]

@@ -244,7 +244,7 @@ func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async {
 
 extension IndexedImage {
   static func stub(id: String, categories: Set<ImageCategory>) -> IndexedImage {
-    IndexedImage(asset: .stub(id: id), labels: [], textLines: nil, categories: categories)
+    IndexedImage(asset: .stub(id: id), labels: [], textRecognition: .notNeeded, categories: categories)
   }
 }
 

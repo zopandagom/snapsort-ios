@@ -35,7 +35,17 @@ actor PhotoStore {
         stored.pixelHeight = image.asset.pixelHeight
         stored.isScreenshot = image.asset.isScreenshot
         stored.labelsData = try encoder.encode(image.labels)
-        stored.textLinesData = try image.textLines.map { try encoder.encode($0) }
+        switch image.textRecognition {
+        case .notNeeded:
+          stored.needsTextRecognition = false
+          stored.textLinesData = nil
+        case .pending:
+          stored.needsTextRecognition = true
+          stored.textLinesData = nil
+        case let .recognized(lines):
+          stored.needsTextRecognition = true
+          stored.textLinesData = try encoder.encode(lines)
+        }
         // 여행은 `StoredTrip` 으로 다루므로 카테고리 행으로 두지 않는다. 순서를 고정해 같은 입력이면 같은 행이 되게 한다.
         stored.memberships = image.categories.subtracting([.travel]).map(\.rawValue).sorted()
           .map(StoredCategoryMembership.init)
@@ -60,6 +70,23 @@ actor PhotoStore {
     var descriptor = FetchDescriptor<StoredImage>()
     descriptor.propertiesToFetch = [\.assetID]
     return try Set(self.modelContext.fetch(descriptor).map(\.assetID))
+  }
+
+  func pendingTextRecognitionIDs() throws -> Set<ImageAsset.ID> {
+    var descriptor = FetchDescriptor<StoredImage>(
+      predicate: #Predicate { $0.needsTextRecognition && $0.textLinesData == nil }
+    )
+    descriptor.propertiesToFetch = [\.assetID]
+    return try Set(self.modelContext.fetch(descriptor).map(\.assetID))
+  }
+
+  func images(ids: Set<ImageAsset.ID>) throws -> [IndexedImage] {
+    let ids = Array(ids)
+    let stored = try self.modelContext.fetch(
+      FetchDescriptor<StoredImage>(predicate: #Predicate { ids.contains($0.assetID) })
+    )
+    let decoder = PropertyListDecoder()
+    return try stored.map { try Self.indexedImage($0, decoder: decoder) }
   }
 
   func images(in category: ImageCategory) throws -> [IndexedImage] {
@@ -153,6 +180,14 @@ actor PhotoStore {
     }
   }
 
+  /// `StoredImage.needsTextRecognition` 문서의 표대로 읽는다.
+  private static func textRecognition(_ stored: StoredImage, decoder: PropertyListDecoder) throws -> TextRecognition {
+    if let data = stored.textLinesData {
+      return try .recognized(decoder.decode([RecognizedTextLine].self, from: data))
+    }
+    return stored.needsTextRecognition ? .pending : .notNeeded
+  }
+
   private static func indexedImage(_ stored: StoredImage, decoder: PropertyListDecoder) throws -> IndexedImage {
     let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
       Coordinate(latitude: latitude, longitude: longitude)
@@ -169,7 +204,7 @@ actor PhotoStore {
         isScreenshot: stored.isScreenshot
       ),
       labels: decoder.decode([ImageLabel].self, from: stored.labelsData),
-      textLines: stored.textLinesData.map { try decoder.decode([RecognizedTextLine].self, from: $0) },
+      textRecognition: Self.textRecognition(stored, decoder: decoder),
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) })
     )
   }

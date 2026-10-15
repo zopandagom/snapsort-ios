@@ -9,7 +9,7 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct IndexingClientImplTests {
-  @Test("새 이미지를 분석해 라벨·OCR 줄·카테고리와 함께 저장하고 진행률을 마친다")
+  @Test("새 이미지를 분류하고 OCR 대상은 글자까지 읽어 라벨·OCR 줄·카테고리와 함께 저장하고 진행률을 마친다")
   func indexesNewImages() async throws {
     let food = ImageAsset.stub(id: "food", coordinate: seoul)
     let gifticon = ImageAsset.stub(id: "gifticon", isScreenshot: true)
@@ -22,11 +22,11 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 1))
     let stored = Dictionary(uniqueKeysWithValues: fixture.store.images.map { ($0.id, $0) })
     let storedFood = try #require(stored["food"])
     #expect(storedFood.labels.map(\.identifier) == ["food"])
-    #expect(storedFood.textLines == nil)
+    #expect(storedFood.textRecognition == .notNeeded)
     #expect(storedFood.categories == [.food])
     let storedGifticon = try #require(stored["gifticon"])
     let lines = try #require(storedGifticon.textLines)
@@ -61,7 +61,8 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    // 기본 스텁은 위치도 사진형 라벨도 없어 OCR 대상이다.
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 1))
     #expect(Set(fixture.photoLibrary.loadImageRequests.map(\.id)) == ["new"])
     #expect(fixture.store.deletedBatches == [["removed"]])
     #expect(fixture.store.images.map(\.id) == ["kept", "new"])
@@ -74,18 +75,18 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 2))
     #expect(fixture.photoLibrary.loadImageRequests.count { $0.id == "a" && $0.size == .thumbnail } == 1)
   }
 
-  @Test("정한 장 수마다 나눠 저장한다")
+  @Test("1단계(분류)와 2단계(OCR)를 각각 정한 장 수마다 나눠 저장한다")
   func savesInBatches() async {
-    let fixture = Fixture(library: .stubs(count: 5), batchSize: 2)
+    let fixture = Fixture(library: .stubs(count: 5), batchSize: 2, textBatchSize: 3)
 
     var progress = fixture.indexing.run().makeAsyncIterator()
     _ = await progress.next { $0.isFinished }
 
-    #expect(fixture.store.savedBatches.map(\.count) == [2, 2, 1])
+    #expect(fixture.store.savedBatches.map(\.count) == [2, 2, 1, 3, 2])
   }
 
   @Test("지울 결과도 정한 장 수마다 나눠 지운다")
@@ -135,19 +136,19 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 3, indexedCount: 1, skippedCount: 2))
+    #expect(finished == IndexingProgress(totalCount: 3, indexedCount: 1, skippedCount: 2, recognizedTextCount: 1))
     #expect(fixture.store.images.map(\.id) == ["ok"])
   }
 
-  @Test("OCR 대상인데 OCR 하지 못한 이미지는 저장하지 않고 미룬다")
-  func skipsImageWhenTextRecognitionFails() async {
+  @Test("OCR 대상인데 OCR 하지 못한 이미지는 1단계 결과(대기)로 남기고 2단계 미룬 수로 센다")
+  func keepsPendingWhenTextRecognitionFails() async {
     let fixture = Fixture(library: [.stub(id: "screenshot", isScreenshot: true)], recognizeFailures: ["screenshot"])
 
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 0, skippedCount: 1))
-    #expect(fixture.store.images.isEmpty)
+    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0, skippedTextCount: 1))
+    #expect(fixture.store.images.map(\.textRecognition) == [.pending])
   }
 
   @Test("보관함에서 사라진 이미지는 전체 수에서 뺀다")
@@ -157,7 +158,7 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0))
+    #expect(finished == IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0, recognizedTextCount: 1))
   }
 
   @Test("보관함 사진의 위치·날짜로 여행을 판정해 저장한다")
@@ -226,7 +227,7 @@ struct IndexingClientImplTests {
     }
 
     #expect(fixture.store.savedBatches.map(\.count) == [2])
-    #expect(received.last == IndexingProgress(totalCount: 5, indexedCount: 2, skippedCount: 0))
+    #expect(received.last == IndexingProgress(totalCount: 5, indexedCount: 2, skippedCount: 0, pendingTextCount: 2))
   }
 
   @Test("저장소를 읽지 못하면 멈추고 스트림을 끝낸다")
