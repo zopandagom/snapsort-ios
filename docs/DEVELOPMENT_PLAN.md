@@ -49,9 +49,8 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 ## 완료 기준 (Definition of Done)
 - [ ] `/pr` 의 마지막 커밋 검사 PASS·SKIP, 필수 체크 `ci-result` 통과, 머지 전 확인 충족 (CONVENTIONS §5 "리뷰 지적 처리")
 - [ ] CONVENTIONS §3 이 요구하는 테스트 (미뤘으면 그 보류 기록, CONVENTIONS §5 "리뷰 지적 처리")
-- [ ] Example 앱에서 주요 상태(정상/빈 상태/권한 거부/오류) 확인
+- [ ] 해당하는 수동 확인(Example 앱 주요 상태, 실기기) 완료 (CONVENTIONS §5 표 "수동 확인" 행)
 - [ ] 개인정보 규칙 위반 없음 (네트워크, 민감 로그)
-- [ ] 실제 기기에서 한 번 이상 확인 (PhotoKit·Vision·Foundation Models 는 시뮬레이터와 동작이 다를 수 있음)
 
 ## 출시 전 준비 체크리스트 (코드 외)
 | 항목 | 필요 시점 | 상태 |

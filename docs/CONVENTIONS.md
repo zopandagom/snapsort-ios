@@ -58,6 +58,7 @@
 | 커밋 전에 수정한 Swift 파일(스테이지 여부 무관, 커밋될 내용 포함) lint 통과 (`make format` 으로 수정) | lint 실패 상태로 커밋 | git pre-commit 훅, CI lint (PR 코드 줄에 어노테이션) |
 | PR 전에 마지막 커밋이 `/pr` 의 검사를 통과 (`/pr` 이 push 직전에 `verify-head.sh` 로 한 번 검사: 빌드에 영향을 주는 파일이 바뀌었으면 `make lint && make test`, `.githooks` 가 바뀌었으면 `make test-hooks`, `.claude/settings.json` 은 JSON, `.github` 의 YAML 파일(워크플로·dependabot)은 YAML 문법, 그 밖의 파일만 바뀌었으면 SKIP). CI 는 문서·하네스(`*.md`, `docs/**`, `.claude/**`)만 바뀐 PR 에서 lint·test 를 건너뛴다 | CI 실패 상태로 머지 | GitHub 룰셋 필수 체크 `ci-result` (lint·test 결과를 모은 잡) |
 | UI 변경은 PR 에 스크린샷(선택) | force push 로 main 이력 변경 | settings deny |
+| **수동 확인** (DEVELOPMENT_PLAN 완료 기준): Feature(Sources·Example)가 바뀌면 Example 앱에서 주요 상태(정상/빈 상태/권한 거부/오류)를, Client Impl 이나 App 이 바뀌면 실기기에서 바뀐 흐름을(PhotoKit·Vision·Foundation Models 는 시뮬레이터와 동작이 다를 수 있다) 사용자가 머지 전에 확인한다. Release 에서 기록 도구가 빠졌는지(ARCHITECTURE §2 Debug 전용 Feature)는 명령으로 판정되므로 Claude 가 수용 확인(§6)으로 실행한다 | 해당하는 수동 확인 없이 머지 | 머지 전 확인 (사용자) |
 | **덮어쓰기 push**: 원격 브랜치에만 있는 커밋을 덮어쓰는 push 는 사용자가 직접 한다: `git log --oneline HEAD..origin/<브랜치>` 로 덮어쓸 커밋을 확인한 뒤 `git push --force-with-lease=<브랜치>:<확인한 원격 커밋> -u origin HEAD`. `/pr` 은 force push 하지 않고, 원격과 어긋나면 그 커밋 목록을 보이고 멈춘다 | 확인 없이 `--force`, 값 없는 `--force-with-lease` (확인 뒤 다시 fetch 되면 확인하지 않은 원격 커밋을 지운다) | `/pr` 스킬 규칙 (settings deny 는 `git push --force`·`git push -f` 로 시작하는 명령만 막고, 플래그가 뒤에 오는 명령과 `--force-with-lease` 는 막지 않는다) |
 | **CI 리뷰 갈음 PR**: 브랜치가 `.github/workflows/claude-review.yml` 을 바꿔 현재 main 과 다른 PR 은 `claude-code-action` 의 워크플로 검증(main 의 파일과 같아야 한다)에 걸려 리뷰를 건너뛰고(로그 `Workflow validation failed`) `review` 체크는 통과로 보인다. 이런 PR 은 CI 리뷰를 로컬 `/arch-review` 로 갈음하고 본문에 적는다 | CI 리뷰 갈음 PR 을 `review` 체크 통과만 보고 CI 리뷰를 받은 것으로 머지하기 | `/pr` 사전 확인 |
 | 머지는 **Merge commit** (마이크로 커밋을 브랜치에서 만든 hash 그대로 main 에 남긴다. PR 단위로 보려면 `git log --first-parent`) | Squash merge (커밋 단위가 사라진다), Rebase merge (GitHub 이 커밋을 다시 만들어 hash 가 바뀐다) | GitHub 룰셋 (`merge` 만 허용) |
@@ -114,7 +115,7 @@
 
 후속(기준 3 보류, 범위 밖)은 머지를 막지 않는다. 기록 줄에 적고, 머지 뒤에도 남도록 Claude 프로젝트 메모리에 옮긴다 (GitHub 이슈는 쓰지 않는다). 후속 작업이 끝났다고 사용자가 확인하면 메모리에서 지운다 (자동으로 지우지 않는다).
 
-머지 전 확인 (머지하는 사용자가 본다): 마지막으로 push 한 head 의 CI 리뷰 요약(`## Claude 리뷰`)이 올라왔고(CI 리뷰 갈음 PR 은 로컬 `/arch-review`), 그 지적을 포함한 모든 리뷰 지적의 처리를 정하고 표의 기록 형식대로 기록했다. 요약에 새 지적이 있으면 `/pr` 을 다시 실행해 처리한다. CI 리뷰가 실패했거나 돌지 않았으면 다시 돌릴지 이대로 머지할지 사용자가 정한다. 필수 체크 `ci-result`(lint·test)는 GitHub 룰셋이 따로 막는다. dependabot PR 은 CI 리뷰가 돌지 않으므로 `ci-result` 와 사용자 확인으로 머지한다.
+머지 전 확인 (머지하는 사용자가 본다): 마지막으로 push 한 head 의 CI 리뷰 요약(`## Claude 리뷰`)이 올라왔고(CI 리뷰 갈음 PR 은 로컬 `/arch-review`), 그 지적을 포함한 모든 리뷰 지적의 처리를 정하고 표의 기록 형식대로 기록했다. 해당하는 수동 확인(§5 표 "수동 확인" 행)을 마쳤다. 요약에 새 지적이 있으면 `/pr` 을 다시 실행해 처리한다. CI 리뷰가 실패했거나 돌지 않았으면 다시 돌릴지 이대로 머지할지 사용자가 정한다. 필수 체크 `ci-result`(lint·test)는 GitHub 룰셋이 따로 막는다. dependabot PR 은 CI 리뷰가 돌지 않으므로 `ci-result` 와 사용자 확인으로 머지한다.
 
 ### 마이크로 커밋
 작업은 **역할별로 구현 → 검증**하고, 커밋은 **사용자가 지시할 때** 역할별로 나눠서 한다. 한 번에 몰아서 커밋하지 않는다.
