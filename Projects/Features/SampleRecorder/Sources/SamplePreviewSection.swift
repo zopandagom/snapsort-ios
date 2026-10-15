@@ -17,9 +17,11 @@
           )
           .lineLimit(1 ... 4)
           .keyboardType(.numbersAndPunctuation)
+          // List 행의 기본 버튼은 행 전체를 탭 영역으로 만들어 입력 칸을 눌러도 보기가 실행되므로 버튼만 반응하게 한다.
           Button("보기") {
             Task { await self.model.sampleShowTapped() }
           }
+          .buttonStyle(.borderless)
         }
         .disabled(self.model.isRecording)
         self.content
