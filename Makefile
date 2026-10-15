@@ -7,7 +7,7 @@ SCHEME ?= SnapSort-Workspace
 DESTINATION ?= platform=iOS Simulator,name=iPhone 17,OS=latest
 RESULT_BUNDLE := build/TestResults.xcresult
 
-.PHONY: bootstrap generate project build test lint format clean
+.PHONY: bootstrap generate project build test test-hooks lint format clean
 
 ## 최초 1회: 도구 설치 + git 훅 연결
 bootstrap:
@@ -29,10 +29,15 @@ build: project
 
 test: project
 	rm -rf $(RESULT_BUNDLE)
+	$(MAKE) --no-print-directory test-hooks
 	set -o pipefail && $(MISE) xcodebuild test \
 		-workspace $(WORKSPACE) -scheme $(SCHEME) -destination '$(DESTINATION)' \
 		-resultBundlePath $(RESULT_BUNDLE) \
 		CODE_SIGNING_ALLOWED=NO | $(MISE) xcbeautify
+
+## git 훅 동작 테스트: 임시 레포에서 main 커밋·push 차단과 기능 브랜치 통과 확인 (make test 가 포함)
+test-hooks:
+	./.githooks/test-hooks.sh
 
 lint:
 	$(MISE) swiftformat --lint .
