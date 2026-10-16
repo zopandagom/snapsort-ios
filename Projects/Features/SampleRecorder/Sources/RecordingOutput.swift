@@ -47,16 +47,17 @@
   }
 
   extension SampleDraft {
-    /// 보관함 전체 정확도 샘플 이름. 기록 화면의 샘플 보기도 같은 번호로 보인다.
+    /// 보관함 전체 정확도 샘플 이름. 기록 화면의 샘플 보기와 번호로 기록 모드도 같은 번호를 쓴다.
     static func librarySampleName(_ number: Int) -> String {
       String(format: "보관함 %05d", number)
     }
 
-    /// 처리 순서 `index` 의 이미지. 이름은 앨범 모드면 `앨범 001`, 보관함 전체면 최신순 `보관함 00001` 이다.
+    /// `number`(1부터): 앨범 모드는 앨범 순서, 보관함 전체는 최신순 순서, 번호로 기록은 입력한 번호.
+    /// 이름은 앨범 모드면 `앨범 001`, 그 밖은 `보관함 00001` 이다.
     /// 라벨은 받은 순서(신뢰도 높은 순) 그대로 두고 신뢰도를 내린다. `predicted` 는 운영 기준으로 거른 `ruleLabels` 와
     /// OCR 대상(`needsText`)일 때만 OCR 줄로 계산한다(Core 테스트 `ClassificationSample.classify()` 와 같은 계산).
     init(
-      index: Int,
+      number: Int,
       mode: RecordingMode,
       asset: ImageAsset,
       labels: [ImageLabel],
@@ -66,9 +67,9 @@
     ) {
       let predicted = RuleClassifier.classify(asset: asset, labels: ruleLabels, textLines: needsText ? textLines : [])
       self.init(
-        name: mode == .libraryAccuracy
-          ? Self.librarySampleName(index + 1)
-          : String(format: "앨범 %03d", index + 1),
+        name: mode == .accuracy
+          ? String(format: "앨범 %03d", number)
+          : Self.librarySampleName(number),
         asset: Asset(
           isScreenshot: asset.isScreenshot,
           hasLocation: asset.coordinate != nil,
@@ -123,6 +124,7 @@
       self.mode = switch run.mode {
       case .accuracy: "accuracy"
       case .libraryAccuracy: "libraryAccuracy"
+      case .numberedAccuracy: "numberedAccuracy"
       case .speed: "speed"
       case .ocrResolution: "ocrResolution"
       }
@@ -170,7 +172,7 @@
       "저장소 저장·삭제 시간은 재지 않는다.",
       "인덱서가 이미 읽은 썸네일은 사진 캐시로 더 빠를 수 있다.",
       "첫 이미지에는 Vision 모델 로딩이 들어간다(firstImagePipelineMs 로 따로 본다).",
-      "앨범 정확도 모드는 OCR 대상이 아니어도 OCR 하므로 운영 시간은 pipeline 으로 본다.",
+      "정확도 모드(앨범·번호)는 OCR 대상이 아니어도 OCR 하므로 운영 시간은 pipeline 으로 본다.",
       "totalMs 는 메인 밖에서 잰 한 장의 경과 시간이며 화면 갱신을 포함하지 않는다.",
       "발열 상태는 이미지 시작 시점마다 읽어 이미지 사이의 짧은 변화는 놓칠 수 있다.",
       "인덱서는 분류와 OCR 을 두 단계로 나눠 돌리므로, 원본 로드는 실제로 썸네일 로드와 떨어진 시점에 일어난다(사진 캐시 효과가 다를 수 있다).",

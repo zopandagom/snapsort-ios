@@ -137,6 +137,12 @@
       self.model.modeChanged(mode)
       await self.model.startTapped()
     }
+
+    /// 번호 목록을 넣고 번호로 기록 모드로 끝까지 돌린다.
+    func record(numbers: String) async {
+      self.model.sampleNumberInputChanged(numbers)
+      await self.record(.numberedAccuracy)
+    }
   }
 
   /// PhotoLibrary Fake 는 크기와 관계없이 같은 결과를 주므로, 원본만 실패하거나 원본만 다른 경우와 읽기 순서 기록을 이 대역이 더한다.

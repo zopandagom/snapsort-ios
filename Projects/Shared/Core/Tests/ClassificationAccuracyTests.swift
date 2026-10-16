@@ -73,8 +73,8 @@ struct ClassificationAccuracyTests {
   @Test("OCR 하지 않고 기록한 샘플은 OCR 대상이 아니다")
   func ocrSkippedSamplesStayOutsideTextRecognition() {
     for sample in ClassificationSample.all where sample.ocrSkipped == true {
-      // 판정 규칙이 바뀌어 OCR 대상이 되면 빈 `text` 가 틀린 입력이 된다. 앨범 모드로 다시 기록해 OCR 줄을 채운다.
-      #expect(!sample.needsTextRecognition, "\(sample.name): OCR 대상이 되었으니 앨범 모드로 다시 기록한다")
+      // 판정 규칙이 바뀌어 OCR 대상이 되면 빈 `text` 가 틀린 입력이 된다. 기록 도구의 번호로 기록 모드로 다시 기록해 OCR 줄을 채운다.
+      #expect(!sample.needsTextRecognition, "\(sample.name): OCR 대상이 되었으니 번호로 기록 모드로 다시 기록한다")
     }
   }
 

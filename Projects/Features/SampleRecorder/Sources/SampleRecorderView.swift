@@ -61,6 +61,7 @@
         ) {
           Text("정확도 (앨범 '\(RecordingMode.albumName)')").tag(RecordingMode.accuracy)
           Text("정확도 (보관함 전체, OCR 대상만 OCR)").tag(RecordingMode.libraryAccuracy)
+          Text("정확도 (번호, 모두 OCR)").tag(RecordingMode.numberedAccuracy)
           ForEach(RecordingMode.speedCounts, id: \.self) { count in
             Text("속도 (최신 \(count.formatted())장)").tag(RecordingMode.speed(count: count))
           }
@@ -73,6 +74,10 @@
         .disabled(self.model.isRecording)
       } header: {
         Text("모드")
+      } footer: {
+        if self.model.mode == .numberedAccuracy {
+          Text("아래 '샘플 보기' 칸의 번호(최신순 1부터)를 기록합니다. 보기로 사진을 확인한 뒤 기록하세요.")
+        }
       }
     }
 
@@ -250,6 +255,10 @@
       case .albumNotFound: "사진 앱에 '\(RecordingMode.albumName)' 앨범을 만들어 샘플 이미지를 넣으세요"
       case .albumEmpty: "'\(RecordingMode.albumName)' 앨범이 비어 있습니다"
       case .noImages: "보관함에 이미지가 없습니다"
+      case let .invalidNumbers(failure): failure.message
+      case let .numbersOutOfRange(numbers, libraryCount):
+        "보관함 \(libraryCount.formatted())장보다 큰 번호: \(numberListText(numbers.map(String.init))). "
+          + "기록 뒤 사진을 지웠으면 번호가 밀렸습니다. 샘플 보기로 확인하세요"
       }
     }
 

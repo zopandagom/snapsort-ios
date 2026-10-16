@@ -40,24 +40,31 @@
 
     /// 비격리 함수 안에서 Task 를 만들어 메인 액터를 물려받지 않는다. 우선순위는 인덱서와 같은 `.utility`.
     /// 완료·취소·사전 실패 등 어느 경로로 끝나도 진행률 스트림을 끝내, 받는 쪽의 `for await` 가 빠져나오게 한다.
+    /// `numbers` 는 번호로 기록 모드만 쓰는 번호 목록(최신순 1부터, 입력 순서)이고 다른 모드는 빈 배열이다.
     nonisolated func start(
       mode: RecordingMode,
+      numbers: [Int],
       progress: AsyncStream<RecordingProgress>.Continuation
     ) -> Task<RecordingOutcome, Never> {
       Task(priority: .utility) {
         defer { progress.finish() }
-        return await self.run(mode: mode, progress: progress)
+        return await self.run(mode: mode, numbers: numbers, progress: progress)
       }
     }
 
     /// 조회 → (속도 모드면 여행 판정 시간) → 이미지 루프 → 인코딩(OCR 해상도 비교 모드면 비교 요약도).
-    /// 실패(`RecordingFailure`)는 이미지를 처리하기 전의 권한·조회 단계에서만 난다.
+    /// 실패(`RecordingFailure`)는 이미지를 처리하기 전의 권한·조회 단계에서만 난다
+    /// (번호로 기록의 입력 해석 실패 `invalidNumbers` 는 시작 전에 Model 이 낸다).
     @concurrent
-    func run(mode: RecordingMode, progress: AsyncStream<RecordingProgress>.Continuation) async -> RecordingOutcome {
+    func run(
+      mode: RecordingMode,
+      numbers: [Int],
+      progress: AsyncStream<RecordingProgress>.Continuation
+    ) async -> RecordingOutcome {
       let clock = ContinuousClock()
       let runStart = clock.now
       var run: RecordingRun
-      switch await self.fetchTargets(mode: mode, clock: clock) {
+      switch await self.fetchTargets(mode: mode, numbers: numbers, clock: clock) {
       case let .ready(fetched):
         run = fetched
       case let .failed(failure):
@@ -79,7 +86,8 @@
         if run.thermalStateChanges.last?.state != state {
           run.thermalStateChanges.append(ThermalStateChange(index: index, state: state))
         }
-        wasCancelled = await !run.append(self.measure(asset, index: index, mode: mode))
+        let number = run.sampleNumbers?[index] ?? index + 1
+        wasCancelled = await !run.append(self.measure(asset, index: index, number: number, mode: mode))
         if !wasCancelled {
           progress.yield(run.progress)
         }
@@ -91,13 +99,14 @@
     }
 
     /// 이미지 한 장을 운영 인덱서와 같은 순서로 분석하며 단계마다 시간을 잰다.
-    /// 정확도 모드는 OCR 대상이 아니어도 원본을 읽어 OCR 한다(판정 규칙을 바꿔도 다시 기록하지 않도록).
+    /// 정확도 모드와 번호로 기록 모드(`recognizesAllText`)는 OCR 대상이 아니어도 원본을 읽어 OCR 한다(판정 규칙을 바꿔도 다시 기록하지 않도록).
     /// 그래서 원본 로드나 OCR 에 실패하면 OCR 대상이 아니어도 건너뛴다. OCR 줄 없이 기록하면 OCR 대상 조건을 바꾸는 실험에서
     /// 그 샘플이 틀린 입력이 되기 때문이다. 보관함 전체 정확도 모드는 시간 때문에 OCR 대상만 OCR 하고, 나머지 샘플에 `ocrSkipped` 를 단다.
     /// OCR 해상도 비교 모드는 OCR 대상(운영 기준)일 때만 원본을 읽어 기준과 낮은 상한을 OCR 한다. 기준 실패는 속도 모드처럼 건너뛰고,
     /// 낮은 상한 실패는 그 상한만 실패로 기록한다.
+    /// `index` 는 처리 순서(측정 파일·건너뜀), `number` 는 샘플 이름에 쓰는 번호(1부터, `SampleDraft`)다.
     @concurrent
-    func measure(_ asset: ImageAsset, index: Int, mode: RecordingMode) async -> MeasureOutcome {
+    func measure(_ asset: ImageAsset, index: Int, number: Int, mode: RecordingMode) async -> MeasureOutcome {
       let clock = ContinuousClock()
       let start = clock.now
       var measurement = ImageMeasurement(index: index, asset: asset)
@@ -118,8 +127,8 @@
             measurement: &measurement,
             stage: &stage
           )
-        } else if mode == .accuracy || needsText {
-          // 정확도 모드는 OCR 대상이 아니어도 OCR 하고, 실패하면 건너뛴다(measure 문서 주석).
+        } else if mode.recognizesAllText || needsText {
+          // 정확도 모드와 번호로 기록 모드는 OCR 대상이 아니어도 OCR 하고, 실패하면 건너뛴다(measure 문서 주석).
           textLines = try await self.recognizeText(asset, measurement: &measurement, stage: &stage, clock: clock)
         }
 
@@ -127,7 +136,7 @@
         measurement.pipelineMs = Self.pipelineMs(of: measurement, needsText: needsText)
         guard mode.recordsSamples else { return .recorded(measurement, nil) }
         let draft = SampleDraft(
-          index: index,
+          number: number,
           mode: mode,
           asset: asset,
           labels: labels,
@@ -161,51 +170,6 @@
     }
 
     // MARK: - Private
-
-    /// 권한을 확인하고 대상 이미지를 조회한다. 보관함 전체 정확도 모드는 보관함 전체를, 속도·OCR 해상도 비교 모드는 보관함 최신 N장을 고르고,
-    /// 속도 모드는 인덱서처럼 보관함 전체로 여행 판정 시간을 한 번 잰다(결과는 버린다).
-    /// 기기 상태 시작값은 권한 확인 뒤 조회 직전에 읽는다. `deviceConditions` 는 시작값 → 이미지마다 → 끝값 순서로 부르고,
-    /// 여기서 실패하면 끝값은 읽지 않는다.
-    private func fetchTargets(
-      mode: RecordingMode,
-      clock: ContinuousClock
-    ) async -> FetchOutcome {
-      let access = self.photoLibrary.accessState()
-      guard access.canRead else { return .failed(.notAuthorized) }
-      if mode.recordsSamples, access == .limited {
-        return .failed(.limitedAccess)
-      }
-      let conditionsAtStart = self.deviceConditions()
-      switch mode {
-      case .accuracy:
-        guard let album = await self.photoLibrary.fetchImageAssets(inAlbumNamed: RecordingMode.albumName) else {
-          return .failed(.albumNotFound)
-        }
-        guard !album.isEmpty else { return .failed(.albumEmpty) }
-        return .ready(RecordingRun(
-          mode: mode,
-          access: access,
-          targets: album,
-          conditionsAtStart: conditionsAtStart
-        ))
-      case .libraryAccuracy, .speed, .ocrResolution:
-        let library = await self.photoLibrary.fetchImageAssets()
-        guard !library.isEmpty else { return .failed(.noImages) }
-        var run = RecordingRun(
-          mode: mode,
-          access: access,
-          targets: mode.latestCount.map { Array(library.prefix($0)) } ?? library,
-          conditionsAtStart: conditionsAtStart
-        )
-        run.libraryCount = library.count
-        if case .speed = mode {
-          let travelStart = clock.now
-          _ = TravelDetector.trips(in: library, calendar: self.calendar)
-          run.travelDetectionMs = travelStart.duration(to: clock.now).milliseconds
-        }
-        return .ready(run)
-      }
-    }
 
     /// 썸네일을 읽어 기록 하한으로 분류한다.
     private func classify(
@@ -293,6 +257,8 @@
     /// 조회 직전에 읽은 기기 상태.
     let conditionsAtStart: DeviceConditions
     var libraryCount: Int?
+    /// 번호로 기록 모드의 번호(`targets` 와 같은 순서·개수). 샘플 이름에 쓴다. 다른 모드는 nil.
+    var sampleNumbers: [Int]?
     var travelDetectionMs: Double?
     var fetchSeconds: Double = 0
     var totalSeconds: Double = 0
@@ -372,12 +338,6 @@
         ocrComparison: ocrComparison
       )
     }
-  }
-
-  /// 이미지를 처리하기 전 권한·조회 단계의 결과.
-  private enum FetchOutcome {
-    case ready(RecordingRun)
-    case failed(RecordingFailure)
   }
 
   /// 이미지 한 장의 측정을 멈추는 이유.

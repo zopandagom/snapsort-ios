@@ -39,9 +39,9 @@
     @Test(
       "입력이 잘못됐으면 조회·읽기 없이 절 전체가 실패한다",
       arguments: [
-        ("1, abc", SamplePreviewFailure.invalidTokens(["abc"])),
-        (" , ", .noNumbers),
-        ((1 ... 101).map(String.init).joined(separator: " "), .tooMany(count: 101)),
+        ("1, abc", SamplePreviewFailure.input(.invalidTokens(["abc"]))),
+        (" , ", .input(.noNumbers)),
+        ((1 ... 101).map(String.init).joined(separator: " "), .input(.tooMany(count: 101))),
       ]
     )
     func rejectsInvalidInput(input: String, failure: SamplePreviewFailure) async {

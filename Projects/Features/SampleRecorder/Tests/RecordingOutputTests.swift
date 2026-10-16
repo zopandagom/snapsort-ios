@@ -1,5 +1,6 @@
 #if DEBUG
   import Foundation
+  import PhotoLibraryTesting
   import Testing
   @testable import SampleRecorderFeature
 
@@ -50,6 +51,28 @@
       let sample = try #require(try (JSONSerialization.jsonObject(with: file.data) as? [[String: Any]])?.first)
 
       #expect(sample["ocrSkipped"] as? Bool == true)
+    }
+
+    @Test(
+      "샘플 이름은 앨범 모드면 '앨범 001', 보관함 전체·번호로 기록 모드면 번호 그대로 '보관함 00741' 이다",
+      arguments: [
+        (RecordingMode.accuracy, 1, "앨범 001"),
+        (.libraryAccuracy, 741, "보관함 00741"),
+        (.numberedAccuracy, 741, "보관함 00741"),
+      ]
+    )
+    func sampleDraftName(mode: RecordingMode, number: Int, expected: String) {
+      let draft = SampleDraft(
+        number: number,
+        mode: mode,
+        asset: .stub(id: "a"),
+        labels: [],
+        ruleLabels: [],
+        textLines: [],
+        needsText: false
+      )
+
+      #expect(draft.name == expected)
     }
 
     @Test("유한하지 않은 신뢰도가 들면 그 파일만 만들지 못한다")
