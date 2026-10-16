@@ -10,7 +10,8 @@ import Testing
 /// 샘플 형식은 기록 도구의 `SampleDraft`(RecordingOutput.swift)와 짝이다. 한쪽을 바꾸면 다른 쪽도 맞춘다.
 /// 기록 도구로 기록하기 전에 직접 만든 시드 샘플(라벨·OCR 줄이 실기기 값이 아니고 라벨은 0.1 이상만)이 함께 있다.
 /// 시드 샘플 이름은 `시드 · ` 로 시작하고, 실기기 샘플이 카테고리마다 모이면 지운다.
-/// 실기기 샘플 이름은 `실기기 · ` 로 시작하고, OCR 줄은 공백만 남기고 모든 글자를 `○` 로 가렸다(글자 수는 유지된다).
+/// 실기기 샘플 이름은 `실기기 · ` 로 시작하고, OCR 줄은 공백과 분류 키워드(`ClassificationRules` 키워드 표)만 남기고 모든 글자를 `○` 로
+/// 가렸다(글자 수는 유지된다). 키워드를 남겨야 기프티콘·영수증처럼 키워드로 정하는 샘플을 확인할 수 있다.
 struct ClassificationAccuracyTests {
   @Test("샘플 이미지를 기대 카테고리로 분류한다", arguments: ClassificationSample.all)
   func classifiesSample(_ sample: ClassificationSample) {
