@@ -86,6 +86,12 @@ public enum ClassificationRules {
   static let drawingLabels: Set<String> = ["illustrations", "painting"]
   static let drawingMinimumConfidence: Float = 0.5
 
+  /// OCR 대상 판정에서 `screenshot` 밖의 글자 라벨이 넘어야 하는 신뢰도.
+  /// 식탁 위 메뉴판·만화·그림·물건 사진에 약하게 붙는 `document`·`printed_page` 라벨로 OCR 하지 않는다
+  /// (실기기 보관함: 이 기준 미만 라벨로만 OCR 해 문서가 된 이미지는 대부분 이런 사진이었다).
+  /// `screenshot` 라벨은 저장한 기프티콘 캡처에 0.2 안팎으로 붙어 기준을 두지 않는다.
+  static let textLabelMinimumConfidence: Float = 0.3
+
   /// 사진형 카테고리를 정하는 라벨. 여행은 위치·날짜로 판정하므로 여기 없다.
   static let photoLabels: [ImageCategory: Set<String>] = [
     .food: ["food", "dessert", "drink", "baked_goods"],
@@ -104,6 +110,7 @@ public enum ClassificationRules {
   static let textHeavyLabels: Set<String> = [screenshotLabel, "ticket", "credit_card", "passport", "envelope"]
 
   /// OCR 대상으로 보는 라벨: 정보형 카테고리 라벨 + 글자가 많은 라벨.
+  /// `screenshot` 밖의 라벨은 `textLabelMinimumConfidence` 이상이어야 한다(`TextRecognitionPolicy`).
   static let textLabels: Set<String> = informationRules.reduce(into: textHeavyLabels) { $0.formUnion($1.labels) }
 
   /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각 패턴 대조와 키워드 표 형식 검사에 쓴다.

@@ -30,7 +30,7 @@ struct Fixture {
   /// - Parameters:
   ///   - library: 처음 보관함 이미지.
   ///   - loadable: 나중에 변경으로 추가할 이미지. 읽기 결과만 미리 정한다.
-  ///   - labels: 이미지별 분류 라벨. 없으면 라벨 없음.
+  ///   - labels: 이미지별 분류 라벨. 없으면 `defaultLabels`(OCR 대상).
   ///   - text: 이미지별 OCR 줄. 없으면 글자 없음.
   ///   - loadErrors: 이미지별 읽기 실패.
   ///   - classifyFailures: 분류에 실패하는 이미지.
@@ -92,7 +92,7 @@ struct Fixture {
       classify: { image in
         let id = idsByWidth[image.cgImage.width] ?? ""
         onClassify(id)
-        return failing.contains(id) ? .failure(.failed) : .success(labels[id] ?? [])
+        return failing.contains(id) ? .failure(.failed) : .success(labels[id] ?? defaultLabels)
       },
       recognizeText: Self.recognizer(
         idsByWidth: idsByWidth,
@@ -361,3 +361,7 @@ extension Array {
     self.count == 1 ? self.first : nil
   }
 }
+
+/// `Fixture` 에서 라벨을 정하지 않은 이미지의 분류 라벨. 위치·글자 라벨이 없는 기본 스텁도 OCR 대상이 되게 한다.
+/// 사진형·정보형 카테고리를 정하지 않으므로 카테고리는 OCR 줄로만 정해진다.
+let defaultLabels = [ImageLabel(identifier: "screenshot", confidence: 0.9)]
