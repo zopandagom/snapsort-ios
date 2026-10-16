@@ -41,7 +41,7 @@ public enum RuleClassifier {
     return categories.isEmpty ? [.other] : categories
   }
 
-  /// 라벨로 정한 사진형 카테고리(스크린샷 여부는 보지 않는다). OCR 대상 판정(`TextRecognitionPolicy`)도 같은 기준을 쓴다.
+  /// 라벨로 정한 사진형 카테고리(스크린샷 여부는 보지 않는다).
   static func photoCategories(labels: [ImageLabel]) -> Set<ImageCategory> {
     let isDrawing = labels.contains {
       ClassificationRules.drawingLabels.contains($0.identifier)

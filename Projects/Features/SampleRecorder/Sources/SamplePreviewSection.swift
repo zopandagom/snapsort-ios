@@ -4,6 +4,7 @@
   import SwiftUI
 
   /// 보관함 전체 정확도 샘플의 사진을 번호 목록으로 보는 절. 사진은 화면에만 보인다 (docs/CONVENTIONS.md §4).
+  /// 번호 입력 칸은 번호로 기록 모드도 함께 쓴다.
   struct SamplePreviewSection: View {
     let model: SampleRecorderModel
 
@@ -30,6 +31,7 @@
       } footer: {
         VStack(alignment: .leading, spacing: 4) {
           Text("번호는 지금 보관함의 최신순 순서입니다. 기록 뒤 사진을 추가·삭제했으면 번호가 밀립니다.")
+          Text("이 번호는 '정확도 (번호)' 기록에도 쓰입니다.")
           if case let .list(list) = self.model.samplePreview {
             Text(
               "지금 보관함 \(list.libraryCount.formatted())장 · "
@@ -85,11 +87,7 @@
 
     private static func failureText(_ failure: SamplePreviewFailure) -> String {
       switch failure {
-      case .noNumbers: "번호를 넣으세요 (쉼표·공백·줄바꿈으로 구분)"
-      case let .invalidTokens(tokens):
-        "1 이상의 정수가 아닌 값: \(tokens.prefix(5).joined(separator: ", "))"
-          + (tokens.count > 5 ? " 외 \(tokens.count - 5)개" : "")
-      case let .tooMany(count): "한 번에 \(SampleLookup.maxCount)개까지 볼 수 있습니다 (지금 \(count)개)"
+      case let .input(failure): failure.message
       case .notAuthorized: "사진을 읽을 권한이 없습니다"
       case .limitedAccess: "샘플 보기는 전체 사진 접근에서만 됩니다. 설정에서 전체 접근을 허용하세요"
       }
@@ -104,6 +102,22 @@
       case .loadFailed: "사진을 읽지 못했습니다"
       }
     }
+  }
+
+  extension SampleNumberFailure {
+    /// 샘플 보기와 번호로 기록이 함께 쓰는 문구.
+    var message: String {
+      switch self {
+      case .noNumbers: "번호를 넣으세요 (쉼표·공백·줄바꿈으로 구분)"
+      case let .invalidTokens(tokens): "1 이상의 정수가 아닌 값: \(numberListText(tokens))"
+      case let .tooMany(count): "한 번에 \(SampleLookup.maxCount)개까지 넣을 수 있습니다 (지금 \(count)개)"
+      }
+    }
+  }
+
+  /// 앞 5개까지 보이고 나머지는 개수로 줄인다.
+  func numberListText(_ items: [String]) -> String {
+    items.prefix(5).joined(separator: ", ") + (items.count > 5 ? " 외 \(items.count - 5)개" : "")
   }
 
   extension Image.Orientation {

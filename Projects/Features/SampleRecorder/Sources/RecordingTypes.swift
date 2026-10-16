@@ -9,6 +9,9 @@
     case accuracy
     /// 보관함 전체를 최신순으로 기록한다. OCR 은 운영 기준 OCR 대상만 한다. 정확도 샘플 초안과 측정 파일을 만든다.
     case libraryAccuracy
+    /// 샘플 보기와 같은 번호 목록(`SampleLookup.numbers(from:)`)의 지금 보관함 사진을 입력 순서로 기록한다. OCR 대상이 아니어도 OCR 한다.
+    /// 정확도 샘플 초안과 측정 파일을 만든다. 번호는 Picker 태그로 쓰는 이 값에 담지 않고, 기록을 시작할 때 Model 이 입력을 해석해 넘긴다.
+    case numberedAccuracy
     /// 보관함 최신 `count` 장의 단계별 시간을 잰다. 측정 파일만 만든다.
     case speed(count: Int)
     /// 보관함 최신 `count` 장 중 OCR 대상(운영 기준)의 원본을 낮은 상한(`OCRResolutionCap.all`)으로 줄여 다시 OCR 하고
@@ -24,22 +27,28 @@
       switch self {
       case .accuracy: "accuracy"
       case .libraryAccuracy: "libraryAccuracy"
+      case .numberedAccuracy: "numberedAccuracy"
       case let .speed(count): "speed\(count)"
       case let .ocrResolution(count): "ocrResolution\(count)"
       }
     }
 
-    /// 보관함 최신 몇 장을 고르는지. 앨범이나 보관함 전체를 읽는 모드는 nil.
+    /// 보관함 최신 몇 장을 고르는지. 앨범·보관함 전체·번호 목록을 읽는 모드는 nil.
     var latestCount: Int? {
       switch self {
-      case .accuracy, .libraryAccuracy: nil
+      case .accuracy, .libraryAccuracy, .numberedAccuracy: nil
       case let .speed(count), let .ocrResolution(count): count
       }
     }
 
     /// 정확도 샘플 초안을 만드는지.
     var recordsSamples: Bool {
-      self == .accuracy || self == .libraryAccuracy
+      self == .accuracy || self == .libraryAccuracy || self == .numberedAccuracy
+    }
+
+    /// 판정 규칙을 바꿔도 다시 기록하지 않도록 OCR 대상이 아니어도 OCR 하는 모드.
+    var recognizesAllText: Bool {
+      self == .accuracy || self == .numberedAccuracy
     }
   }
 
@@ -93,12 +102,17 @@
   public enum RecordingFailure: Sendable, Equatable {
     /// 사진을 읽을 권한이 없다.
     case notAuthorized
-    /// 정확도 모드는 사용자 앨범을 읽어야 해서, 보관함 전체 정확도 모드는 고른 사진만으로는 보관함 전체가 아니라서 전체 접근에서만 된다.
+    /// 정확도 모드는 사용자 앨범을 읽어야 해서, 보관함 전체 정확도 모드는 고른 사진만으로는 보관함 전체가 아니라서,
+    /// 번호로 기록 모드는 번호가 보관함 전체 기준이라 전체 접근에서만 된다.
     case limitedAccess
     case albumNotFound
     case albumEmpty
-    /// 보관함에서 고르는 모드(보관함 전체 정확도·속도·OCR 해상도 비교)인데 보관함에 이미지가 없다.
+    /// 보관함에서 고르는 모드(보관함 전체 정확도·번호로 기록·속도·OCR 해상도 비교)인데 보관함에 이미지가 없다.
     case noImages
+    /// 번호로 기록 모드에서 번호 입력이 잘못됐다. 보관함을 조회하지 않는다.
+    case invalidNumbers(SampleNumberFailure)
+    /// 번호로 기록 모드에서 보관함 장수보다 큰 번호(입력 순서). 번호가 밀렸다는 신호라 이미지를 처리하지 않는다.
+    case numbersOutOfRange([Int], libraryCount: Int)
   }
 
   public struct RecordingResult: Sendable, Equatable {
@@ -145,7 +159,7 @@
       case ocr
     }
 
-    /// 처리 순서(정확도 모드는 앨범 순서, 보관함 전체 정확도 모드는 최신순), 0부터.
+    /// 처리 순서(정확도 모드는 앨범 순서, 보관함 전체 정확도 모드는 최신순, 번호로 기록 모드는 입력 순서), 0부터.
     public let index: Int
     public let reason: Reason
     public let stage: Stage

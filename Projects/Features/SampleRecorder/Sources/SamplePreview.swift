@@ -63,15 +63,20 @@
 
   /// 절 전체의 실패. 조회·읽기 전에 난다.
   public enum SamplePreviewFailure: Error, Equatable {
+    case input(SampleNumberFailure)
+    case notAuthorized
+    /// 고른 사진만 보여 번호가 기록과 달라진다.
+    case limitedAccess
+  }
+
+  /// 번호 목록 입력의 실패(`SampleLookup.numbers(from:)`). 샘플 보기와 번호로 기록 모드가 함께 쓴다.
+  public enum SampleNumberFailure: Error, Equatable {
     /// 빈 입력(구분자만 있는 입력 포함).
     case noNumbers
     /// 1 이상의 정수가 아닌 토큰. 입력 순서.
     case invalidTokens([String])
     /// 중복을 없앤 뒤 개수가 상한을 넘었다.
     case tooMany(count: Int)
-    case notAuthorized
-    /// 고른 사진만 보여 번호가 기록과 달라진다.
-    case limitedAccess
   }
 
   /// 그 행만의 실패. 다음 행은 계속 읽는다.
@@ -86,7 +91,7 @@
   }
 
   /// 번호 목록 → 지금 보관함의 사진. 보기마다 보관함을 한 번 조회하고 캐시하지 않는다
-  /// (기록 시점 목록은 남지 않아 캐시해도 번호 밀림은 그대로다).
+  /// (기록 시점 목록은 남지 않아 캐시해도 번호 밀림은 그대로다). 번호로 기록 모드도 같은 번호 해석(`numbers(from:)`)을 쓴다.
   struct SampleLookup: Sendable {
     enum LibraryOutcome: Sendable {
       case ready([ImageAsset])
@@ -109,14 +114,15 @@
       }
     }
 
-    /// 썸네일 한 장 디코딩이 약 1MB 라 100장이면 약 100MB 다.
+    /// 썸네일 한 장 디코딩이 약 1MB 라 100장이면 약 100MB 다. 번호로 기록도 한 입력을 보기·기록에 그대로 쓰도록 같은 상한을 쓴다.
     static let maxCount = 100
 
     let photoLibrary: any PhotoLibraryClient
 
     /// 쉼표·공백·줄바꿈으로 나누고 빈 토큰을 버린 뒤, 잘못된 토큰 → 빈 입력 → 중복 제거 → 상한 순서로 판정한다.
     /// 토큰은 ASCII 숫자만, 1 이상, 앞자리 0 허용("007" → 7). 중복은 처음 나온 것만 남기고 입력 순서를 지킨다.
-    static func numbers(from input: String) -> Result<[Int], SamplePreviewFailure> {
+    /// 샘플 보기와 번호로 기록 모드가 함께 쓴다.
+    static func numbers(from input: String) -> Result<[Int], SampleNumberFailure> {
       let tokens = input.split { $0 == "," || $0.isWhitespace }.map(String.init)
       var numbers: [Int] = []
       var invalidTokens: [String] = []

@@ -7,7 +7,7 @@
   import PhotoLibraryInterface
 
   /// 실기기에서 정확도 샘플을 기록하고 분류 단계별 시간을 재고, OCR 원본 상한별 차이를 비교하고,
-  /// 보관함 전체 정확도 샘플의 사진을 번호 목록으로 보는 개발 도구의 상태와 로직
+  /// 보관함 전체 정확도 샘플의 사진을 번호 목록으로 보거나 다시 기록하는 개발 도구의 상태와 로직
   /// (docs/ARCHITECTURE.md §4 기록 도구).
   /// 측정은 메인 밖 Task(`SampleRecording`)가 하고, Model 은 진행률과 결과만 받아 상태에 반영한다.
   /// 결과 파일의 개인정보 규칙은 docs/CONVENTIONS.md §4.
@@ -16,7 +16,7 @@
   public final class SampleRecorderModel {
     public private(set) var mode: RecordingMode = .accuracy
     public private(set) var phase: Phase = .idle
-    /// 샘플 보기 번호 목록 입력. 보기를 누를 때 해석한다.
+    /// 샘플 보기와 번호로 기록이 함께 쓰는 번호 목록 입력. 보기나 기록 시작을 누를 때 해석한다.
     public private(set) var sampleNumberInput = ""
     public private(set) var samplePreview: SamplePreview = .idle
 
@@ -72,9 +72,21 @@
 
     /// 기록을 시작하고 끝날 때까지 진행률을 반영한다. 기록 중에 다시 부르면 무시한다.
     /// 멈추라는 신호를 받아도 Task 가 돌아온 뒤에 돌아온다. 보던 샘플 사진도 닫는다(사진 읽기가 측정과 사진 캐시를 흐리지 않게).
+    /// 번호로 기록 모드는 시작 전에 입력을 해석하고, 잘못되면 시작하지 않고 실패를 보인다(보던 샘플 사진은 닫지 않는다).
+    /// 시작한 뒤 입력이 바뀌어도 시작할 때 해석한 번호로 기록한다.
     public func startTapped() async {
       guard !self.isRecording else { return }
       let mode = self.mode
+      var numbers: [Int] = []
+      if mode == .numberedAccuracy {
+        switch SampleLookup.numbers(from: self.sampleNumberInput) {
+        case let .failure(failure):
+          self.phase = .failed(.invalidNumbers(failure))
+          return
+        case let .success(value):
+          numbers = value
+        }
+      }
       // 첫 await 전에 기록 중으로 바꿔, 그사이 다시 눌러도 두 번 시작하지 않는다.
       self.cancelReason = nil
       self.phase = .recording(.starting(mode))
@@ -83,7 +95,7 @@
         of: RecordingProgress.self,
         bufferingPolicy: .bufferingNewest(1)
       )
-      let task = self.recording.start(mode: mode, progress: continuation)
+      let task = self.recording.start(mode: mode, numbers: numbers, progress: continuation)
       self.recordingTask = task
       for await progress in stream {
         self.phase = .recording(progress.cancelling(self.cancelReason != nil))
@@ -130,7 +142,7 @@
       let numbers: [Int]
       switch SampleLookup.numbers(from: self.sampleNumberInput) {
       case let .failure(failure):
-        self.samplePreview = .failed(failure)
+        self.samplePreview = .failed(.input(failure))
         return
       case let .success(value):
         numbers = value

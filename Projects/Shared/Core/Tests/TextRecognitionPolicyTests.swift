@@ -1,6 +1,6 @@
-import Core
 import CoreGraphics
 import Testing
+@testable import Core
 
 struct TextRecognitionPolicyTests {
   @Test("스크린샷은 라벨과 관계없이 OCR 한다")
@@ -20,45 +20,44 @@ struct TextRecognitionPolicyTests {
     #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label("outdoor"), label(identifier)]))
   }
 
-  @Test("위치도 사진형 라벨도 없는 저장 이미지는 OCR 한다")
-  func recognizesSavedImageWithoutLocation() {
-    let asset = makeAsset(isScreenshot: false, coordinate: nil)
+  @Test("글자 라벨은 신뢰도 기준 이상일 때만 OCR 한다")
+  func requiresTextLabelConfidence() {
+    let asset = makeAsset(isScreenshot: false, coordinate: seoul)
+    let minimum = ClassificationRules.textLabelMinimumConfidence
 
-    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label("structure")]))
-    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: []))
+    #expect(TextRecognitionPolicy.needsTextRecognition(
+      asset: asset,
+      labels: [ImageLabel(identifier: "document", confidence: minimum)]
+    ))
+    #expect(!TextRecognitionPolicy.needsTextRecognition(
+      asset: asset,
+      labels: [ImageLabel(identifier: "document", confidence: minimum - 0.01)]
+    ))
   }
 
-  @Test("위치가 없어도 인물·반려동물·풍경 라벨이 있으면 OCR 하지 않는다", arguments: ["people", "dog", "mountain"])
-  func skipsPhotoWithoutLocation(identifier: String) {
+  @Test("screenshot 라벨은 신뢰도 기준 아래여도 OCR 한다")
+  func recognizesWeakScreenshotLabel() {
     let asset = makeAsset(isScreenshot: false, coordinate: nil)
+    let weakScreenshot = ImageLabel(
+      identifier: "screenshot",
+      confidence: ClassificationRules.textLabelMinimumConfidence - 0.1
+    )
 
-    #expect(!TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label(identifier)]))
+    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [weakScreenshot]))
   }
 
-  @Test("위치가 없고 사진형 라벨과 글자 라벨이 함께 있으면 OCR 한다")
+  @Test("위치가 없어도 글자 라벨이 없으면 OCR 하지 않는다", arguments: [[], ["structure"], ["food"], ["people"], ["dog"]])
+  func skipsImageWithoutTextLabel(identifiers: [String]) {
+    let asset = makeAsset(isScreenshot: false, coordinate: nil)
+
+    #expect(!TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: identifiers.map(label)))
+  }
+
+  @Test("사진형 라벨이 함께 있어도 글자 라벨이 있으면 OCR 한다")
   func recognizesTextLabelOverPhotoLabel() {
     let asset = makeAsset(isScreenshot: false, coordinate: nil)
 
-    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label("food"), label("receipt")]))
-  }
-
-  @Test("위치 없는 이미지의 사진형 판단은 규칙 분류기와 같은 기준이다: 약한 인물 라벨·그림은 촬영 사진으로 보지 않는다")
-  func usesClassifierPhotoCriteria() {
-    let asset = makeAsset(isScreenshot: false, coordinate: nil)
-    let weakPeople = ImageLabel(identifier: "people", confidence: 0.2)
-    let drawing = [ImageLabel(identifier: "illustrations", confidence: 0.7), label("dog")]
-
-    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [weakPeople]))
-    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: drawing))
-  }
-
-  /// 한계: 상품 사진이 든 저장 기프티콘에 음식 라벨만 붙으면 촬영 사진과 구분하지 못해 OCR 하지 않는다
-  /// (OCR 대상을 늘리는 비용과 함께 OCR 대상 조정 작업에서 정한다. TextRecognitionPolicy 문서 주석, 정확도 샘플의 knownIssue).
-  @Test("위치가 없어도 음식 라벨만 있으면 촬영 사진으로 보고 OCR 하지 않는다", arguments: ["food", "drink", "dessert"])
-  func skipsImageWithOnlyFoodLabel(identifier: String) {
-    let asset = makeAsset(isScreenshot: false, coordinate: nil)
-
-    #expect(!TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label(identifier)]))
+    #expect(TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: [label("people"), label("receipt")]))
   }
 
   @Test("위치가 있고 글자 라벨이 없는 촬영 사진은 OCR 하지 않는다")

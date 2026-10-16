@@ -31,7 +31,11 @@ struct IndexingClientImplTests {
     let storedGifticon = try #require(stored["gifticon"])
     let lines = try #require(storedGifticon.textLines)
     #expect(lines.map(\.text) == ["교환처 GS25", "유효기간 2026.12.31", "주문번호 1234"])
-    #expect(storedGifticon.categories == RuleClassifier.classify(asset: gifticon, labels: [], textLines: lines))
+    #expect(storedGifticon.categories == RuleClassifier.classify(
+      asset: gifticon,
+      labels: defaultLabels,
+      textLines: lines
+    ))
   }
 
   @Test("OCR 대상만 가장 큰 버전을 읽어 OCR 한다")
@@ -61,7 +65,7 @@ struct IndexingClientImplTests {
     var progress = fixture.indexing.run().makeAsyncIterator()
     let finished = await progress.next { $0.isFinished }
 
-    // 기본 스텁은 위치도 사진형 라벨도 없어 OCR 대상이다.
+    // 라벨을 정하지 않은 이미지는 기본 라벨(`defaultLabels`)이라 OCR 대상이다.
     #expect(finished == IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, recognizedTextCount: 1))
     #expect(Set(fixture.photoLibrary.loadImageRequests.map(\.id)) == ["new"])
     #expect(fixture.store.deletedBatches == [["removed"]])
