@@ -248,11 +248,14 @@
 
   /// 조건이 맞을 때까지 다른 Task 에 실행을 넘기며 기다린다.
   /// Fake 의 async 메서드는 전역 실행기에서 돌아 끝나는 시점이 스케줄링에 달렸으므로, 반복 횟수가 아니라 시간으로 제한한다.
+  /// `Task.yield()` 를 쉬지 않고 돌면 메인 스레드가 코어 하나를 차지해, 코어가 적은 CI 러너에서 `.utility` 측정 Task 가 밀려 제한을 넘긴다.
+  /// 그래서 짧게 잠들며 확인하고, 조건이 맞으면 바로 돌아오므로 제한은 부하를 견딜 만큼 넉넉히 둔다.
   @MainActor
-  func waitUntil(timeout: Duration = .seconds(2), _ condition: () -> Bool) async {
+  func waitUntil(timeout: Duration = .seconds(30), _ condition: () -> Bool) async {
     let deadline = ContinuousClock.now + timeout
     while !condition(), ContinuousClock.now < deadline {
-      await Task.yield()
+      // 취소되면 sleep 이 바로 던지므로, 삼키고 계속 돌지 않게 멈춘다.
+      do { try await Task.sleep(for: .milliseconds(10)) } catch { break }
     }
     #expect(condition(), "기다리던 상태가 되지 않았다")
   }
