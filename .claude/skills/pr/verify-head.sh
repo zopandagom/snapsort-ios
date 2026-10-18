@@ -5,6 +5,7 @@
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test
 #   - .githooks/: make test-hooks
+#   - scripts/, 가리기 스크립트가 읽는 ClassificationRules.swift·픽스처, 타깃이 있는 Makefile: make test-scripts
 #   - .claude/settings.json: JSON 문법
 #   - .github 의 YAML 파일(워크플로·dependabot): YAML 문법
 #   - 그 외(문서 등)만 바뀌었으면: SKIP
@@ -24,6 +25,8 @@ build_paths='^(Projects/|Tuist/|Workspace\.swift|Tuist\.swift|Makefile|\.mise\.t
 checks=()
 grep -Eq "$build_paths" <<<"$files" && checks+=("make lint" "make test")
 grep -q '^\.githooks/' <<<"$files" && checks+=("make test-hooks")
+grep -Eq '^(scripts/|Makefile$|Projects/Shared/Core/Sources/ClassificationRules\.swift$|Projects/Shared/Core/Tests/Fixtures/ClassificationSamples\.json$)' <<<"$files" &&
+  checks+=("make test-scripts")
 grep -q '^\.claude/settings\.json$' <<<"$files" && checks+=("jq empty .claude/settings.json")
 grep -Eq '^\.github/.*\.ya?ml$' <<<"$files" &&
   checks+=("ruby -ryaml -e 'Dir[\".github/**/*.y*ml\"].each { |f| YAML.load_file(f) }'")
