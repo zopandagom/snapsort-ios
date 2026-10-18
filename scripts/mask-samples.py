@@ -35,12 +35,24 @@ class RulesError(Exception):
 
 def load_rules(path=RULES_PATH):
     """ClassificationRules.swift 에서 키워드 목록과 말풍선 시각 패턴을 읽는다."""
-    source = path.read_text(encoding="utf-8")
-    blocks = re.findall(r"keywords:\s*\[(.*?)\]", source, re.S)
-    keywords = sorted({k for block in blocks for k in re.findall(r'"([^"]+)"', block)})
-    if len(blocks) < 6 or len(keywords) < 30:
-        raise RulesError(f"키워드 표를 읽지 못했습니다 (블록 {len(blocks)}개, 키워드 {len(keywords)}개): {path}")
-    pattern = re.search(r"chatTimestampPattern:.*?#/(.*?)/#", source)
+    # 주석(문서 주석 포함)과 `let keywords: [String]` 선언이 키워드 블록으로 세지지 않도록, 주석을 지우고 규칙 호출 안에서만 찾는다.
+    code = re.sub(r"//.*", "", path.read_text(encoding="utf-8"))
+    calls = re.findall(r"InformationRule\((.*?)\n\s*\)", code, re.S)
+    if not calls or len(calls) != code.count("InformationRule("):
+        raise RulesError(f"InformationRule 호출을 읽지 못했습니다 (읽은 호출 {len(calls)}개): {path}")
+    keywords = set()
+    for call in calls:
+        # 규칙마다 키워드가 문자열 리터럴 배열이어야 한다. 상수 참조처럼 읽지 못하는 형식이면 그 키워드까지 가려지므로 실패한다.
+        block = re.search(r"\bkeywords:\s*\[(.*?)\]", call, re.S)
+        if not block:
+            category = re.search(r"category:\s*\.(\w+)", call)
+            name = category.group(1) if category else "?"
+            raise RulesError(f"{name} 규칙의 keywords 가 문자열 리터럴 배열이 아닙니다: {path}")
+        keywords.update(re.findall(r'"([^"]+)"', block.group(1)))
+    if not keywords:
+        raise RulesError(f"키워드를 하나도 읽지 못했습니다: {path}")
+    keywords = sorted(keywords)
+    pattern = re.search(r"chatTimestampPattern:.*?#/(.*?)/#", code)
     if not pattern:
         raise RulesError(f"chatTimestampPattern 을 읽지 못했습니다: {path}")
     return keywords, re.compile(pattern.group(1))
@@ -83,15 +95,20 @@ def mask_line(line, keywords, timestamp):
     if timestamp.fullmatch(normalize(line)):
         return line, True
     chars = clusters(line)
-    # 공백을 지운 글자열과 원래 위치. 키워드는 공백을 무시하고 찾으므로 공백을 넘어 걸린 것도 남긴다.
+    # 공백을 지운 글자열과 원래 위치. 키워드는 공백을 무시하고 찾되, 분류기(`RuleClassifier` 의 `KeywordLine`)와 같게
+    # 공백을 넘어 걸린 것은 단어 시작에서 시작할 때만 남긴다("몇 시까지 도착해"의 "지도"는 키워드가 아니라 원문이다).
     positions = [i for i, c in enumerate(chars) if not c.isspace()]
     compact = [chars[i].lower() for i in positions]
+    space_before = {n for n, i in enumerate(positions) if i > 0 and chars[i - 1].isspace()}
     keep = set()
     for keyword in keywords:
         word = clusters(keyword)
         for start in range(len(compact) - len(word) + 1):
-            if compact[start : start + len(word)] == word:
-                keep.update(positions[start : start + len(word)])
+            end = start + len(word)
+            crosses_space = any(start < n < end for n in space_before)
+            aligned = not crosses_space or start == 0 or start in space_before
+            if aligned and compact[start:end] == word:
+                keep.update(positions[start:end])
     masked = "".join(c if c.isspace() or i in keep else MASK for i, c in enumerate(chars))
     return masked, False
 

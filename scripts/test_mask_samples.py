@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +35,11 @@ class MaskLineTests(unittest.TestCase):
 
     def test_keeps_keyword_read_with_spaces(self):
         self.assertEqual(masked("유효 기간 2026.12.31"), "유효 기간 ○○○○○○○○○○")
+
+    def test_masks_keyword_crossing_space_from_middle_of_word(self):
+        """분류기가 세지 않는 자리(앞 단어 중간에서 시작해 공백을 넘음)는 키워드 글자도 가린다."""
+        self.assertEqual(masked("몇 시까지 도착해"), "○ ○○○ ○○○")
+        self.assertEqual(masked("길 찾기 지 도"), "길 찾기 지 도")
 
     def test_keeps_keyword_inside_word(self):
         self.assertEqual(masked("신세계상품권"), "○○○상품권")
@@ -68,6 +74,22 @@ class RulesTests(unittest.TestCase):
         self.assertIn("메시지입력", KEYWORDS)
         self.assertTrue(TIMESTAMP.fullmatch("오후3:12"))
 
+    def test_reads_every_rule_keyword(self):
+        """주석·타입 선언 말고 규칙 호출마다 키워드를 읽는다 (규칙 하나를 빠뜨리면 그 키워드가 가려진다)."""
+        for keyword in ["교환처", "승인번호", "문자메시지", "장바구니", "길찾기"]:
+            self.assertIn(keyword, KEYWORDS)
+
+    def test_fails_when_a_rule_keywords_is_not_a_literal(self):
+        """한 규칙의 키워드를 상수 참조로 바꾸면 남은 규칙을 읽어도 실패한다. 주석의 `keywords: [...]` 는 세지 않는다."""
+        source = mask.RULES_PATH.read_text(encoding="utf-8")
+        literal = re.search(r"keywords: \[\s*\"유효기간\".*?\]", source, re.S)
+        self.assertIsNotNone(literal)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ClassificationRules.swift"
+            path.write_text(source.replace(literal.group(0), "keywords: gifticonKeywords"), encoding="utf-8")
+            with self.assertRaisesRegex(mask.RulesError, "gifticon"):
+                mask.load_rules(path)
+
     def test_fails_when_rules_cannot_be_read(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ClassificationRules.swift"
@@ -79,11 +101,18 @@ class RulesTests(unittest.TestCase):
 class FileTests(unittest.TestCase):
     def test_masked_fixture_samples_are_unchanged(self):
         """시드(직접 만든 글자) 밖의 샘플은 이미 가렸으므로 다시 가려도 그대로이고, 픽스처와 같은 형식으로 쓴다.
-        가리지 않은 샘플이 픽스처에 들어오면(이름을 바꾸지 않은 초안 포함) 실패한다."""
+        가리지 않은 샘플이 픽스처에 들어오면(이름을 바꾸지 않은 초안 포함) 실패한다.
+        키워드 표에서 키워드를 지워도 실패한다. 그때는 실패 메시지의 샘플만 다시 가려 `text` 를 바꾼다 (CONVENTIONS §3)."""
         text = FIXTURE.read_text(encoding="utf-8")
         real = [s for s in json.loads(text) if not s["name"].startswith("시드 · ")]
         result, _ = mask.mask_samples(real, KEYWORDS, TIMESTAMP)
-        self.assertEqual(result, real)
+        changed = [before["name"] for before, after in zip(real, result) if before != after]
+        self.assertEqual(
+            changed,
+            [],
+            "다시 가리면 달라지는 샘플이 있습니다. 가리지 않은 샘플이 들어왔거나 키워드 표에서 키워드가 빠졌습니다. "
+            "이 샘플들만 scripts/mask-samples.py 로 다시 가려 text 를 바꾸세요 (CONVENTIONS §3)",
+        )
         for block in mask.format_samples(real).strip("[]\n").split("\n  },\n"):
             self.assertIn(block.strip().rstrip("}").strip(), text)
 
