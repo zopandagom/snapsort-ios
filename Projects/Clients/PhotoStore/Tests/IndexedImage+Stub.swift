@@ -9,7 +9,8 @@ extension IndexedImage {
     coordinate: Coordinate? = nil,
     labels: [ImageLabel] = [],
     textRecognition: TextRecognition = .notNeeded,
-    categories: Set<ImageCategory> = []
+    categories: Set<ImageCategory> = [],
+    gifticon: GifticonInfo? = nil
   ) -> IndexedImage {
     IndexedImage(
       asset: ImageAsset(
@@ -22,7 +23,8 @@ extension IndexedImage {
       ),
       labels: labels,
       textRecognition: textRecognition,
-      categories: categories
+      categories: categories,
+      gifticon: gifticon
     )
   }
 }

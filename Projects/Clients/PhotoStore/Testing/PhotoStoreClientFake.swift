@@ -2,17 +2,21 @@ import Core
 import PhotoStoreInterface
 import Synchronization
 
-/// 테스트와 Example 앱용 대역. 메모리에 저장해 Impl 처럼 저장·삭제·여행 교체가 조회에 반영되고, 저장·삭제 요청을 기록한다.
+/// 테스트와 Example 앱용 대역. 메모리에 저장해 Impl 처럼 저장·삭제·추출 값 저장·여행 교체가 조회에 반영되고,
+/// 저장·삭제·추출 값 저장 요청을 기록한다. 추출 규칙 버전은 두지 않는다(버전 동작은 Impl 테스트가 본다).
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
   private let saveLimit: Int?
+  private let gifticonSaveLimit: Int?
+  private let onSaveGifticons: @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void
   private let state: Mutex<State>
 
   private struct State {
     var images: [ImageAsset.ID: IndexedImage]
     var trips: [Trip]
     var savedBatches: [[IndexedImage]] = []
+    var savedGifticonBatches: [[ImageAsset.ID: GifticonInfo]] = []
     var deletedBatches: [Set<ImageAsset.ID>] = []
     var replaceTripsCount = 0
     var missingOnIDRead: Set<ImageAsset.ID> = []
@@ -21,17 +25,24 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   /// - Parameters:
   ///   - error: 정하면 모든 호출이 이 실패를 던지고 아무것도 바꾸지 않는다.
   ///   - saveLimit: 정하면 `save` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 작업 도중의 저장 실패를 흉내 낸다.
+  ///   - gifticonSaveLimit: 정하면 `saveGifticons` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 소급 추출 도중의 저장 실패를 흉내 낸다.
   ///   - missingOnIDRead: `images(ids:)` 가 빼고 돌려줄 식별자. 다른 조회에는 있는데 읽을 때 행이 없는 어긋남을 흉내 낸다.
   ///     `restoreIDReads()` 로 푼다.
+  ///   - onSaveGifticons: `saveGifticons` 가 오류·한도 확인과 쓰기 전에 기다려 부른다. 소급 추출 배치 도중(저장 직전)에
+  ///     보관함이 바뀌는 일을 흉내 낸다. 소급은 이미지 로드·OCR 을 하지 않아 그쪽 대역의 훅이 걸리지 않는다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
     error: PhotoStoreError? = nil,
     saveLimit: Int? = nil,
-    missingOnIDRead: Set<ImageAsset.ID> = []
+    gifticonSaveLimit: Int? = nil,
+    missingOnIDRead: Set<ImageAsset.ID> = [],
+    onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in }
   ) {
     self.error = error
     self.saveLimit = saveLimit
+    self.gifticonSaveLimit = gifticonSaveLimit
+    self.onSaveGifticons = onSaveGifticons
     self.state = Mutex(State(
       images: Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }),
       trips: trips,
@@ -52,6 +63,11 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   /// `save` 에 넘긴 이미지 목록을 부른 순서대로.
   public var savedBatches: [[IndexedImage]] {
     self.state.withLock { $0.savedBatches }
+  }
+
+  /// `saveGifticons` 에 넘긴 추출 값을 부른 순서대로. 실패한 호출은 빠진다.
+  public var savedGifticonBatches: [[ImageAsset.ID: GifticonInfo]] {
+    self.state.withLock { $0.savedGifticonBatches }
   }
 
   /// `replaceTrips` 가 성공한 횟수.
@@ -99,6 +115,39 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
     try self.throwIfNeeded()
     return self.state.withLock { Set($0.images.values.filter { $0.textRecognition == .pending }.map(\.id)) }
+  }
+
+  public func gifticonExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try self.throwIfNeeded()
+    return self.state.withLock { Set($0.images.values.filter(Self.isGifticonExtractionPending).map(\.id)) }
+  }
+
+  public func saveGifticons(_ gifticons: [ImageAsset.ID: GifticonInfo]) async throws(PhotoStoreError) {
+    await self.onSaveGifticons(gifticons)
+    try self.throwIfNeeded()
+    let saved = self.state.withLock { state in
+      if let limit = self.gifticonSaveLimit, state.savedGifticonBatches.count >= limit {
+        return false
+      }
+      state.savedGifticonBatches.append(gifticons)
+      for (id, gifticon) in gifticons {
+        // Impl 처럼 추출 대기 행만 바꾼다(이미 추출한 행은 덮지 않는다).
+        guard let image = state.images[id], Self.isGifticonExtractionPending(image) else {
+          continue
+        }
+        state.images[id] = IndexedImage(
+          asset: image.asset,
+          labels: image.labels,
+          textRecognition: image.textRecognition,
+          categories: image.categories,
+          gifticon: gifticon
+        )
+      }
+      return true
+    }
+    if !saved {
+      throw .failed
+    }
   }
 
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
@@ -149,6 +198,11 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public func tripCount() async throws(PhotoStoreError) -> Int {
     try self.throwIfNeeded()
     return self.state.withLock { $0.trips.count }
+  }
+
+  /// 기프티콘으로 분류돼 글자를 읽었는데 추출 값이 없다.
+  private static func isGifticonExtractionPending(_ image: IndexedImage) -> Bool {
+    image.categories.contains(.gifticon) && image.textLines != nil && image.gifticon == nil
   }
 
   private func throwIfNeeded() throws(PhotoStoreError) {

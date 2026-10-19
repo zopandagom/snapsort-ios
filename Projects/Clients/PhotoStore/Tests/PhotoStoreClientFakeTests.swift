@@ -2,6 +2,7 @@ import Core
 import Foundation
 import PhotoStoreInterface
 import PhotoStoreTesting
+import Synchronization
 import Testing
 
 struct PhotoStoreClientFakeTests {
@@ -93,6 +94,57 @@ struct PhotoStoreClientFakeTests {
     }
 
     #expect(try await fake.indexedIDs() == ["a"])
+  }
+
+  @Test("Impl 처럼 추출 대기 행만 돌려주고 추출 값 저장은 그 행만 바꾸며 요청을 기록한다")
+  func savesGifticonsOnlyForPendingRowsLikeImpl() async throws {
+    let found = GifticonInfo(expiryDate: LocalDate(year: 2026, month: 12, day: 31), redemptionPlace: "스타벅스")
+    let notFound = GifticonInfo(expiryDate: nil, redemptionPlace: nil)
+    let pending = IndexedImage.stub(id: "pending", textRecognition: .recognized([]), categories: [.gifticon])
+    let others: [IndexedImage] = [
+      .stub(id: "ocrPending", textRecognition: .pending, categories: [.gifticon]),
+      .stub(id: "notNeeded", categories: [.gifticon]),
+      .stub(id: "receipt", textRecognition: .recognized([]), categories: [.receipt]),
+      .stub(id: "notFound", textRecognition: .recognized([]), categories: [.gifticon], gifticon: notFound),
+    ]
+    let fake = PhotoStoreClientFake(images: [pending] + others)
+
+    #expect(try await fake.gifticonExtractionPendingIDs() == ["pending"])
+
+    let request = Dictionary(uniqueKeysWithValues: (["pending", "missing"] + others.map(\.id)).map { ($0, found) })
+    try await fake.saveGifticons(request)
+
+    #expect(fake.images == ([.stub(
+      id: "pending",
+      textRecognition: .recognized([]),
+      categories: [.gifticon],
+      gifticon: found
+    )] + others).sorted { $0.id < $1.id })
+    #expect(try await fake.gifticonExtractionPendingIDs().isEmpty)
+    #expect(fake.savedGifticonBatches == [request])
+  }
+
+  @Test("추출 값 저장 전에 훅을 기다리고, 한도를 정하면 그 횟수만큼 저장한 뒤부터 실패한다")
+  func callsHookAndFailsSavingGifticonsAfterLimit() async throws {
+    let info = GifticonInfo(expiryDate: nil, redemptionPlace: "CU")
+    let hookCalls = Mutex<[[ImageAsset.ID: GifticonInfo]]>([])
+    let fake = PhotoStoreClientFake(
+      images: [
+        .stub(id: "a", textRecognition: .recognized([]), categories: [.gifticon]),
+        .stub(id: "b", textRecognition: .recognized([]), categories: [.gifticon]),
+      ],
+      gifticonSaveLimit: 1,
+      onSaveGifticons: { gifticons in hookCalls.withLock { $0.append(gifticons) } }
+    )
+
+    try await fake.saveGifticons(["a": info])
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.saveGifticons(["b": info])
+    }
+
+    #expect(hookCalls.withLock { $0 } == [["a": info], ["b": info]])
+    #expect(fake.savedGifticonBatches == [["a": info]])
+    #expect(try await fake.gifticonExtractionPendingIDs() == ["b"])
   }
 
   @Test("정해 둔 실패를 던진다")

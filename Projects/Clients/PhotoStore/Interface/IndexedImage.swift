@@ -11,6 +11,11 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// 규칙 분류기가 정한 카테고리. 여행은 여행 판정이 정해 `trips()` 로 다루므로, `.travel` 을 넣어도 저장하지 않는다.
   /// `.pending` 이면 라벨만으로 나온 카테고리에서 `.other` 를 뺀 것이다(글자를 읽으면 더해지기만 한다).
   public let categories: Set<ImageCategory>
+  /// 기프티콘 추출 값. nil 이면 추출하지 않았다(기프티콘 아님·OCR 전·지금 규칙 버전으로 추출 전).
+  /// 추출했는데 못 찾은 값은 `GifticonInfo` 의 그 필드가 nil 이다.
+  /// nil 은 "만료일 없음"이 아니다(규칙 버전을 올린 직후 소급 전에도 nil). 알림을 지우는 근거로 쓰지 않는다.
+  /// 기프티콘 카테고리이고 `.recognized` 일 때만 담고, 아니면 init 이 nil 로 둔다.
+  public let gifticon: GifticonInfo?
 
   public var id: ImageAsset.ID { self.asset.id }
 
@@ -26,12 +31,19 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     asset: ImageAsset,
     labels: [ImageLabel],
     textRecognition: TextRecognition,
-    categories: Set<ImageCategory>
+    categories: Set<ImageCategory>,
+    gifticon: GifticonInfo? = nil
   ) {
     self.asset = asset
     self.labels = labels
     self.textRecognition = textRecognition
     self.categories = categories
+    // 정규화를 여기 한 곳에 두어 Impl·Fake·읽기 경로가 같은 불변식을 갖는다.
+    self.gifticon = if categories.contains(.gifticon), case .recognized = textRecognition {
+      gifticon
+    } else {
+      nil
+    }
   }
 }
 
