@@ -19,6 +19,8 @@ let seoul = Coordinate(latitude: 37.5665, longitude: 126.978)
 struct Fixture {
   let photoLibrary: PhotoLibraryClientFake
   let store: PhotoStoreClientFake
+  /// 분석 요청 기록. 소급 추출이 OCR 하지 않는지 확인한다.
+  let analysis: ImageAnalysisClientFake
   let indexing: IndexingClientImpl
   /// 분류에 실패하는 이미지. 테스트 도중 바꿔 다시 시도를 확인한다.
   let classifyFailures: FailingIDs
@@ -36,13 +38,18 @@ struct Fixture {
   ///   - classifyFailures: 분류에 실패하는 이미지.
   ///   - recognizeFailures: OCR 에 실패하는 이미지.
   ///   - saveLimit: 저장소가 이 횟수만큼 저장한 뒤부터 실패한다.
+  ///   - gifticonSaveLimit: 저장소가 추출 값을 이 횟수만큼 저장한 뒤부터 실패한다.
+  ///   - gifticonError: 저장소의 소급 추출 호출(대상 조회·추출 값 저장)만 이 실패를 던진다.
+  ///   - onSaveGifticons: 저장소가 추출 값을 저장하기 전에 부른다. 소급 추출 배치 도중의 일을 흉내 낸다.
   ///   - missingOnIDRead: 저장소의 식별자 읽기(`images(ids:)`)가 빼고 돌려줄 식별자.
+  ///   - failingOnIDRead: 저장소의 식별자 읽기가 이 식별자를 하나라도 요청받으면 실패한다. 소급 배치 읽기만의 실패를 흉내 낸다
+  ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
   ///   - accessState: 사진 접근 권한.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
   ///   - onClassify: 이미지를 분류할 때마다 부른다. 분석 도중의 일을 흉내 낸다.
   ///   - onRecognize: 이미지를 OCR 할 때마다 결과를 주기 전에 부른다. 2단계 도중의 일을 흉내 낸다.
-  ///   - changeRequests: 주면 인덱서가 보관함 변경을 요청한 횟수를 센다. 2단계 도중 보낸 변경이
-  ///     인덱서에 닿은 뒤에 OCR 을 끝내게 해, 변경을 다음 배치 경계에서 반영하는지 시점에 기대지 않고 확인한다.
+  ///   - changeRequests: 주면 인덱서가 보관함 변경을 요청한 횟수를 센다. 2단계·소급 추출 도중 보낸 변경이
+  ///     인덱서에 닿은 뒤에 OCR·저장을 끝내게 해, 변경을 다음 배치 경계에서 반영하는지 시점에 기대지 않고 확인한다.
   init(
     library: [ImageAsset],
     loadable: [ImageAsset] = [],
@@ -57,7 +64,11 @@ struct Fixture {
     onRecognize: @escaping @Sendable (ImageAsset.ID) async -> Void = { _ in },
     storeError: PhotoStoreError? = nil,
     saveLimit: Int? = nil,
+    gifticonSaveLimit: Int? = nil,
+    gifticonError: PhotoStoreError? = nil,
+    onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
     missingOnIDRead: Set<ImageAsset.ID> = [],
+    failingOnIDRead: Set<ImageAsset.ID> = [],
     accessState: PhotoAccessState = .authorized,
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
     textBatchSize: Int = IndexingClientImpl.defaultTextBatchSize,
@@ -66,21 +77,16 @@ struct Fixture {
     let ids = (library + loadable).map(\.id)
     let widths = Dictionary(ids.enumerated().map { ($1, $0 + 1) }, uniquingKeysWith: { first, _ in first })
     let idsByWidth = Dictionary(widths.map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-    self.photoLibrary = PhotoLibraryClientFake(
-      currentState: accessState,
-      imageAssets: library,
-      loadImageResults: widths.reduce(into: [:]) { results, entry in
-        results[entry.key] = loadErrors[entry.key].map { .failure($0) } ?? .success(.stub(
-          width: entry.value,
-          height: 1
-        ))
-      }
-    )
+    self.photoLibrary = Self.photoLibrary(library, widths: widths, loadErrors: loadErrors, accessState: accessState)
     self.store = PhotoStoreClientFake(
       images: stored,
       error: storeError,
       saveLimit: saveLimit,
-      missingOnIDRead: missingOnIDRead
+      gifticonSaveLimit: gifticonSaveLimit,
+      gifticonError: gifticonError,
+      missingOnIDRead: missingOnIDRead,
+      failingOnIDRead: failingOnIDRead,
+      onSaveGifticons: onSaveGifticons
     )
     let failing = FailingIDs(classifyFailures)
     self.classifyFailures = failing
@@ -88,7 +94,7 @@ struct Fixture {
     self.recognizeFailures = failingText
     let loadFailures = LoadFailures(largest: largestErrors)
     self.loadFailures = loadFailures
-    let analysis = ImageAnalysisClientFake(
+    self.analysis = ImageAnalysisClientFake(
       classify: { image in
         let id = idsByWidth[image.cgImage.width] ?? ""
         onClassify(id)
@@ -107,7 +113,7 @@ struct Fixture {
         loadFailures: loadFailures,
         changeRequests: changeRequests
       ),
-      imageAnalysis: analysis,
+      imageAnalysis: self.analysis,
       photoStore: self.store,
       calendar: Self.seoulCalendar,
       batchSize: batchSize,
@@ -117,6 +123,25 @@ struct Fixture {
 }
 
 extension Fixture {
+  /// 보관함 Fake. 이미지마다 `widths` 폭의 썸네일을 돌려주고, `loadErrors` 가 있으면 그 실패를 던진다.
+  static func photoLibrary(
+    _ library: [ImageAsset],
+    widths: [ImageAsset.ID: Int],
+    loadErrors: [ImageAsset.ID: ImageLoadError],
+    accessState: PhotoAccessState
+  ) -> PhotoLibraryClientFake {
+    PhotoLibraryClientFake(
+      currentState: accessState,
+      imageAssets: library,
+      loadImageResults: widths.reduce(into: [:]) { results, entry in
+        results[entry.key] = loadErrors[entry.key].map { .failure($0) } ?? .success(.stub(
+          width: entry.value,
+          height: 1
+        ))
+      }
+    )
+  }
+
   /// OCR Fake 의 결과. 폭으로 이미지를 찾아 `onRecognize` 를 부른 뒤 `failures`·`text` 로 고른다.
   static func recognizer(
     idsByWidth: [Int: ImageAsset.ID],
@@ -130,9 +155,7 @@ extension Fixture {
       if failures.contains(id) {
         return .failure(.failed)
       }
-      return .success((text[id] ?? []).map {
-        RecognizedTextLine(text: $0, confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1))
-      })
+      return .success(ocrLines(text[id] ?? []))
     }
   }
 
@@ -328,6 +351,11 @@ func pending(_ asset: ImageAsset, labels: [ImageLabel] = []) -> IndexedImage {
     textRecognition: .pending,
     categories: IndexingRun.pendingCategories(asset: asset, labels: labels)
   )
+}
+
+/// OCR Fake 가 돌려주는 줄. 소급 추출 테스트의 저장된 줄도 같은 모양으로 만든다.
+func ocrLines(_ texts: [String]) -> [RecognizedTextLine] {
+  texts.map { RecognizedTextLine(text: $0, confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1)) }
 }
 
 /// 2단계에서 `.largestAvailable` 로 읽은 식별자를 순서대로.

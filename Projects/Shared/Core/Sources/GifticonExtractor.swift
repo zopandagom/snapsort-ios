@@ -21,6 +21,10 @@ public struct GifticonInfo: Sendable, Hashable {
 /// 라벨은 `ClassificationRules` 키워드 표와 따로 둔다(`scripts/mask-samples.py` 는 그 표만 읽는다).
 /// 결과에 사진에서 읽은 텍스트가 들어 있으므로 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 public enum GifticonExtractor {
+  /// 추출 규칙 버전. 규칙을 바꿔 같은 줄에서 다른 값이 나올 수 있으면 올린다.
+  /// 저장소가 이 버전으로 추출하지 않은 행을 다시 추출 대상으로 돌려준다.
+  public static let rulesVersion = 1
+
   /// 만료일 라벨. 공백 없이 소문자로 적는다.
   static let expiryLabels = ["유효기간", "유효기한", "사용기한", "사용기간", "만료일", "만료일자"]
   /// 교환처 라벨. 공백 없이 소문자로 적는다.

@@ -7,9 +7,10 @@ import PhotoStoreInterface
 import Synchronization
 
 /// 분석 두 단계 (docs/ARCHITECTURE.md §4 인덱싱).
-/// 1단계(`classify(_:)`)는 새 이미지를 모두 분류해 저장하고, 2단계(`recognize(_:asset:)`)는 OCR 대기 이미지의 글자를 나중에 읽는다.
+/// 1단계(`classify(_:)`)는 새 이미지를 모두 분류해 저장하고, 2단계(`recognize(_:asset:)`)는 OCR 대기 이미지의 글자를 나중에 읽어
+/// 규칙 분류하고, 기프티콘이면 만료일·교환처를 추출해 함께 저장한다.
 /// Debug 기록 도구의 `SampleRecording.measure`(SampleRecorderFeature)는 한 장에서 두 단계를 이어 단계별 시간을 잰다.
-/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다.
+/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다. 규칙 분류와 기프티콘 추출은 순수 계산이라 기록 도구가 재지 않는다.
 extension IndexingRun {
   // MARK: - 1단계: 분류
 
@@ -151,7 +152,8 @@ extension IndexingRun {
     report(self.progress)
   }
 
-  /// 2단계: 가장 큰 버전으로 OCR → 저장된 라벨과 지금 보관함의 메타데이터, 읽은 줄로 규칙 분류.
+  /// 2단계: 가장 큰 버전으로 OCR → 저장된 라벨과 지금 보관함의 메타데이터, 읽은 줄로 규칙 분류 → 기프티콘이면 추출.
+  /// 추출의 기준일은 카테고리와 같이 지금 보관함의 생성일이고, 날짜는 인덱서의 달력으로 나눈다.
   func recognize(_ stored: IndexedImage, asset: ImageAsset) async throws(IndexingStop) -> Outcome {
     let lines: [RecognizedTextLine]
     do throws(AnalysisFailure) {
@@ -163,11 +165,15 @@ extension IndexingRun {
       return try failure.outcome()
     }
     let categories = RuleClassifier.classify(asset: asset, labels: stored.labels, textLines: lines)
+    let gifticon = categories.contains(.gifticon)
+      ? GifticonExtractor.extract(from: lines, referenceDate: asset.creationDate, calendar: self.calendar)
+      : nil
     return .indexed(IndexedImage(
       asset: asset,
       labels: stored.labels,
       textRecognition: .recognized(lines),
-      categories: categories
+      categories: categories,
+      gifticon: gifticon
     ))
   }
 
