@@ -17,5 +17,6 @@ let project = Project.app(
     .client(impl: .imageAnalysis),
     .client(impl: .photoStore),
     .client(impl: .indexing),
+    .client(impl: .notification),
   ]
 )
