@@ -102,6 +102,7 @@ struct IndexingRun {
   var goneTextIDs: Set<ImageAsset.ID> = []
   /// 기프티콘으로 분류돼 글자를 읽었지만 지금 규칙 버전으로 추출하지 않은 보관함 이미지. 저장된 줄로 소급 추출한다(IndexingRun+Gifticon.swift).
   /// 2단계 대기(읽기 전 행)와 겹치지 않는다. 진행률에는 넣지 않는다.
+  /// 저장소 실패로 이번 실행의 소급을 멈추면 비우고, 전체 다시 비교(`reloadAll`)가 저장소에서 다시 채운다.
   var pendingGifticonIDs: Set<ImageAsset.ID> = []
   /// 이번 실행에서 글자를 읽어 저장한 수.
   var recognizedTextCount = 0
@@ -124,7 +125,7 @@ struct IndexingRun {
     self.textBatchSize = textBatchSize
   }
 
-  /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출, 2단계를 번갈아 한다. Task 가 취소되거나, 저장소가 실패하거나, 읽기 권한이 없으면 돌아온다.
+  /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출, 2단계를 번갈아 한다. Task 가 취소되거나, 저장소가 실패하거나(소급 추출만의 실패는 빼고), 읽기 권한이 없으면 돌아온다.
   /// 변경은 자식 Task 가 받아 수신함에 쌓고, 본 루프가 소급 추출·2단계 배치 경계에서 꺼내 먼저 반영한다.
   /// 본 루프가 어느 경로로 끝나든 자식을 취소한다. 저장소 실패·권한 없음은 부모 Task 가 취소되지 않은 채 끝나므로,
   /// 취소하지 않으면 자식이 끝나지 않는 변경 스트림에 머물러 `run()` 스트림이 끝나지 않는다.
@@ -200,8 +201,15 @@ struct IndexingRun {
     let pending = try await self.store { () async throws(PhotoStoreError) in
       try await self.photoStore.pendingTextRecognitionIDs()
     }
-    let pendingGifticons = try await self.store { () async throws(PhotoStoreError) in
-      try await self.photoStore.gifticonExtractionPendingIDs()
+    let pendingGifticons: Set<ImageAsset.ID>
+    do throws(IndexingStop) {
+      pendingGifticons = try await self.store { () async throws(PhotoStoreError) in
+        try await self.photoStore.gifticonExtractionPendingIDs()
+      }
+    } catch {
+      // 소급 대상 조회만 실패하면 이번 비교에서는 소급만 하지 않고 비교·분류는 이어 간다(`extractGifticonBatch` 와 같은 이유).
+      guard error == .storeFailed else { throw error }
+      pendingGifticons = []
     }
     let libraryIDs = Set(self.assets.keys)
     // 첫 진행률부터 대기 수가 들어가도록 보고 전에 채운다. 늦게 채우면 재시작 직후 다 끝난 것처럼 보였다가 다시 진행 중이 된다.

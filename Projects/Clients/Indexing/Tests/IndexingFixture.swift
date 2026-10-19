@@ -39,8 +39,11 @@ struct Fixture {
   ///   - recognizeFailures: OCR 에 실패하는 이미지.
   ///   - saveLimit: 저장소가 이 횟수만큼 저장한 뒤부터 실패한다.
   ///   - gifticonSaveLimit: 저장소가 추출 값을 이 횟수만큼 저장한 뒤부터 실패한다.
+  ///   - gifticonError: 저장소의 소급 추출 호출(대상 조회·추출 값 저장)만 이 실패를 던진다.
   ///   - onSaveGifticons: 저장소가 추출 값을 저장하기 전에 부른다. 소급 추출 배치 도중의 일을 흉내 낸다.
   ///   - missingOnIDRead: 저장소의 식별자 읽기(`images(ids:)`)가 빼고 돌려줄 식별자.
+  ///   - failingOnIDRead: 저장소의 식별자 읽기가 이 식별자를 하나라도 요청받으면 실패한다. 소급 배치 읽기만의 실패를 흉내 낸다
+  ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
   ///   - accessState: 사진 접근 권한.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
   ///   - onClassify: 이미지를 분류할 때마다 부른다. 분석 도중의 일을 흉내 낸다.
@@ -62,8 +65,10 @@ struct Fixture {
     storeError: PhotoStoreError? = nil,
     saveLimit: Int? = nil,
     gifticonSaveLimit: Int? = nil,
+    gifticonError: PhotoStoreError? = nil,
     onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
     missingOnIDRead: Set<ImageAsset.ID> = [],
+    failingOnIDRead: Set<ImageAsset.ID> = [],
     accessState: PhotoAccessState = .authorized,
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
     textBatchSize: Int = IndexingClientImpl.defaultTextBatchSize,
@@ -78,7 +83,9 @@ struct Fixture {
       error: storeError,
       saveLimit: saveLimit,
       gifticonSaveLimit: gifticonSaveLimit,
+      gifticonError: gifticonError,
       missingOnIDRead: missingOnIDRead,
+      failingOnIDRead: failingOnIDRead,
       onSaveGifticons: onSaveGifticons
     )
     let failing = FailingIDs(classifyFailures)
@@ -349,17 +356,6 @@ func pending(_ asset: ImageAsset, labels: [ImageLabel] = []) -> IndexedImage {
 /// OCR Fake 가 돌려주는 줄. 소급 추출 테스트의 저장된 줄도 같은 모양으로 만든다.
 func ocrLines(_ texts: [String]) -> [RecognizedTextLine] {
   texts.map { RecognizedTextLine(text: $0, confidence: 0.9, boundingBox: CGRect(x: 0, y: 0, width: 1, height: 0.1)) }
-}
-
-/// 2단계를 마친 기프티콘 저장 결과. `gifticon` 이 nil 이면 추출하지 않은 행(소급 추출 대상)이다.
-func recognizedGifticon(_ asset: ImageAsset, text: [String], gifticon: GifticonInfo? = nil) -> IndexedImage {
-  IndexedImage(
-    asset: asset,
-    labels: defaultLabels,
-    textRecognition: .recognized(ocrLines(text)),
-    categories: [.gifticon],
-    gifticon: gifticon
-  )
 }
 
 /// 2단계에서 `.largestAvailable` 로 읽은 식별자를 순서대로.
