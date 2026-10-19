@@ -2,6 +2,7 @@ import Foundation
 import ImageAnalysisImpl
 import IndexingImpl
 import LibraryFeature
+import NotificationImpl
 import OnboardingFeature
 import PhotoLibraryImpl
 import PhotoStoreImpl
@@ -26,6 +27,9 @@ struct SnapSortApp: App {
     .appending(path: "PhotoStore.store")
 
   init() {
+    // 앱이 앞에 있을 때도 만료 알림이 보이게 한다. 알림이 울리기 전에 등록돼 있어야 하므로 가장 먼저 한다
+    // (docs/ARCHITECTURE.md §4 만료 알림).
+    NotificationClientImpl.registerForegroundPresentation()
     let photoLibrary = PhotoLibraryClientImpl()
     let imageAnalysis = ImageAnalysisClientImpl()
     self._onboardingModel = State(initialValue: OnboardingModel(photoLibrary: photoLibrary))
@@ -42,7 +46,8 @@ struct SnapSortApp: App {
     self._libraryModel = State(initialValue: LibraryModel(
       photoLibrary: photoLibrary,
       indexing: indexing,
-      photoStore: photoStore
+      photoStore: photoStore,
+      notification: NotificationClientImpl()
     ))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(

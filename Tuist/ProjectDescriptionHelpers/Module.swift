@@ -10,6 +10,7 @@ public enum Client: String, CaseIterable {
   case imageAnalysis = "ImageAnalysis"
   case photoStore = "PhotoStore"
   case indexing = "Indexing"
+  case notification = "Notification"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }

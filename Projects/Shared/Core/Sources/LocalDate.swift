@@ -34,8 +34,38 @@ public struct LocalDate: Sendable, Hashable, Comparable {
     DateComponents(year: self.year, month: self.month, day: self.day)
   }
 
+  /// `days` 일 뒤(음수면 앞)의 날짜. 그레고리력·시간대 없음으로 센다(월말·윤년 경계).
+  public func addingDays(_ days: Int) -> LocalDate {
+    Self(dayNumber: self.dayNumber + days)
+  }
+
   public static func < (lhs: LocalDate, rhs: LocalDate) -> Bool {
     (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
+  }
+
+  /// 1970-01-01 부터 센 일련 일수. 실패 경로가 없도록 `Calendar` 대신 그레고리력 정수 공식으로 센다
+  /// (3월을 한 해의 시작으로 보아 윤일이 해 끝에 오게 하고, 400년 주기로 나눈다).
+  private var dayNumber: Int {
+    let year = self.month <= 2 ? self.year - 1 : self.year
+    let era = (year >= 0 ? year : year - 399) / 400
+    let yearOfEra = year - era * 400
+    let dayOfYear = (153 * (self.month + (self.month > 2 ? -3 : 9)) + 2) / 5 + self.day - 1
+    let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+    return era * 146_097 + dayOfEra - 719_468
+  }
+
+  /// `dayNumber` 의 역변환.
+  private init(dayNumber: Int) {
+    let shifted = dayNumber + 719_468
+    let era = (shifted >= 0 ? shifted : shifted - 146_096) / 146_097
+    let dayOfEra = shifted - era * 146_097
+    let yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524 - dayOfEra / 146_096) / 365
+    let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
+    let monthIndex = (5 * dayOfYear + 2) / 153
+    let month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9
+    self.year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0)
+    self.month = month
+    self.day = dayOfYear - (153 * monthIndex + 2) / 5 + 1
   }
 
   private static func numberOfDays(year: Int, month: Int) -> Int {

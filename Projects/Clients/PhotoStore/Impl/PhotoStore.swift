@@ -285,3 +285,26 @@ actor PhotoStore {
     )
   }
 }
+
+// 만료 알림용 조회 (docs/ARCHITECTURE.md §4 만료 알림).
+extension PhotoStore {
+  func upcomingGifticonExpiries(from date: LocalDate) throws -> [GifticonExpiry] {
+    let version = GifticonExtractor.rulesVersion
+    let from = Self.dayNumber(date)
+    // 만료일 정수가 있는 행은 `setGifticon` 으로만 생기고 그 경로는 늘 기프티콘 읽음 행이라 카테고리 조건은 넣지 않는다.
+    var descriptor = FetchDescriptor<StoredImage>(
+      predicate: #Predicate { image in
+        image.gifticonRulesVersion == version && (image.gifticonExpiryDay.flatMap { $0 >= from } ?? false)
+      },
+      sortBy: [SortDescriptor(\.gifticonExpiryDay), SortDescriptor(\.assetID)]
+    )
+    descriptor.propertiesToFetch = [\.assetID, \.gifticonExpiryDay]
+    return try self.modelContext.fetch(descriptor).compactMap { stored in
+      // 날짜로 해석하지 못하는 정수는 `storedGifticon` 처럼 추출하지 않은 것으로 본다(추출 대기에 든다).
+      guard let day = stored.gifticonExpiryDay, let expiryDate = Self.localDate(day) else {
+        return nil
+      }
+      return GifticonExpiry(imageID: stored.assetID, expiryDate: expiryDate)
+    }
+  }
+}

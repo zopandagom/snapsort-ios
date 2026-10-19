@@ -4,6 +4,7 @@ import Synchronization
 
 /// 테스트와 Example 앱용 대역. 메모리에 저장해 Impl 처럼 저장·삭제·추출 값 저장·여행 교체가 조회에 반영되고,
 /// 저장·삭제·추출 값 저장 요청을 기록한다. 추출 규칙 버전은 두지 않는다(버전 동작은 Impl 테스트가 본다).
+/// 그래서 만료 예정 조회(`upcomingGifticonExpiries`)는 추출 값의 만료일만 본다.
 /// 모든 호출의 실패와 따로, 소급 추출 호출만의 실패(`gifticonError`)와 특정 식별자를 읽는 `images(ids:)` 만의 실패
 /// (`failingOnIDRead`)도 정할 수 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
@@ -14,6 +15,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   private let gifticonError: PhotoStoreError?
   private let failingOnIDRead: Set<ImageAsset.ID>
   private let onSaveGifticons: @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void
+  private let onUpcomingGifticonExpiries: @Sendable (Int) async -> Void
   private let state: Mutex<State>
 
   private struct State {
@@ -24,6 +26,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var deletedBatches: [Set<ImageAsset.ID>] = []
     var replaceTripsCount = 0
     var missingOnIDRead: Set<ImageAsset.ID> = []
+    var upcomingGifticonExpiriesCount = 0
   }
 
   /// - Parameters:
@@ -38,6 +41,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///     성공한다. 소급 배치처럼 그 식별자를 읽는 호출만 실패하는 경우를 흉내 낸다(2단계 배치와는 대상 식별자가 겹치지 않아 구분된다).
   ///   - onSaveGifticons: `saveGifticons` 가 오류·한도 확인과 쓰기 전에 기다려 부른다. 소급 추출 배치 도중(저장 직전)에
   ///     보관함이 바뀌는 일을 흉내 낸다. 소급은 이미지 로드·OCR 을 하지 않아 그쪽 대역의 훅이 걸리지 않는다.
+  ///   - onUpcomingGifticonExpiries: `upcomingGifticonExpiries(from:)` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다.
+  ///     인자는 몇 번째 호출인지(0부터)다. 기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려줘, 늦게 깨어난 읽기를 흉내 낸다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -47,7 +52,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     gifticonError: PhotoStoreError? = nil,
     missingOnIDRead: Set<ImageAsset.ID> = [],
     failingOnIDRead: Set<ImageAsset.ID> = [],
-    onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in }
+    onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
+    onUpcomingGifticonExpiries: @escaping @Sendable (Int) async -> Void = { _ in }
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -55,6 +61,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.gifticonError = gifticonError
     self.failingOnIDRead = failingOnIDRead
     self.onSaveGifticons = onSaveGifticons
+    self.onUpcomingGifticonExpiries = onUpcomingGifticonExpiries
     self.state = Mutex(State(
       images: Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }),
       trips: trips,
@@ -191,6 +198,22 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
           lhs.id < rhs.id
         }
       }
+  }
+
+  /// 프로토콜 약속대로 만료일 오름차순(같으면 식별자 순)으로 돌려준다.
+  public func upcomingGifticonExpiries(from date: LocalDate) async throws(PhotoStoreError) -> [GifticonExpiry] {
+    try self.throwIfNeeded()
+    let expiries = self.images
+      .compactMap { image in
+        image.gifticon?.expiryDate.flatMap { $0 >= date ? GifticonExpiry(imageID: image.id, expiryDate: $0) : nil }
+      }
+      .sorted { ($0.expiryDate, $0.imageID) < ($1.expiryDate, $1.imageID) }
+    let index = self.state.withLock { state in
+      defer { state.upcomingGifticonExpiriesCount += 1 }
+      return state.upcomingGifticonExpiriesCount
+    }
+    await self.onUpcomingGifticonExpiries(index)
+    return expiries
   }
 
   public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {

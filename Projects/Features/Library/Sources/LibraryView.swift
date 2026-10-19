@@ -13,6 +13,9 @@ public struct LibraryView: View {
     NavigationStack {
       List {
         self.indexingSection
+        if self.model.showsExpiryReminderButton {
+          self.expiryReminderSection
+        }
         // 덮는 overlay 로 두면 위의 진행률·다시 시도를 가리므로 목록 안에 둔다.
         if self.model.categoryCounts.isEmpty {
           Section {
@@ -130,6 +133,22 @@ public struct LibraryView: View {
       return "글자 읽기를 마치지 못했습니다 (남은 \(progress.pendingTextCount)장)"
     case .finished:
       return "새 사진을 분류하지 못했습니다"
+    }
+  }
+
+  /// 권한을 정하지 않았고 지금 예약할 만료 알림이 있을 때만 보인다 (docs/ARCHITECTURE.md §4 만료 알림).
+  private var expiryReminderSection: some View {
+    Section {
+      HStack {
+        Label("기프티콘 만료일이 다가오면 알려 드려요", systemImage: "bell")
+          .font(.subheadline)
+        Spacer()
+        Button("만료 알림 받기") {
+          Task { await self.model.notificationsTapped() }
+        }
+        .buttonStyle(.bordered)
+        .font(.subheadline)
+      }
     }
   }
 

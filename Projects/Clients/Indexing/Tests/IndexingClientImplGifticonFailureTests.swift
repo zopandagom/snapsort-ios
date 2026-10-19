@@ -194,7 +194,7 @@ struct IndexingClientImplGifticonFailureTests {
     #expect(fixture.photoLibrary.largestLoadIDs.isEmpty)
   }
 
-  @Test("취소된 Task 에서 소급 배치를 부르면 대상을 그대로 두고 취소로 멈춘다")
+  @Test("취소된 Task 에서 소급 배치를 부르면 대상을 그대로 두고 진행률을 보내지 않은 채 취소로 멈춘다")
   func backfillBatchRethrowsCancellation() async {
     let attempts = CallCount()
     let assets = ["a", "b"].enumerated().map { index, id in
@@ -206,7 +206,7 @@ struct IndexingClientImplGifticonFailureTests {
       onSaveGifticons: { _ in attempts.record() }
     )
 
-    let (stop, remaining) = await Task {
+    let (stop, remaining, reportCount) = await Task {
       withUnsafeCurrentTask { $0?.cancel() }
       var run = IndexingRun(
         photoLibrary: fixture.photoLibrary,
@@ -218,18 +218,45 @@ struct IndexingClientImplGifticonFailureTests {
       )
       run.assets = Dictionary(uniqueKeysWithValues: assets.map { ($0.id, $0) })
       run.pendingGifticonIDs = ["a", "b"]
+      var reportCount = 0
       do throws(IndexingStop) {
-        try await run.extractGifticonBatch()
-        return (IndexingStop?.none, run.pendingGifticonIDs)
+        try await run.extractGifticonBatch { _ in reportCount += 1 }
+        return (IndexingStop?.none, run.pendingGifticonIDs, reportCount)
       } catch {
-        return (IndexingStop?.some(error), run.pendingGifticonIDs)
+        return (IndexingStop?.some(error), run.pendingGifticonIDs, reportCount)
       }
     }.value
 
     #expect(stop == .cancelled)
     #expect(remaining == ["a", "b"])
+    #expect(reportCount == 0)
     #expect(attempts.calls == 0)
     #expect(fixture.store.savedGifticonBatches.isEmpty)
+  }
+
+  @Test("추출 값을 저장하지 못해 소급을 멈춰도 직전과 같은 값의 진행률을 한 번 더 보낸다")
+  func reportsOnceWhenBackfillStops() async {
+    let assets = ["a", "b"].enumerated().map { index, id in
+      ImageAsset.stub(id: id, creationDate: date(month: 5, day: 3 - index), isScreenshot: true)
+    }
+    let fixture = Fixture(
+      library: assets,
+      stored: assets.map { recognizedGifticon($0, text: gifticonText) },
+      gifticonSaveLimit: 0,
+      batchSize: 1
+    )
+    let extractedFixture = Fixture(
+      library: assets,
+      stored: assets.map { recognizedGifticon($0, text: gifticonText, gifticon: extractedGifticon) },
+      batchSize: 1
+    )
+
+    let progresses = await fixture.allProgress()
+    let progressesWithoutTargets = await extractedFixture.allProgress()
+
+    #expect(fixture.storedGifticons.isEmpty)
+    #expect(Array(progresses.dropLast()) == progressesWithoutTargets)
+    #expect(progresses.last == progressesWithoutTargets.last)
   }
 }
 
