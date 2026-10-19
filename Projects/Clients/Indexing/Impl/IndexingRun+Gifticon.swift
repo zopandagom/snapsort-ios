@@ -13,7 +13,8 @@ extension IndexingRun {
     if Task.isCancelled {
       throw .cancelled
     }
-    // 삭제 변경이 대상에서 빼지만, 1단계에서 보관함에 없다고 나온 이미지는 `assets` 에서만 빠진다.
+    // 방어용이다. 지금 경로에서는 소급 대상이 늘 `assets` 안에 있다(대상은 저장소·보관함에 모두 있는 이미지에서 고르고,
+    // 삭제 변경은 `apply` 가 먼저 뺀다). 어긋나도 보관함에 없는 이미지의 행을 읽지 않게 맞춘다.
     self.pendingGifticonIDs.formIntersection(self.assets.keys)
     let batchIDs = Array(Self.newestFirst(self.pendingGifticonIDs, in: self.assets).prefix(self.batchSize))
     guard !batchIDs.isEmpty else { return }
