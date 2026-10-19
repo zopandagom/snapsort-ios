@@ -45,6 +45,32 @@ struct NotificationClientImplTests {
     #expect(components == DateComponents(era: era, year: year, month: 12, day: 24, hour: 9, minute: 0))
   }
 
+  @Test("기기 달력이 중국력이면 윤달 여부를 함께 채워, 같은 월·일의 평달과 윤달을 구분한다")
+  func marksLeapMonthInChineseCalendar() throws {
+    let calendar = try Self.calendar(.chinese)
+    // 그레고리력 2025-06-30 은 중국력 6월 6일, 2025-07-30 은 윤6월 6일이다.
+    let common = try #require(NotificationClientImpl.triggerDateComponents(
+      for: Self.request(day(2025, 6, 30)),
+      calendar: calendar
+    ))
+    let leap = try #require(NotificationClientImpl.triggerDateComponents(
+      for: Self.request(day(2025, 7, 30)),
+      calendar: calendar
+    ))
+    // 2028-06-30 은 윤5월 8일이다.
+    let otherLeap = try #require(NotificationClientImpl.triggerDateComponents(
+      for: Self.request(day(2028, 6, 30)),
+      calendar: calendar
+    ))
+
+    #expect([common.month, common.day, leap.month, leap.day] == [6, 6, 6, 6])
+    #expect(common.isLeapMonth == false)
+    #expect(leap.isLeapMonth == true)
+    #expect([otherLeap.month, otherLeap.day] == [5, 8])
+    #expect(otherLeap.isLeapMonth == true)
+    #expect([common.hour, common.minute] == [9, 0])
+  }
+
   @Test("윤일도 그대로 넣는다")
   func keepsLeapDay() throws {
     let components = try #require(NotificationClientImpl.triggerDateComponents(
