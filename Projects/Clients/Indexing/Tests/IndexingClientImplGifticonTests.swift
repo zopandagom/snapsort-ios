@@ -10,7 +10,7 @@ import Testing
 @testable import IndexingImpl
 
 /// 기프티콘 추출: 2단계에서 함께 저장하고, 추출하지 않은 저장 행은 OCR 없이 저장된 줄로 소급 추출한다.
-/// 소급은 진행률을 보내지 않으므로 `isFinished` 를 기다리지 않고, 변경 스트림을 끝낸 뒤 `run()` 스트림이 끝날 때까지 읽는다
+/// 소급은 진행률·`isFinished` 에 넣지 않으므로 `isFinished` 를 기다리지 않고, 변경 스트림을 끝낸 뒤 `run()` 스트림이 끝날 때까지 읽는다
 /// (루프는 소급·2단계를 다 마쳐야 돌아온다).
 @Suite(.timeLimit(.minutes(1)))
 struct IndexingClientImplGifticonTests {
@@ -82,6 +82,35 @@ struct IndexingClientImplGifticonTests {
     #expect(extractedFixture.store.savedGifticonBatches.isEmpty)
     #expect(last == lastWithoutTargets)
     #expect(last?.isFinished == true)
+  }
+
+  @Test(
+    "소급 대상이 비면 직전과 같은 값의 진행률을 한 번 더 보낸다. 배치가 여럿이어도 한 번이다",
+    arguments: [IndexingClientImpl.defaultBatchSize, 2]
+  )
+  func reportsOnceWhenBackfillEnds(batchSize: Int) async {
+    let assets = (1 ... 5).map { ImageAsset.stub(
+      id: "day-\($0)",
+      creationDate: date(month: 5, day: $0),
+      isScreenshot: true
+    ) }
+    let fixture = Fixture(
+      library: assets,
+      stored: assets.map { recognizedGifticon($0, text: gifticonText) },
+      batchSize: batchSize
+    )
+    let extractedFixture = Fixture(
+      library: assets,
+      stored: assets.map { recognizedGifticon($0, text: gifticonText, gifticon: extractedGifticon) },
+      batchSize: batchSize
+    )
+
+    let progresses = await fixture.allProgress()
+    let progressesWithoutTargets = await extractedFixture.allProgress()
+
+    #expect(fixture.store.images.allSatisfy { $0.gifticon == extractedGifticon })
+    #expect(Array(progresses.dropLast()) == progressesWithoutTargets)
+    #expect(progresses.last == progressesWithoutTargets.last)
   }
 
   @Test("소급 추출은 최신순으로 batchSize 장씩 나눠 저장한다")
@@ -196,6 +225,16 @@ extension Fixture {
     self.store.images.reduce(into: [:]) { result, image in
       result[image.id] = image.gifticon
     }
+  }
+
+  /// 변경 스트림을 끝내고 인덱싱을 끝까지 돌려 보낸 진행률을 모두 돌려준다. `run()` 스트림은 늦게 읽으면 지난 값을 버리므로
+  /// 진행률 수를 세는 테스트는 이것을 쓴다.
+  func allProgress() async -> [IndexingProgress] {
+    self.photoLibrary.finishImageChanges()
+    var run = self.indexing.makeRun()
+    var progresses: [IndexingProgress] = []
+    await run.start { progresses.append($0) }
+    return progresses
   }
 
   /// 변경 스트림을 끝내고 `run()` 스트림이 끝날 때까지 읽어 마지막 진행률을 돌려준다.

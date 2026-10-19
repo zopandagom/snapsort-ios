@@ -60,19 +60,25 @@ public struct IndexingClientImpl: IndexingClient {
   public func run() -> AsyncStream<IndexingProgress> {
     let (stream, continuation) = AsyncStream.makeStream(of: IndexingProgress.self, bufferingPolicy: .bufferingNewest(1))
     let task = Task(priority: .utility) { [self] in
-      var indexing = IndexingRun(
-        photoLibrary: self.photoLibrary,
-        imageAnalysis: self.imageAnalysis,
-        photoStore: self.photoStore,
-        calendar: self.calendar,
-        batchSize: self.batchSize,
-        textBatchSize: self.textBatchSize
-      )
+      var indexing = self.makeRun()
       await indexing.start { continuation.yield($0) }
       continuation.finish()
     }
     continuation.onTermination = { _ in task.cancel() }
     return stream
+  }
+
+  /// `run()` 한 번의 상태를 만든다. 테스트는 진행률을 버리지 않고 모두 받으려고 이것으로 직접 돌린다
+  /// (`run()` 스트림은 늦게 읽으면 지난 값을 버린다).
+  func makeRun() -> IndexingRun {
+    IndexingRun(
+      photoLibrary: self.photoLibrary,
+      imageAnalysis: self.imageAnalysis,
+      photoStore: self.photoStore,
+      calendar: self.calendar,
+      batchSize: self.batchSize,
+      textBatchSize: self.textBatchSize
+    )
   }
 }
 
@@ -178,7 +184,7 @@ struct IndexingRun {
           }
         }
       } else if !self.pendingGifticonIDs.isEmpty {
-        try await self.extractGifticonBatch()
+        try await self.extractGifticonBatch(report: report)
       } else if !self.pendingTextIDs.isEmpty {
         try await self.recognizeBatch(report: report)
       } else if isFinished {
