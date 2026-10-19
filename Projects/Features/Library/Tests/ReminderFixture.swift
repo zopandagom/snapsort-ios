@@ -1,5 +1,6 @@
 import Core
 import Foundation
+import IndexingInterface
 import IndexingTesting
 import NotificationInterface
 import NotificationTesting
@@ -29,6 +30,15 @@ enum ReminderFixture {
       calendar: .seoul,
       now: { now }
     )
+  }
+
+  /// 앞선 동기화가 끝까지 돌았음을 기다린다. 동기화는 한 번에 하나씩 차례로 돌므로, 진행률로 다음 동기화를 요청해
+  /// 그 동기화가 권한을 읽는 데 들어오면 앞선 동기화는 끝났다. `gates` 가 `nextIndex` 를 붙잡게 두면 그 동기화는 멈춰 아무것도 바꾸지 않는다.
+  /// 남은 양보 횟수가 아니라 다음 동기화의 시작으로 기다리므로, 느린 러너에서도 "아무것도 하지 않았다"를 확인할 수 있다.
+  static func waitForPreviousSyncs(indexing: IndexingClientFake, gates: CallGates, nextIndex: Int) async {
+    await waitUntil { indexing.activeRunCount == 1 }
+    indexing.sendProgress(IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0))
+    await waitUntil { gates.hasEntered(nextIndex) }
   }
 
   static func request(id: String) -> NotificationRequest {
@@ -106,7 +116,8 @@ final class CallCounter: Sendable {
   }
 }
 
-/// 기다릴 상태 변화가 없을 때(아무것도 하지 않았음을 확인할 때) 진행 중인 동기화가 끝나도록 충분히 양보한다.
+/// 충분히 양보한다. 동기화를 시작하지 않았다는 것(지난 루프·합쳐진 요청)처럼 앱이 드러내는 신호가 없는 확인에만 쓴다.
+/// 동기화가 끝나야 드러나는 "아무것도 하지 않음"은 `ReminderFixture.waitForPreviousSyncs` 처럼 다음 동기화의 시작을 기다린다.
 @MainActor
 func settle() async {
   for _ in 0 ..< 100 {

@@ -43,14 +43,20 @@ struct LibraryModelReminderButtonTests {
       .extractedGifticon(id: "a", expiryDate: nil),
       .extractedGifticon(id: "b", expiryDate: .date(2026, 10, 1)),
     ])
+    let gates = CallGates(holding: [1])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
     let model = ReminderFixture.model(
       photoStore: photoStore,
-      notification: NotificationClientFake(authorization: .notDetermined)
+      notification: NotificationClientFake(
+        authorization: .notDetermined,
+        onAuthorizationStatus: { await gates.pass($0) }
+      ),
+      indexing: indexing
     )
     let appear = Task { await model.onAppear() }
 
-    await waitUntil { model.notificationAuthorization == .notDetermined }
-    await settle()
+    // 권한은 저장소를 읽기 전에 바뀌므로, 권한이 아니라 동기화 끝을 기다린다.
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 1)
     #expect(!model.hasPlannedReminder)
     #expect(!model.showsExpiryReminderButton)
 
@@ -65,15 +71,20 @@ struct LibraryModelReminderButtonTests {
       .extractedGifticon(id: "a", expiryDate: .date(2026, 10, 19)),
       .extractedGifticon(id: "b", expiryDate: .date(2026, 10, 20)),
     ])
+    let gates = CallGates(holding: [1])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
     let model = ReminderFixture.model(
       photoStore: photoStore,
-      notification: NotificationClientFake(authorization: .notDetermined),
+      notification: NotificationClientFake(
+        authorization: .notDetermined,
+        onAuthorizationStatus: { await gates.pass($0) }
+      ),
+      indexing: indexing,
       now: .seoul(2026, 10, 19, hour: 9, minute: 30)
     )
     let appear = Task { await model.onAppear() }
 
-    await waitUntil { model.notificationAuthorization == .notDetermined }
-    await settle()
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 1)
     #expect(!model.hasPlannedReminder)
     #expect(!model.showsExpiryReminderButton)
 
@@ -104,13 +115,20 @@ struct LibraryModelReminderButtonTests {
   @Test("버튼을 눌러 거부하면 버튼을 숨기고 예약하지 않는다")
   func tapDenyDoesNotSchedule() async {
     let photoStore = PhotoStoreClientFake(images: [.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
-    let notification = NotificationClientFake(authorization: .notDetermined, authorizationAfterRequest: .denied)
-    let model = ReminderFixture.model(photoStore: photoStore, notification: notification)
+    let gates = CallGates(holding: [2])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let notification = NotificationClientFake(
+      authorization: .notDetermined,
+      authorizationAfterRequest: .denied,
+      onAuthorizationStatus: { await gates.pass($0) }
+    )
+    let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
     await waitUntil { model.showsExpiryReminderButton }
 
     await model.notificationsTapped()
-    await settle()
+    // 화면 진입(0번)과 탭(1번) 뒤의 동기화가 시작되면 탭이 요청한 동기화는 끝났다.
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 2)
 
     #expect(model.notificationAuthorization == .denied)
     #expect(!model.showsExpiryReminderButton)

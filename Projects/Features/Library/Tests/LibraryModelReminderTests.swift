@@ -49,13 +49,23 @@ struct LibraryModelReminderTests {
 
   @Test("저장소를 읽지 못하면 기존 대기 알림을 지우지도 더하지도 않는다")
   func storeFailureKeepsReminders() async {
+    let gates = CallGates(holding: [1])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
     let existing = ReminderFixture.request(id: "expiry.v1.gregorian.20261101.0.1")
-    let notification = NotificationClientFake(authorization: .authorized, pending: [existing])
-    let model = ReminderFixture.model(photoStore: PhotoStoreClientFake(error: .failed), notification: notification)
+    let notification = NotificationClientFake(
+      authorization: .authorized,
+      pending: [existing],
+      onAuthorizationStatus: { await gates.pass($0) }
+    )
+    let model = ReminderFixture.model(
+      photoStore: PhotoStoreClientFake(error: .failed),
+      notification: notification,
+      indexing: indexing
+    )
     let appear = Task { await model.onAppear() }
 
-    await waitUntil { model.notificationAuthorization == .authorized }
-    await settle()
+    // 다음 동기화가 시작되면 화면 진입 동기화는 저장소 실패까지 마쳤다.
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 1)
     #expect(notification.removedBatches.isEmpty)
     #expect(notification.addAttemptCount == 0)
     #expect(notification.pendingRequests == [existing])
@@ -72,12 +82,19 @@ struct LibraryModelReminderTests {
       // 기프티콘으로 분류해 글자를 읽었지만 지금 규칙으로 추출하지 않았다.
       IndexedImage(asset: .stub(id: "b"), labels: [], textRecognition: .recognized([]), categories: [.gifticon]),
     ])
-    let notification = NotificationClientFake(authorization: .authorized, pending: [existing])
-    let model = ReminderFixture.model(photoStore: photoStore, notification: notification)
+    let gates = CallGates(holding: [1])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let notification = NotificationClientFake(
+      authorization: .authorized,
+      pending: [existing],
+      onAuthorizationStatus: { await gates.pass($0) }
+    )
+    let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
 
-    await waitUntil { model.hasPlannedReminder }
-    await settle()
+    // 추출 대기를 무시하는 회귀는 예약할 알림 여부를 정한 뒤 대기 조회를 기다려 바꾸므로, 그 여부가 아니라 동기화 끝을 기다린다.
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 1)
+    #expect(model.hasPlannedReminder)
     #expect(notification.removedBatches.isEmpty)
     #expect(notification.addAttemptCount == 0)
     #expect(notification.pendingRequests == [existing])
@@ -105,15 +122,17 @@ struct LibraryModelReminderTests {
   @Test("이미 예약된 알림은 다시 더하지 않는다")
   func doesNotReAddScheduled() async {
     let photoStore = PhotoStoreClientFake(images: [.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
+    let gates = CallGates(holding: [1])
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
     let notification = NotificationClientFake(
       authorization: .authorized,
-      pending: ReminderFixture.expectedIDsFor1029.map { ReminderFixture.request(id: $0) }
+      pending: ReminderFixture.expectedIDsFor1029.map { ReminderFixture.request(id: $0) },
+      onAuthorizationStatus: { await gates.pass($0) }
     )
-    let model = ReminderFixture.model(photoStore: photoStore, notification: notification)
+    let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
 
-    await waitUntil { model.hasPlannedReminder }
-    await settle()
+    await ReminderFixture.waitForPreviousSyncs(indexing: indexing, gates: gates, nextIndex: 1)
     #expect(notification.addAttemptCount == 0)
     #expect(notification.removedBatches.isEmpty)
 
@@ -141,17 +160,24 @@ struct LibraryModelReminderTests {
 
   @Test("인덱싱 진행률을 받으면 다시 동기화해, 끝나기 전에 찾은 기프티콘의 알림도 예약한다")
   func progressTriggersSync() async {
+    let gates = CallGates(holding: [1])
     let photoStore = PhotoStoreClientFake()
     let indexing = IndexingClientFake(finishesAfterProgress: false)
-    let notification = NotificationClientFake(authorization: .authorized)
+    let notification = NotificationClientFake(
+      authorization: .authorized,
+      onAuthorizationStatus: { await gates.pass($0) }
+    )
     let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
-    await waitUntil { model.notificationAuthorization == .authorized && indexing.activeRunCount == 1 }
-    await settle()
-    #expect(notification.pendingRequests.isEmpty)
+    await waitUntil { indexing.activeRunCount == 1 }
 
-    try? await photoStore.save([.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
+    // 진행률로 시작한 동기화를 권한 읽기에서 붙잡는다. 그때 화면 진입 동기화는 빈 저장소로 끝났다.
     indexing.sendProgress(IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, pendingTextCount: 1))
+    await waitUntil { gates.hasEntered(1) }
+    #expect(notification.pendingRequests.isEmpty)
+    // 붙잡힌 동기화는 아직 저장소를 읽지 않았으므로, 지금 저장한 기프티콘을 읽는다.
+    try? await photoStore.save([.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
+    gates.open(1)
 
     await waitUntil { notification.pendingRequests.map(\.id) == ReminderFixture.expectedIDsFor1029 }
     #expect(model.isIndexing)
@@ -162,20 +188,26 @@ struct LibraryModelReminderTests {
 
   @Test("인덱싱이 멈추면 다시 동기화한다")
   func stopTriggersSync() async {
+    let gates = CallGates(holding: [1])
     let photoStore = PhotoStoreClientFake()
     let indexing = IndexingClientFake(finishesAfterProgress: false)
-    let notification = NotificationClientFake(authorization: .authorized)
+    let notification = NotificationClientFake(
+      authorization: .authorized,
+      onAuthorizationStatus: { await gates.pass($0) }
+    )
     let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
-    await waitUntil { model.notificationAuthorization == .authorized && indexing.activeRunCount == 1 }
-    await settle()
-    #expect(notification.pendingRequests.isEmpty)
+    await waitUntil { indexing.activeRunCount == 1 }
 
-    // 진행률 없이 저장소를 바꾸고 멈춘 것처럼 흉내 낸다.
-    try? await photoStore.save([.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
+    // 진행률 없이 멈춘 것처럼 흉내 내고, 멈춤으로 시작한 동기화를 권한 읽기에서 붙잡는다.
+    // 그때 화면 진입 동기화는 빈 저장소로 끝났다.
     indexing.finishRuns()
+    await waitUntil { gates.hasEntered(1) && model.isIndexingStopped }
+    #expect(notification.pendingRequests.isEmpty)
+    // 붙잡힌 동기화는 아직 저장소를 읽지 않았으므로, 지금 저장한 기프티콘을 읽는다.
+    try? await photoStore.save([.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))])
+    gates.open(1)
 
-    await waitUntil { model.isIndexingStopped }
     await waitUntil { notification.pendingRequests.map(\.id) == ReminderFixture.expectedIDsFor1029 }
 
     appear.cancel()

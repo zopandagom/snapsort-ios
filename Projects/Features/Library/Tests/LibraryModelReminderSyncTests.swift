@@ -20,25 +20,25 @@ struct LibraryModelReminderSyncTests {
       authorization: .authorized,
       onAuthorizationStatus: { await gates.pass($0) }
     )
-    let model = ReminderFixture.model(photoStore: Self.photoStore(), notification: notification, indexing: indexing)
+    let photoStore = Self.photoStore()
+    let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let appear = Task { await model.onAppear() }
     // 화면 진입 동기화가 권한을 읽는 데서 붙잡힌다.
     await waitUntil { gates.hasEntered(0) && indexing.activeRunCount == 1 }
 
-    for indexedCount in 1 ... 3 {
+    // 진행률은 개수를 다시 읽은 직후 같은 작업에서 동기화를 요청한다. 진행률마다 새 카테고리를 저장해 두고
+    // 그 개수가 보일 때까지 기다리면, 그 진행률의 요청이 들어간 뒤다(열고 나서 요청이 오면 합쳐지지 않아 아래 검사가 거짓으로 실패한다).
+    for (indexedCount, category) in zip(1 ... 3, [ImageCategory.map, .food, .receipt]) {
+      try? await photoStore.save([.stub(id: "\(category.rawValue)", categories: [category])])
       indexing.sendProgress(IndexingProgress(totalCount: 3, indexedCount: indexedCount, skippedCount: 0))
+      await waitUntil { model.categoryCounts[category] == 1 }
     }
-    await waitUntil { model.indexingProgress?.indexedCount == 3 }
-    // 진행률은 개수를 다시 읽은 뒤에 동기화를 요청하므로, 위 대기가 끝나도 세 번째 요청은 아직일 수 있다.
-    // 이 양보로 세 요청이 모두 들어간 뒤에 문을 연다(열고 나서 요청이 오면 합쳐지지 않아 아래 검사가 거짓으로 실패한다).
-    await settle()
     // 붙잡힌 동기화가 있는 동안 다음 동기화는 시작하지 않는다.
+    await settle()
     #expect(!gates.hasEntered(1))
 
     gates.open(0)
     await waitUntil { gates.hasEntered(1) }
-    await settle()
-    #expect(!gates.hasEntered(2))
 
     gates.open(1)
     await waitUntil { notification.pendingRequests.map(\.id) == ReminderFixture.expectedIDsFor1029 }
@@ -77,8 +77,8 @@ struct LibraryModelReminderSyncTests {
     let removed = notification.removedBatches
 
     gates.open(0)
+    // 지난 동기화는 지난 진입의 Task 안에서 돌므로, 그 Task 가 끝나면 지난 동기화도 끝났다.
     await first.value
-    await settle()
 
     #expect(model.notificationAuthorization == .authorized)
     #expect(!model.showsExpiryReminderButton)
@@ -126,15 +126,16 @@ struct LibraryModelReminderSyncTests {
       authorization: .authorized,
       onAuthorizationStatus: { await gates.pass($0) }
     )
-    let model = ReminderFixture.model(photoStore: Self.photoStore(), notification: notification, indexing: indexing)
+    let photoStore = Self.photoStore()
+    let model = ReminderFixture.model(photoStore: photoStore, notification: notification, indexing: indexing)
     let first = Task { await model.onAppear() }
     await waitUntil { gates.hasEntered(0) && indexing.activeRunCount == 1 }
 
+    // 진행률은 개수를 다시 읽은 직후 같은 작업에서 동기화를 요청한다. 두 번째 화면 진입이 요청 신호를 먼저 바꾸면 요청이
+    // 새 루프로 가므로, 새 카테고리 개수가 보일 때까지(= 요청이 지난 루프의 스트림에 쌓일 때까지) 기다린 뒤 다시 들어온다.
+    try? await photoStore.save([.stub(id: "map", categories: [.map])])
     indexing.sendProgress(IndexingProgress(totalCount: 1, indexedCount: 1, skippedCount: 0))
-    await waitUntil { model.indexingProgress != nil }
-    // 진행률은 개수를 다시 읽은 뒤에 동기화를 요청한다. 두 번째 화면 진입이 요청 신호를 먼저 바꾸면 요청이 새 루프로 가므로,
-    // 이 양보로 요청이 지난 루프의 스트림에 쌓인 뒤에 다시 들어온다.
-    await settle()
+    await waitUntil { model.categoryCounts[.map] == 1 }
     // 지난 루프를 취소하지 않고 다시 들어와, 번호 비교만으로 쌓인 요청을 버리는지 본다.
     let second = Task { await model.onAppear() }
     await waitUntil { notification.pendingRequests.map(\.id) == ReminderFixture.expectedIDsFor1029 }
@@ -173,8 +174,8 @@ struct LibraryModelReminderSyncTests {
     let removed = notification.removedBatches
 
     storeGates.open(0)
+    // 지난 동기화는 지난 진입의 Task 안에서 돌므로, 그 Task 가 끝나면 지난 동기화도 끝났다.
     await first.value
-    await settle()
 
     #expect(model.hasPlannedReminder)
     #expect(notification.addedBatches == added)
@@ -277,8 +278,8 @@ struct LibraryModelReminderSyncTests {
     first.cancel()
     await first.value
 
+    // 동기화 루프가 끝난 뒤라 요청은 바로 돌아온 이 시점에 버려졌다.
     await model.notificationsTapped()
-    await settle()
 
     #expect(notification.requestAuthorizationCount == 1)
     #expect(model.notificationAuthorization == .authorized)
