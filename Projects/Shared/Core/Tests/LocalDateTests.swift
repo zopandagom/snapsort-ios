@@ -46,4 +46,29 @@ struct LocalDateTests {
     let components = try #require(LocalDate(year: 2026, month: 12, day: 31)).dateComponents
     #expect(components == DateComponents(year: 2026, month: 12, day: 31))
   }
+
+  @Test(
+    "며칠 뒤·앞 날짜는 월말·윤년·연말 경계를 넘어 센다",
+    arguments: [
+      (20_260_131, 1, 20_260_201),
+      (20_280_228, 1, 20_280_229),
+      (20_280_301, -1, 20_280_229),
+      (20_260_301, -1, 20_260_228),
+      (20_261_231, 1, 20_270_101),
+      (20_270_103, -7, 20_261_227),
+      (20_261_019, 0, 20_261_019),
+      (20_261_019, -365, 20_251_019),
+      (20_000_228, 1, 20_000_229),
+      (21_000_228, 1, 21_000_301),
+    ]
+  )
+  func addsDays(start: Int, days: Int, expected: Int) throws {
+    let date = try #require(Self.date(start))
+    #expect(date.addingDays(days) == Self.date(expected))
+  }
+
+  /// yyyymmdd 정수로 적은 날짜.
+  private static func date(_ dayNumber: Int) -> LocalDate? {
+    LocalDate(year: dayNumber / 10000, month: dayNumber / 100 % 100, day: dayNumber % 100)
+  }
 }
