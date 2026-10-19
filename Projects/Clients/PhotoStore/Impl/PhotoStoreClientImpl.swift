@@ -78,6 +78,10 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.images(in: category) }
   }
 
+  public func upcomingGifticonExpiries(from date: LocalDate) async throws(PhotoStoreError) -> [GifticonExpiry] {
+    try await Self.perform { try await self.store.value.upcomingGifticonExpiries(from: date) }
+  }
+
   public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
     try await Self.perform { try await self.store.value.categoryCounts() }
   }

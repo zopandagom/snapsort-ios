@@ -32,6 +32,11 @@ public protocol PhotoStoreClient: Sendable {
   /// 그 카테고리에 속한 이미지를 최신순(생성일 없는 이미지는 맨 뒤)으로 돌려준다.
   func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage]
 
+  /// 지금 규칙 버전으로 추출해 만료일을 찾은 기프티콘 중 만료일이 `date` 와 같거나 늦은 것을 만료일 오름차순(같으면 식별자 순)으로 돌려준다.
+  /// 저장된 yyyymmdd 정수로 조건·정렬한다. 추출 대기 행(다른 규칙 버전, 만료일 정수를 날짜로 해석하지 못함)은 빠지므로,
+  /// 이 결과에 없다는 것이 만료일이 없다는 뜻은 아니다. 알림을 지우기 전에 `gifticonExtractionPendingIDs()` 를 함께 본다.
+  func upcomingGifticonExpiries(from date: LocalDate) async throws(PhotoStoreError) -> [GifticonExpiry]
+
   /// 카테고리별 이미지 수. 이미지가 없는 카테고리는 빠진다.
   /// 여행은 이미지 카테고리가 아니라 `tripCount()` 로 센다.
   func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int]

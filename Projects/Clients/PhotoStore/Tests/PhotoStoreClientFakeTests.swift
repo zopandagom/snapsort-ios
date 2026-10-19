@@ -198,6 +198,62 @@ struct PhotoStoreClientFakeTests {
     #expect(fake.savedGifticonBatches == [["a": info]])
   }
 
+  @Test("Impl 처럼 만료일이 기준일과 같거나 늦은 기프티콘을 만료일 오름차순(같으면 식별자 순)으로 돌려준다")
+  func listsUpcomingExpiries() async throws {
+    let date = { (year: Int, month: Int, day: Int) throws -> LocalDate in
+      try #require(LocalDate(year: year, month: month, day: day))
+    }
+    let gifticon = { (id: String, expiryDate: LocalDate?) in
+      IndexedImage.stub(
+        id: id,
+        textRecognition: .recognized([]),
+        categories: [.gifticon],
+        gifticon: GifticonInfo(expiryDate: expiryDate, redemptionPlace: nil)
+      )
+    }
+    let fake = try PhotoStoreClientFake(images: [
+      gifticon("late", date(2027, 1, 5)),
+      gifticon("b", date(2026, 12, 31)),
+      gifticon("a", date(2026, 12, 31)),
+      gifticon("today", date(2026, 10, 19)),
+      gifticon("yesterday", date(2026, 10, 18)),
+      gifticon("notFound", nil),
+      IndexedImage.stub(id: "notExtracted", textRecognition: .recognized([]), categories: [.gifticon]),
+    ])
+
+    let expiries = try await fake.upcomingGifticonExpiries(from: date(2026, 10, 19))
+
+    #expect(expiries.map(\.imageID) == ["today", "a", "b", "late"])
+    #expect(try expiries.first == GifticonExpiry(imageID: "today", expiryDate: date(2026, 10, 19)))
+  }
+
+  @Test("만료 예정 조회 훅은 호출 번호를 0부터 받고, 기다리는 동안 바뀐 저장소가 아니라 훅 전에 계산한 값을 돌려준다")
+  func returnsUpcomingExpiriesComputedBeforeHook() async throws {
+    let expiryDate = try #require(LocalDate(year: 2026, month: 12, day: 31))
+    let gifticon = IndexedImage.stub(
+      id: "a",
+      textRecognition: .recognized([]),
+      categories: [.gifticon],
+      gifticon: GifticonInfo(expiryDate: expiryDate, redemptionPlace: nil)
+    )
+    let indexes = Mutex<[Int]>([])
+    let fake = Later<PhotoStoreClientFake>()
+    let instance = PhotoStoreClientFake(onUpcomingGifticonExpiries: { index in
+      indexes.withLock { $0.append(index) }
+      if index == 0 {
+        try? await fake.value?.save([gifticon])
+      }
+    })
+    fake.set(instance)
+
+    let first = try await instance.upcomingGifticonExpiries(from: expiryDate)
+    let second = try await instance.upcomingGifticonExpiries(from: expiryDate)
+
+    #expect(first.isEmpty)
+    #expect(second == [GifticonExpiry(imageID: "a", expiryDate: expiryDate)])
+    #expect(indexes.withLock { $0 } == [0, 1])
+  }
+
   @Test("정해 둔 실패를 던진다")
   func throwsConfiguredError() async {
     let fake = PhotoStoreClientFake(error: .failed)
@@ -211,5 +267,21 @@ struct PhotoStoreClientFakeTests {
     await #expect(throws: PhotoStoreError.failed) {
       try await fake.tripCount()
     }
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.upcomingGifticonExpiries(from: LocalDate(Date(), calendar: .current))
+    }
+  }
+}
+
+/// 훅이 만들기 전의 대역을 참조하도록 나중에 채운다.
+private final class Later<Value: Sendable>: Sendable {
+  private let storage = Mutex<Value?>(nil)
+
+  var value: Value? {
+    self.storage.withLock { $0 }
+  }
+
+  func set(_ value: Value) {
+    self.storage.withLock { $0 = value }
   }
 }
