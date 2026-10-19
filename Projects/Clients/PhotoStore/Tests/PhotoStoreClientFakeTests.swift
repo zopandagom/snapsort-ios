@@ -147,6 +147,57 @@ struct PhotoStoreClientFakeTests {
     #expect(try await fake.gifticonExtractionPendingIDs() == ["b"])
   }
 
+  @Test("소급 추출 실패를 정하면 추출 대기 조회·추출 값 저장만 실패하고 다른 호출과 저장 결과는 그대로다")
+  func failsOnlyGifticonCallsWithGifticonError() async throws {
+    let pending = IndexedImage.stub(id: "a", textRecognition: .recognized([]), categories: [.gifticon])
+    let hookCalls = Mutex(0)
+    let fake = PhotoStoreClientFake(
+      images: [pending],
+      gifticonError: .failed,
+      onSaveGifticons: { _ in hookCalls.withLock { $0 += 1 } }
+    )
+
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.gifticonExtractionPendingIDs()
+    }
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.saveGifticons(["a": GifticonInfo(expiryDate: nil, redemptionPlace: "CU")])
+    }
+    try await fake.save([.stub(id: "b")])
+    try await fake.delete(ids: ["missing"])
+
+    #expect(hookCalls.withLock { $0 } == 1)
+    #expect(fake.savedGifticonBatches.isEmpty)
+    #expect(try await fake.images(ids: ["a"]) == [pending])
+    #expect(try await fake.indexedIDs() == ["a", "b"])
+    #expect(try await fake.pendingTextRecognitionIDs().isEmpty)
+    #expect(fake.savedBatches.map { $0.map(\.id) } == [["b"]])
+  }
+
+  @Test("식별자 읽기 실패를 정하면 그 식별자를 포함한 읽기만 실패하고 다른 읽기·호출과 저장 결과는 그대로다")
+  func failsOnlyIDReadsIncludingFailingIDs() async throws {
+    let failing = IndexedImage.stub(id: "a", textRecognition: .recognized([]), categories: [.gifticon])
+    let readable = IndexedImage.stub(id: "b", textRecognition: .recognized([]), categories: [.gifticon])
+    let fake = PhotoStoreClientFake(images: [failing, readable], failingOnIDRead: ["a"])
+
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.images(ids: ["a"])
+    }
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.images(ids: ["a", "b"])
+    }
+    #expect(try await fake.images(ids: ["b"]) == [readable])
+    #expect(fake.images == [failing, readable])
+
+    let info = GifticonInfo(expiryDate: nil, redemptionPlace: "CU")
+    #expect(try await fake.indexedIDs() == ["a", "b"])
+    try await fake.save([.stub(id: "c")])
+    try await fake.saveGifticons(["a": info])
+
+    #expect(fake.savedBatches.map { $0.map(\.id) } == [["c"]])
+    #expect(fake.savedGifticonBatches == [["a": info]])
+  }
+
   @Test("정해 둔 실패를 던진다")
   func throwsConfiguredError() async {
     let fake = PhotoStoreClientFake(error: .failed)
