@@ -62,6 +62,14 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.pendingTextRecognitionIDs() }
   }
 
+  public func gifticonExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try await Self.perform { try await self.store.value.gifticonExtractionPendingIDs() }
+  }
+
+  public func saveGifticons(_ gifticons: [ImageAsset.ID: GifticonInfo]) async throws(PhotoStoreError) {
+    try await Self.perform { try await self.store.value.saveGifticons(gifticons) }
+  }
+
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(ids: ids) }
   }

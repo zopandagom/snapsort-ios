@@ -49,6 +49,7 @@ actor PhotoStore {
         // 여행은 `StoredTrip` 으로 다루므로 카테고리 행으로 두지 않는다. 순서를 고정해 같은 입력이면 같은 행이 되게 한다.
         stored.memberships = image.categories.subtracting([.travel]).map(\.rawValue).sorted()
           .map(StoredCategoryMembership.init)
+        Self.setGifticon(image.gifticon, on: stored)
       }
     }
   }
@@ -78,6 +79,43 @@ actor PhotoStore {
     )
     descriptor.propertiesToFetch = [\.assetID]
     return try Set(self.modelContext.fetch(descriptor).map(\.assetID))
+  }
+
+  func gifticonExtractionPendingIDs() throws -> Set<ImageAsset.ID> {
+    let rawValue = ImageCategory.gifticon.rawValue
+    var descriptor = FetchDescriptor<StoredImage>(
+      predicate: #Predicate { image in
+        image.textLinesData != nil && image.memberships.contains { $0.category == rawValue }
+      }
+    )
+    descriptor.propertiesToFetch = [\.assetID, \.gifticonRulesVersion, \.gifticonExpiryDay]
+    // 버전 비교를 조건에 넣지 않고 여기서 거르는 것은 만료일 해석 실패 판정(`storedGifticon`)을 조건으로 쓸 수 없어서다.
+    // 후보는 기프티콘 읽음 행뿐이라 많지 않다.
+    return try Set(
+      self.modelContext.fetch(descriptor).filter { Self.storedGifticon($0) == nil }.map(\.assetID)
+    )
+  }
+
+  func saveGifticons(_ gifticons: [ImageAsset.ID: GifticonInfo]) throws {
+    try self.write {
+      let ids = Array(gifticons.keys)
+      let stored = try self.modelContext.fetch(
+        FetchDescriptor<StoredImage>(predicate: #Predicate { ids.contains($0.assetID) })
+      )
+      let rawValue = ImageCategory.gifticon.rawValue
+      for image in stored {
+        // `gifticonExtractionPendingIDs` 와 같은 조건인 행만 바꾼다. 이미 지금 버전으로 추출한 행을 덮지 않아,
+        // 겹친 지난 실행이 앞서 읽은 줄로 뽑은 값이 새 추출을 덮지 않고, 다시 대기가 된 행에 값이 붙지 않는다.
+        guard image.textLinesData != nil,
+              image.memberships.contains(where: { $0.category == rawValue }),
+              Self.storedGifticon(image) == nil,
+              let gifticon = gifticons[image.assetID]
+        else {
+          continue
+        }
+        Self.setGifticon(gifticon, on: image)
+      }
+    }
   }
 
   func images(ids: Set<ImageAsset.ID>) throws -> [IndexedImage] {
@@ -180,6 +218,43 @@ actor PhotoStore {
     }
   }
 
+  /// 저장된 추출 값. nil 이면 추출하지 않은 것으로 본다(읽기·추출 대기·`saveGifticons` 가 모두 이 판정을 쓴다).
+  /// 버전은 맞는데 만료일 정수를 날짜로 해석하지 못하면 던지지 않고 추출하지 않은 것으로 본다. 던지면 그 행이 든
+  /// `images(in: .gifticon)` 이 계속 실패해 사용자가 회복할 수 없고, 추출 값은 저장된 줄로 다시 만들 수 있다
+  /// (추출 대기에 들어 소급 추출이 다시 쓴다). 쓰는 쪽은 늘 유효한 날짜를 쓰므로 정상 흐름에서는 생기지 않는다.
+  private static func storedGifticon(_ stored: StoredImage) -> GifticonInfo? {
+    // `!=` 라 앱을 되돌려 더 높은 버전이 남아도 다시 추출한다.
+    guard stored.gifticonRulesVersion == GifticonExtractor.rulesVersion else {
+      return nil
+    }
+    let expiryDate: LocalDate?
+    if let day = stored.gifticonExpiryDay {
+      guard let date = Self.localDate(day) else {
+        return nil
+      }
+      expiryDate = date
+    } else {
+      expiryDate = nil
+    }
+    return GifticonInfo(expiryDate: expiryDate, redemptionPlace: stored.gifticonRedemptionPlace)
+  }
+
+  /// 추출함이면 지금 규칙 버전과 값을, nil(추출 안 함)이면 (0, nil, nil) 을 쓴다.
+  private static func setGifticon(_ gifticon: GifticonInfo?, on stored: StoredImage) {
+    stored.gifticonRulesVersion = gifticon == nil ? 0 : GifticonExtractor.rulesVersion
+    stored.gifticonExpiryDay = gifticon?.expiryDate.map { Self.dayNumber($0) }
+    stored.gifticonRedemptionPlace = gifticon?.redemptionPlace
+  }
+
+  /// 저장 형식 yyyymmdd. 연도가 0 이상이면 `localDate` 와 왕복이 정확하다(추출기는 음수 연도를 내지 않는다).
+  private static func dayNumber(_ date: LocalDate) -> Int {
+    date.year * 10000 + date.month * 100 + date.day
+  }
+
+  private static func localDate(_ dayNumber: Int) -> LocalDate? {
+    LocalDate(year: dayNumber / 10000, month: dayNumber / 100 % 100, day: dayNumber % 100)
+  }
+
   /// `StoredImage.needsTextRecognition` 문서의 표대로 읽는다.
   private static func textRecognition(_ stored: StoredImage, decoder: PropertyListDecoder) throws -> TextRecognition {
     if let data = stored.textLinesData {
@@ -205,7 +280,8 @@ actor PhotoStore {
       ),
       labels: decoder.decode([ImageLabel].self, from: stored.labelsData),
       textRecognition: Self.textRecognition(stored, decoder: decoder),
-      categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) })
+      categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
+      gifticon: Self.storedGifticon(stored)
     )
   }
 }

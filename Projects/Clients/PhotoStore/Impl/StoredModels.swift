@@ -19,6 +19,14 @@ final class StoredImage {
   var needsTextRecognition = false
   /// 읽은 OCR 줄. 대상 아님·대기면 nil.
   var textLinesData: Data?
+  /// 기프티콘 추출 값은 세 속성으로 읽는다(`PhotoStore.storedGifticon`). 기프티콘으로 분류돼 글자를 읽은 행만 값을 갖는다.
+  /// 추출한 규칙 버전(`GifticonExtractor.rulesVersion`). 0 이면 추출하지 않았다. 지금 버전과 다르면 추출하지 않은 것으로 읽는다.
+  /// 세 속성 모두 기본값·옵셔널이라, 이 속성이 생기기 전에 저장한 행은 경량 이전으로 추출하지 않은 행이 된다.
+  var gifticonRulesVersion = 0
+  /// 만료일 yyyymmdd 정수(20261231). 정수 순서가 날짜 순서라 정렬·조건 조회가 된다. 못 찾음·추출 안 함이면 nil.
+  var gifticonExpiryDay: Int?
+  /// 교환처(OCR 텍스트 그대로). 못 찾음·추출 안 함이면 nil.
+  var gifticonRedemptionPlace: String?
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []
