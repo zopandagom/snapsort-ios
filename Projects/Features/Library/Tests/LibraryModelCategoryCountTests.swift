@@ -21,7 +21,7 @@ struct LibraryModelCategoryCountTests {
       trips: [.stub(), .stub()]
     )
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore, notification: nil)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
@@ -33,7 +33,7 @@ struct LibraryModelCategoryCountTests {
   func noTripsOmitsTravel() async {
     let photoStore = PhotoStoreClientFake(images: [.stub(id: "a", categories: [.document])])
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore, notification: nil)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
@@ -47,7 +47,8 @@ struct LibraryModelCategoryCountTests {
     let model = LibraryModel(
       photoLibrary: photoLibrary,
       indexing: nil,
-      photoStore: PhotoStoreClientFake(images: [.stub(id: "a", categories: [.food])], error: .failed)
+      photoStore: PhotoStoreClientFake(images: [.stub(id: "a", categories: [.food])], error: .failed),
+      notification: nil
     )
     photoLibrary.finishImageChanges()
 
@@ -61,7 +62,7 @@ struct LibraryModelCategoryCountTests {
     let photoStore = PhotoStoreClientFake()
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: photoStore)
+    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: photoStore, notification: nil)
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
 

@@ -3,6 +3,8 @@ import Foundation
 import IndexingInterface
 import IndexingTesting
 import LibraryFeature
+import NotificationInterface
+import NotificationTesting
 import PhotoLibraryTesting
 import PhotoStoreInterface
 import PhotoStoreTesting
@@ -11,10 +13,12 @@ import SwiftUI
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 @main
 struct LibraryFeatureExampleApp: App {
+  /// 알림 권한을 정하기 전이라 "만료 알림 받기" 버튼이 보이고, 누르면 허용된 것처럼 버튼이 사라진다.
   @State private var model = LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewInProgress,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: NotificationClientFake.previewNotDetermined()
   )
 
   var body: some Scene {
@@ -87,20 +91,36 @@ extension IndexingClientFake {
   )
 }
 
+extension NotificationClientFake {
+  /// 권한을 정하기 전. 요청하면 허용된다. Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
+  static func previewNotDetermined() -> NotificationClientFake {
+    NotificationClientFake(authorization: .notDetermined, authorizationAfterRequest: .authorized)
+  }
+
+  static func previewAuthorized() -> NotificationClientFake {
+    NotificationClientFake(authorization: .authorized)
+  }
+}
+
 extension PhotoStoreClientFake {
   /// 정보형·사진형 카테고리와 여행이 섞인 분류 결과. Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
-  static func previewClassified() -> PhotoStoreClientFake {
+  /// - Parameter hasUpcomingExpiry: 참이면 기프티콘이 오늘부터 10일 뒤 만료되어 만료 알림을 예약할 수 있다.
+  ///   거짓이면 기프티콘의 만료일을 찾지 못한 것으로 둔다.
+  static func previewClassified(hasUpcomingExpiry: Bool = true) -> PhotoStoreClientFake {
     let counts: [(ImageCategory, Int)] = [
       (.gifticon, 7), (.receipt, 12), (.chat, 9), (.document, 4),
       (.food, 21), (.people, 30), (.landscape, 6), (.other, 3),
     ]
+    let expiryDate = hasUpcomingExpiry ? LocalDate(Date(), calendar: .current).addingDays(10) : nil
     let images = counts.flatMap { category, count in
       (0 ..< count).map { index in
+        // 기프티콘 추출 값은 글자를 읽은 기프티콘에만 담긴다(`IndexedImage` init).
         IndexedImage(
           asset: .stub(id: "\(category.rawValue)-\(index)"),
           labels: [],
-          textRecognition: .notNeeded,
-          categories: [category]
+          textRecognition: category == .gifticon ? .recognized([]) : .notNeeded,
+          categories: [category],
+          gifticon: GifticonInfo(expiryDate: expiryDate, redemptionPlace: nil)
         )
       }
     }
@@ -118,7 +138,8 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewInProgress,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
   ))
 }
 
@@ -126,7 +147,8 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewStopped,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
   ))
 }
 
@@ -134,7 +156,8 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewRecognizingText,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
   ))
 }
 
@@ -142,7 +165,8 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewTextStopped,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
   ))
 }
 
@@ -150,18 +174,43 @@ extension PhotoStoreClientFake {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: IndexingClientFake.previewFinished,
-    photoStore: PhotoStoreClientFake.previewClassified()
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
   ))
 }
 
 #Preview("제한 접근") {
-  LibraryView(model: LibraryModel(photoLibrary: PhotoLibraryClientFake.previewLimited, indexing: nil, photoStore: nil))
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewLimited,
+    indexing: nil,
+    photoStore: nil,
+    notification: nil
+  ))
 }
 
 #Preview("이미지 없음") {
   LibraryView(model: LibraryModel(
     photoLibrary: PhotoLibraryClientFake(currentState: .authorized),
     indexing: nil,
-    photoStore: nil
+    photoStore: nil,
+    notification: nil
+  ))
+}
+
+#Preview("알림 허용됨") {
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewFinished,
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: NotificationClientFake.previewAuthorized()
+  ))
+}
+
+#Preview("만료 예정 없음") {
+  LibraryView(model: LibraryModel(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewFinished,
+    photoStore: PhotoStoreClientFake.previewClassified(hasUpcomingExpiry: false),
+    notification: NotificationClientFake.previewNotDetermined()
   ))
 }
