@@ -1,0 +1,37 @@
+import Core
+import Foundation
+import PhotoStoreInterface
+
+/// 소급 추출 (docs/ARCHITECTURE.md §4 인덱싱).
+/// 2단계보다 먼저 저장된 기프티콘(저장소 경량 이전 뒤)이나 규칙 버전을 올리기 전에 추출한 기프티콘을, OCR 없이 저장된 줄로 다시 추출한다.
+extension IndexingRun {
+  /// 소급 대상 중 최신 `batchSize` 장의 저장된 줄로 추출해 추출 값만 저장한다. 진행률은 보내지 않는다(카테고리·개수가 바뀌지 않는다).
+  /// 고른 배치는 저장할 것이 없어도 모두 대상에서 빼서, 저장 행이 없거나 조건이 맞지 않는 이미지로 같은 실행에서 다시 돌지 않는다.
+  /// 저장소는 기프티콘·읽음·추출 안 함 행만 바꾸므로, 그 사이 지워졌거나 다시 대기가 된 행에는 쓰지 않는다.
+  mutating func extractGifticonBatch() async throws(IndexingStop) {
+    if Task.isCancelled {
+      throw .cancelled
+    }
+    // 삭제 변경이 대상에서 빼지만, 1단계에서 보관함에 없다고 나온 이미지는 `assets` 에서만 빠진다.
+    self.pendingGifticonIDs.formIntersection(self.assets.keys)
+    let batchIDs = Array(Self.newestFirst(self.pendingGifticonIDs, in: self.assets).prefix(self.batchSize))
+    guard !batchIDs.isEmpty else { return }
+    let stored = try await self.store { () async throws(PhotoStoreError) in
+      try await self.photoStore.images(ids: Set(batchIDs))
+    }
+    var gifticons: [ImageAsset.ID: GifticonInfo] = [:]
+    for image in stored where image.categories.contains(.gifticon) {
+      guard let lines = image.textLines, let asset = self.assets[image.id] else { continue }
+      gifticons[image.id] = GifticonExtractor.extract(
+        from: lines,
+        referenceDate: asset.creationDate,
+        calendar: self.calendar
+      )
+    }
+    if !gifticons.isEmpty {
+      let batch = gifticons
+      try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveGifticons(batch) }
+    }
+    self.pendingGifticonIDs.subtract(batchIDs)
+  }
+}

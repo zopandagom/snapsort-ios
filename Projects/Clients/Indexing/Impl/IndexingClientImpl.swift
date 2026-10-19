@@ -8,7 +8,8 @@ import PhotoStoreInterface
 /// 다른 Client 를 조합한 구현. 이 모듈은 Apple 데이터 프레임워크를 직접 쓰지 않는다.
 public struct IndexingClientImpl: IndexingClient {
   /// 1단계(분류)에서 한 번에 저장·삭제하는 이미지 수. 저장소는 식별자 목록 조건(`ids.contains`)으로 기존 행을 찾으므로 조건 크기를 이 수로 묶고,
-  /// 중간에 멈춰도 이 수만큼만 다시 분석하게 한다. 임시 값이며 1만 장 측정 작업에서 확정한다.
+  /// 중간에 멈춰도 이 수만큼만 다시 분석하게 한다. 소급 추출도 같은 저장소 조건을 쓰므로 이 수로 나눠 읽고 저장한다.
+  /// 임시 값이며 1만 장 측정 작업에서 확정한다.
   static let defaultBatchSize = 50
   /// 2단계(OCR)에서 한 번에 읽어 저장하는 이미지 수. OCR 은 장당 약 1초라 이 수마다 저장·진행률·개수가 갱신되고,
   /// 멈춰도 이 수만큼만 다시 OCR 한다. 보관함 변경도 이 배치 경계에서 먼저 반영한다. 임시 값이며 실기기에서 조정한다.
@@ -21,7 +22,8 @@ public struct IndexingClientImpl: IndexingClient {
   private let batchSize: Int
   private let textBatchSize: Int
 
-  /// - Parameter calendar: 여행 판정에서 날짜를 나누는 달력. 앱은 기기 달력을 넘긴다.
+  /// - Parameter calendar: 날짜를 나누는 달력. 여행 판정과 기프티콘 추출(2단계·소급 추출에서 이미지 생성일의 날짜를 정해
+  ///   연도를 생략한 만료일의 기준일로 쓴다)에 쓴다. 앱은 기기 달력을 넘긴다.
   public init(
     photoLibrary: any PhotoLibraryClient,
     imageAnalysis: any ImageAnalysisClient,
@@ -98,6 +100,9 @@ struct IndexingRun {
   /// 2단계에서 보관함에 없다고(`notFound`) 나와 대기에서 뺐지만 저장 행은 대기로 남은 이미지.
   /// 삭제 변경이 오면 빼고(행은 삭제 경로가 지운다), 삭제 없이 다시 추가되면 대기로 되돌린다. 전체 다시 비교에서 비운다(저장소에서 다시 채운다).
   var goneTextIDs: Set<ImageAsset.ID> = []
+  /// 기프티콘으로 분류돼 글자를 읽었지만 지금 규칙 버전으로 추출하지 않은 보관함 이미지. 저장된 줄로 소급 추출한다(IndexingRun+Gifticon.swift).
+  /// 2단계 대기(읽기 전 행)와 겹치지 않는다. 진행률에는 넣지 않는다.
+  var pendingGifticonIDs: Set<ImageAsset.ID> = []
   /// 이번 실행에서 글자를 읽어 저장한 수.
   var recognizedTextCount = 0
   /// 마지막으로 여행을 판정한 보관함. 같은 보관함으로 다시 판정·저장하지 않으려고 둔다.
@@ -119,8 +124,8 @@ struct IndexingRun {
     self.textBatchSize = textBatchSize
   }
 
-  /// 처음 비교·1단계를 마친 뒤 보관함 변경과 2단계를 번갈아 한다. Task 가 취소되거나, 저장소가 실패하거나, 읽기 권한이 없으면 돌아온다.
-  /// 변경은 자식 Task 가 받아 수신함에 쌓고, 본 루프가 2단계 배치 경계에서 꺼내 먼저 반영한다.
+  /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출, 2단계를 번갈아 한다. Task 가 취소되거나, 저장소가 실패하거나, 읽기 권한이 없으면 돌아온다.
+  /// 변경은 자식 Task 가 받아 수신함에 쌓고, 본 루프가 소급 추출·2단계 배치 경계에서 꺼내 먼저 반영한다.
   /// 본 루프가 어느 경로로 끝나든 자식을 취소한다. 저장소 실패·권한 없음은 부모 Task 가 취소되지 않은 채 끝나므로,
   /// 취소하지 않으면 자식이 끝나지 않는 변경 스트림에 머물러 `run()` 스트림이 끝나지 않는다.
   mutating func start(report: (IndexingProgress) -> Void) async {
@@ -147,8 +152,9 @@ struct IndexingRun {
     }
   }
 
-  /// 변경이 있으면 먼저 반영하고, 없으면 2단계 한 배치를 하고, 둘 다 없으면 변경을 기다린다.
-  /// 변경 스트림이 끝났으면 남은 변경과 2단계를 마친 뒤 돌아온다.
+  /// 변경이 있으면 먼저 반영하고, 없으면 소급 추출 한 배치, 그것도 없으면 2단계 한 배치를 하고, 모두 없으면 변경을 기다린다.
+  /// 소급 추출은 OCR 없이 저장된 줄로 하는 순수 계산이라 OCR 보다 훨씬 짧으므로 먼저 한다.
+  /// 변경 스트림이 끝났으면 남은 변경·소급 추출·2단계를 마친 뒤 돌아온다.
   private mutating func loop(
     inbox: ChangeInbox,
     signals: AsyncStream<Void>,
@@ -170,6 +176,8 @@ struct IndexingRun {
             try await self.reloadAll(report: report)
           }
         }
+      } else if !self.pendingGifticonIDs.isEmpty {
+        try await self.extractGifticonBatch()
       } else if !self.pendingTextIDs.isEmpty {
         try await self.recognizeBatch(report: report)
       } else if isFinished {
@@ -192,10 +200,14 @@ struct IndexingRun {
     let pending = try await self.store { () async throws(PhotoStoreError) in
       try await self.photoStore.pendingTextRecognitionIDs()
     }
+    let pendingGifticons = try await self.store { () async throws(PhotoStoreError) in
+      try await self.photoStore.gifticonExtractionPendingIDs()
+    }
     let libraryIDs = Set(self.assets.keys)
     // 첫 진행률부터 대기 수가 들어가도록 보고 전에 채운다. 늦게 채우면 재시작 직후 다 끝난 것처럼 보였다가 다시 진행 중이 된다.
     self.indexedIDs = stored.intersection(libraryIDs)
     self.pendingTextIDs = pending.intersection(libraryIDs)
+    self.pendingGifticonIDs = pendingGifticons.intersection(libraryIDs)
     self.skippedIDs = []
     self.textSkippedIDs = []
     self.goneTextIDs = []
@@ -225,6 +237,7 @@ struct IndexingRun {
     self.indexedIDs.subtract(removedIDs)
     self.skippedIDs.subtract(removedIDs)
     self.pendingTextIDs.subtract(removedIDs)
+    self.pendingGifticonIDs.subtract(removedIDs)
     self.textSkippedIDs.subtract(removedIDs)
     self.goneTextIDs.subtract(removedIDs)
     // 삭제를 먼저 반영했으므로, 같은 변경에 삭제와 추가가 함께 오면 행이 지워져 아래 1단계 대상이 된다.
