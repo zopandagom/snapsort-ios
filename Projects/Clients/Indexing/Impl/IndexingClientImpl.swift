@@ -26,7 +26,7 @@ public struct IndexingClientImpl: IndexingClient {
   private let textBatchSize: Int
 
   /// - Parameter classifier: 2단계의 분류 보강(규칙 분류가 기타뿐인 이미지)과 기프티콘 추출 보강에 쓰는 언어 모델.
-  ///   모델을 쓸 수 없으면 규칙 결과만 저장한다.
+  ///   모델을 쓸 수 없거나 모델이 실패·거부하면 규칙 결과만 저장한다.
   /// - Parameter calendar: 날짜를 나누는 달력. 여행 판정과 기프티콘 추출(2단계·소급 추출에서 이미지 생성일의 날짜를 정해
   ///   연도를 생략한 만료일의 기준일로 쓴다)에 쓴다. 앱은 기기 달력을 넘긴다.
   public init(

@@ -119,6 +119,28 @@ struct IndexingClientImplModelTests {
     #expect(classifier.requests == [.classify(ocrLines(otherOnlyText))])
   }
 
+  @Test("글자가 없는 기프티콘은 모델을 부르지 않고 보강을 마친다")
+  func finishesGifticonWithoutTextWithoutModel() async {
+    let classifier = ClassifierClientFake(extractResult: .success(modelExpiryAnswer))
+    let couponLabels = [ImageLabel(identifier: "coupon", confidence: 0.9)]
+    let coupon = ImageAsset.stub(id: "coupon", creationDate: date(month: 10, day: 1), isScreenshot: true)
+    // 라벨만으로 기프티콘이 되고 OCR 은 글자를 읽지 못했다. 모델이 대조할 원문이 없다.
+    let fixture = Fixture(
+      library: [coupon],
+      stored: [pending(coupon, labels: couponLabels)],
+      labels: ["coupon": couponLabels],
+      classifier: classifier
+    )
+
+    await fixture.runToEnd()
+
+    let image = fixture.store.images.only
+    #expect(image?.categories.contains(.gifticon) == true)
+    #expect(image?.gifticon == GifticonInfo(expiryDate: nil, redemptionPlace: nil))
+    #expect(image?.gifticonModelFill == .done)
+    #expect(classifier.requests.isEmpty)
+  }
+
   @Test("기타가 아닌 이미지는 모델로 분류하지 않는다")
   func skipsModelForRuleCategorizedImage() async {
     let classifier = ClassifierClientFake(classifyResult: .success([.gifticon]))

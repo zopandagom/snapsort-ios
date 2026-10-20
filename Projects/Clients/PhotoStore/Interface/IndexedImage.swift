@@ -96,7 +96,7 @@ public enum GifticonModelFillResult: Sendable, Hashable {
   /// 모델이 이 이미지에서 실패했다. 추출 값을 규칙 값으로 바꾸고 실패 수를 하나 늘린다(`.stale` 이면 0 에서).
   /// 한도(`GifticonModelFill.maximumFailures`)에 닿으면 마친 것으로 둔다.
   case failed(rules: GifticonInfo)
-  /// 모델을 지금 쓸 수 없다. 추출 값을 규칙 값으로 바꾸고 보강하지 않은 상태로 둔다. 실패 수는 그대로다(`.stale` 이면 0).
+  /// 모델을 지금 쓸 수 없거나 시스템이 요청을 받지 않았다(입력과 무관). 추출 값을 규칙 값으로 바꾸고 보강하지 않은 상태로 둔다. 실패 수는 그대로다(`.stale` 이면 0).
   /// `.stale` 행을 되돌릴 때 쓴다(`.pending` 행은 이미 규칙 값이라 쓸 것이 없다).
   case deferred(rules: GifticonInfo)
 }

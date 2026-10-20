@@ -67,6 +67,24 @@ struct IndexingClientImplModelFillTests {
     #expect(progresses.last == progressesWithoutTargets.last)
   }
 
+  @Test("줄이 없는 보강 대기 행은 모델 없이 마친다")
+  func finishesPendingRowWithoutLinesWithoutModel() async {
+    let classifier = ClassifierClientFake(isModelAvailable: false)
+    let coupon = ImageAsset.stub(id: "coupon", creationDate: date(month: 10, day: 1), isScreenshot: true)
+    let empty = GifticonInfo(expiryDate: nil, redemptionPlace: nil)
+    let fixture = Fixture(
+      library: [coupon],
+      stored: [recognizedGifticon(coupon, text: [], gifticon: empty, modelFill: .pending(failures: 0))],
+      classifier: classifier
+    )
+
+    await fixture.runToEnd()
+
+    #expect(fixture.store.savedModelFillBatches == [["coupon": .filled(empty)]])
+    #expect(fixture.store.images.only?.gifticonModelFill == .done)
+    #expect(classifier.requests.isEmpty)
+  }
+
   @Test("두 값을 찾은 보강 대기 행은 모델 없이 마친다")
   func finishesPendingRowWithBothValuesWithoutModel() async {
     let classifier = ClassifierClientFake(extractResult: .success(modelExpiryAnswer))
