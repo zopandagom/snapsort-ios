@@ -174,7 +174,7 @@ public final class LibraryModel {
   }
 
   /// 인덱서는 보관함 변경을 스스로 관찰하므로, 진행률만 받아 상태에 반영한다.
-  /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출이 끝날 때 진행률을 보내므로, 그때마다 개수를 다시 읽고 만료 알림 동기화를 요청한다.
+  /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출·소급 보강이 끝날 때 진행률을 보내므로, 그때마다 개수를 다시 읽고 만료 알림 동기화를 요청한다.
   /// 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 Task 가 새 Task 의 상태를 덮지 않게 한다.
   private func index(with indexing: any IndexingClient, generation: Int) async {
     guard self.isCurrent(generation) else { return }

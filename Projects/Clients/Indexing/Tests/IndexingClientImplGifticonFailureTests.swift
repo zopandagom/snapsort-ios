@@ -212,6 +212,7 @@ struct IndexingClientImplGifticonFailureTests {
         photoLibrary: fixture.photoLibrary,
         imageAnalysis: fixture.analysis,
         photoStore: fixture.store,
+        classifier: fixture.classifier,
         calendar: Fixture.seoulCalendar,
         batchSize: 1,
         textBatchSize: 1

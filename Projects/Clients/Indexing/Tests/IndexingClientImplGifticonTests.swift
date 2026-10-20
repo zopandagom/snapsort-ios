@@ -209,13 +209,20 @@ let receiptText = ["영수증", "합계 12,000원"]
 let photoLabels = [ImageLabel(identifier: "food", confidence: 0.8)]
 
 /// 2단계를 마친 기프티콘 저장 결과. `gifticon` 이 nil 이면 추출하지 않은 행(소급 추출 대상)이다.
-func recognizedGifticon(_ asset: ImageAsset, text: [String], gifticon: GifticonInfo? = nil) -> IndexedImage {
+/// 보강 상태를 주지 않으면 규칙 추출만 한 값을 저장할 때와 같게 둔다(두 값이 있으면 마침, 아니면 보강 대기).
+func recognizedGifticon(
+  _ asset: ImageAsset,
+  text: [String],
+  gifticon: GifticonInfo? = nil,
+  modelFill: GifticonModelFill? = nil
+) -> IndexedImage {
   IndexedImage(
     asset: asset,
     labels: defaultLabels,
     textRecognition: .recognized(ocrLines(text)),
     categories: [.gifticon],
-    gifticon: gifticon
+    gifticon: gifticon,
+    gifticonModelFill: modelFill ?? .initial(for: gifticon)
   )
 }
 

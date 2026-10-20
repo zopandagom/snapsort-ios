@@ -1,3 +1,4 @@
+import ClassifierTesting
 import Core
 import CoreGraphics
 import Foundation
@@ -21,6 +22,8 @@ struct Fixture {
   let store: PhotoStoreClientFake
   /// 분석 요청 기록. 소급 추출이 OCR 하지 않는지 확인한다.
   let analysis: ImageAnalysisClientFake
+  /// 언어 모델 Fake. 기본은 쓸 수 없음이라 모델 보강 없이 규칙 결과만 저장한다.
+  let classifier: ClassifierClientFake
   let indexing: IndexingClientImpl
   /// 분류에 실패하는 이미지. 테스트 도중 바꿔 다시 시도를 확인한다.
   let classifyFailures: FailingIDs
@@ -40,11 +43,13 @@ struct Fixture {
   ///   - saveLimit: 저장소가 이 횟수만큼 저장한 뒤부터 실패한다.
   ///   - gifticonSaveLimit: 저장소가 추출 값을 이 횟수만큼 저장한 뒤부터 실패한다.
   ///   - gifticonError: 저장소의 소급 추출 호출(대상 조회·추출 값 저장)만 이 실패를 던진다.
+  ///   - modelFillError: 저장소의 소급 보강 호출(대상 조회·보강 결과 저장)만 이 실패를 던진다.
   ///   - onSaveGifticons: 저장소가 추출 값을 저장하기 전에 부른다. 소급 추출 배치 도중의 일을 흉내 낸다.
   ///   - missingOnIDRead: 저장소의 식별자 읽기(`images(ids:)`)가 빼고 돌려줄 식별자.
   ///   - failingOnIDRead: 저장소의 식별자 읽기가 이 식별자를 하나라도 요청받으면 실패한다. 소급 배치 읽기만의 실패를 흉내 낸다
   ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
   ///   - accessState: 사진 접근 권한.
+  ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
   ///   - onClassify: 이미지를 분류할 때마다 부른다. 분석 도중의 일을 흉내 낸다.
   ///   - onRecognize: 이미지를 OCR 할 때마다 결과를 주기 전에 부른다. 2단계 도중의 일을 흉내 낸다.
@@ -66,10 +71,12 @@ struct Fixture {
     saveLimit: Int? = nil,
     gifticonSaveLimit: Int? = nil,
     gifticonError: PhotoStoreError? = nil,
+    modelFillError: PhotoStoreError? = nil,
     onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
     missingOnIDRead: Set<ImageAsset.ID> = [],
     failingOnIDRead: Set<ImageAsset.ID> = [],
     accessState: PhotoAccessState = .authorized,
+    classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
     textBatchSize: Int = IndexingClientImpl.defaultTextBatchSize,
     changeRequests: ChangeRequests? = nil
@@ -84,6 +91,7 @@ struct Fixture {
       saveLimit: saveLimit,
       gifticonSaveLimit: gifticonSaveLimit,
       gifticonError: gifticonError,
+      modelFillError: modelFillError,
       missingOnIDRead: missingOnIDRead,
       failingOnIDRead: failingOnIDRead,
       onSaveGifticons: onSaveGifticons
@@ -94,6 +102,7 @@ struct Fixture {
     self.recognizeFailures = failingText
     let loadFailures = LoadFailures(largest: largestErrors)
     self.loadFailures = loadFailures
+    self.classifier = classifier
     self.analysis = ImageAnalysisClientFake(
       classify: { image in
         let id = idsByWidth[image.cgImage.width] ?? ""
@@ -115,6 +124,7 @@ struct Fixture {
       ),
       imageAnalysis: self.analysis,
       photoStore: self.store,
+      classifier: classifier,
       calendar: Self.seoulCalendar,
       batchSize: batchSize,
       textBatchSize: textBatchSize
@@ -319,23 +329,6 @@ final class FailingIDs: Sendable {
 
   func removeAll() {
     self.ids.withLock { $0.removeAll() }
-  }
-}
-
-/// 분석 도중 분석 Fake 에서 끝낼 수 있는 구독 Task.
-final class ConsumerTask: Sendable {
-  private let task = Mutex<Task<Void, Never>?>(nil)
-
-  func start(_ operation: @escaping @Sendable () async -> Void) {
-    self.task.withLock { $0 = Task(operation: operation) }
-  }
-
-  func cancel() {
-    self.task.withLock { $0?.cancel() }
-  }
-
-  func wait() async {
-    await self.task.withLock { $0 }?.value
   }
 }
 

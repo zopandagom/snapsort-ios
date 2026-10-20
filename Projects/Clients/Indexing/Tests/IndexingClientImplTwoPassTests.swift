@@ -1,3 +1,4 @@
+import ClassifierTesting
 import Core
 import Foundation
 import ImageAnalysisTesting
@@ -177,6 +178,7 @@ struct IndexingClientImplTwoPassTests {
       photoLibrary: PhotoLibraryClientFake(),
       imageAnalysis: ImageAnalysisClientFake(),
       photoStore: PhotoStoreClientFake(),
+      classifier: ClassifierClientFake(isModelAvailable: false),
       calendar: Calendar(identifier: .gregorian),
       batchSize: 50,
       textBatchSize: 10
