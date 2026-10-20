@@ -216,6 +216,13 @@ struct CaptureInfoExtractorTests {
     #expect(info.addresses == [CapturedText(text: "서울 중구 세종대로 110", lineIndex: 0)])
   }
 
+  @Test("한글 라벨 뒤의 영문 주소는 기기의 주소 감지로 읽는다")
+  func readsNonKoreanAddressAfterKoreanLabel() {
+    let info = CaptureInfoExtractor.extract(from: [line("주소: 1 Infinite Loop, Cupertino, CA 95014")])
+
+    #expect(info.addresses == [CapturedText(text: "1 Infinite Loop, Cupertino, CA 95014", lineIndex: 0)])
+  }
+
   @Test("한글이 없는 줄은 기기의 주소 감지로 읽는다")
   func readsNonKoreanAddressWithDetector() {
     let info = CaptureInfoExtractor.extract(from: [line("1 Infinite Loop, Cupertino, CA 95014")])

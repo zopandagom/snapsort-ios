@@ -31,10 +31,12 @@ public struct CapturedText: Sendable, Hashable {
 
 /// 저장된 OCR 줄에서 주소·송장번호·계좌번호를 찾는 규칙 (docs/ARCHITECTURE.md §4 캡처 정보 추출).
 /// 결과를 저장하지 않고 화면이 필요할 때 부르므로, 규칙을 바꿔도 다시 추출할 저장 행이 없다(버전을 두지 않는다).
-/// 주소는 줄마다 찾는다. 한글이 있는 줄은 한국 주소 규칙(`CaptureInfoExtractor+KoreanAddress.swift`)으로, 없는 줄은 Foundation 의 주소 감지
-/// (`NSDataDetector`, 기기 안에서만 동작)로 찾는다. 주소 감지는 기기 환경에 따라 한국어 주소를 하나도 찾지 못해서
-/// (CI 의 iOS 26.5 시뮬레이터에서 확인) 한국어 줄은 환경과 상관없이 같은 결과를 내는 규칙만 쓴다.
-/// 번호는 키워드(택배사·"송장", 은행·"계좌")가 있는 줄의 번호, 그 줄에 숫자가 없으면 바로 다음 줄이 번호로 시작할 때 그 번호를 쓴다.
+/// 주소는 줄마다 찾는다. 한글이 있는 줄은 한국 주소 규칙(`CaptureInfoExtractor+KoreanAddress.swift`)으로 찾고, 찾지 못했거나 한글이 없는 줄은
+/// Foundation 의 주소 감지(`NSDataDetector`, 기기 안에서만 동작)로 찾되 한글이 든 결과는 버린다. 주소 감지는 기기 환경에 따라 한국어 주소를
+/// 하나도 찾지 못해서(CI 의 iOS 26.5 시뮬레이터에서 확인) 한국어 주소는 환경과 상관없이 같은 결과를 내는 규칙만 쓰고,
+/// 감지는 한글 라벨 뒤의 영문 주소("주소: 1 Infinite Loop, …")처럼 한글 없는 주소에만 쓴다.
+/// 번호는 키워드(택배사·"송장", 은행·"계좌")가 있는 줄의 번호, 그 줄에 숫자 묶음(영문자와 붙은 "GS25" 같은 것은 빼고)이 없으면
+/// 바로 다음 줄이 번호로 시작할 때 그 번호를 쓴다.
 /// 키워드는 OCR 이 "운 송 장"처럼 띄워 읽어도 찾도록 공백을 무시하고 소문자로 대조한다.
 /// 키워드는 `ClassificationRules` 키워드 표와 따로 둔다(`scripts/mask-samples.py` 는 그 표만 읽는다).
 /// 결과에 사진에서 읽은 텍스트가 들어 있으므로 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
@@ -82,11 +84,12 @@ public enum CaptureInfoExtractor {
     // `NSDataDetector` 는 Sendable 이 아니어서 정적 프로퍼티로 두지 않고 부를 때마다 만든다. 주소 타입만으로 만들면 실패하지 않는다.
     let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.address.rawValue)
     return texts.enumerated().flatMap { index, text in
-      let found = text.contains(where: \.isHangul)
-        ? Self.koreanAddresses(in: text)
-        : (detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []).compactMap {
+      let korean = text.contains(where: \.isHangul) ? Self.koreanAddresses(in: text) : []
+      let found = korean.isEmpty
+        ? (detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []).compactMap {
           Range($0.range, in: text).map { String(text[$0]) }
-        }
+        }.filter { !$0.contains(where: \.isHangul) }
+        : korean
       return found.map { CapturedText(text: $0, lineIndex: index) }
     }
   }
