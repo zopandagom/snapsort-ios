@@ -70,6 +70,16 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.saveGifticons(gifticons) }
   }
 
+  public func gifticonModelFillPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try await Self.perform { try await self.store.value.gifticonModelFillPendingIDs() }
+  }
+
+  public func saveGifticonModelFills(
+    _ results: [ImageAsset.ID: GifticonModelFillResult]
+  ) async throws(PhotoStoreError) {
+    try await Self.perform { try await self.store.value.saveGifticonModelFills(results) }
+  }
+
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(ids: ids) }
   }

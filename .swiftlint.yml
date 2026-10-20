@@ -90,3 +90,12 @@ custom_rules:
     regex: "\\b(URLSession|URLRequest|NWConnection)\\b"
     message: "'사진이 기기 밖으로 나가지 않는다'가 제품의 핵심 약속입니다. 네트워크 코드는 사전 합의 후 별도 모듈로 추가합니다."
     severity: error
+
+  no_private_cloud_compute:
+    name: "온디바이스 언어 모델만"
+    included: "Projects/"
+    regex: "\\bPrivateCloudCompute\\w*"
+    # 이 규칙을 설명하는 문서 주석은 막지 않는다. 문자열 속 이름은 막는다(동적으로 찾는 우회).
+    excluded_match_kinds: [comment, doccomment]
+    message: "'사진과 읽은 텍스트는 기기 밖으로 나가지 않는다'가 제품의 핵심 약속입니다. Foundation Models 는 온디바이스 SystemLanguageModel 만 씁니다 (Private Cloud Compute 는 텍스트를 Apple 서버로 보냅니다)."
+    severity: error

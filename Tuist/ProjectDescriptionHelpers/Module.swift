@@ -11,6 +11,7 @@ public enum Client: String, CaseIterable {
   case photoStore = "PhotoStore"
   case indexing = "Indexing"
   case notification = "Notification"
+  case classifier = "Classifier"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }

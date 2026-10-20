@@ -27,6 +27,13 @@ final class StoredImage {
   var gifticonExpiryDay: Int?
   /// 교환처(OCR 텍스트 그대로). 못 찾음·추출 안 함이면 nil.
   var gifticonRedemptionPlace: String?
+  /// 언어 모델 보강 상태는 두 속성으로 읽는다(`PhotoStore.modelFill`). 둘 다 기본값이라, 이 속성이 생기기 전에 저장한 행은
+  /// 경량 이전으로 보강하지 않은 행(규칙 값 그대로)이 된다.
+  /// 추출 값을 보강한 버전(`GifticonExtractor.modelFillVersion`). 0 이면 보강하지 않았다.
+  var gifticonModelVersion = 0
+  /// 보강하지 않은 행(버전 0)에서 지금 보강 버전으로 모델이 실패한 횟수. 한도(`GifticonModelFill.maximumFailures`)에 닿으면
+  /// 보강을 마친 것으로 쓴다(버전을 지금 버전으로, 이 값은 0 으로).
+  var gifticonModelFailures = 0
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []

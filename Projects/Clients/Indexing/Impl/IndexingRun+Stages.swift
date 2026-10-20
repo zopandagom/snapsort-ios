@@ -8,9 +8,11 @@ import Synchronization
 
 /// 분석 두 단계 (docs/ARCHITECTURE.md §4 인덱싱).
 /// 1단계(`classify(_:)`)는 새 이미지를 모두 분류해 저장하고, 2단계(`recognize(_:asset:)`)는 OCR 대기 이미지의 글자를 나중에 읽어
-/// 규칙 분류하고, 기프티콘이면 만료일·교환처를 추출해 함께 저장한다.
+/// 규칙 분류하고, 기프티콘이면 만료일·교환처를 추출해 함께 저장한다. 모델을 쓸 수 있으면 2단계가 언어 모델로 보강한다:
+/// 규칙 분류가 기타뿐인 이미지에 근거 있는 정보형 카테고리를 더하고, 기프티콘 추출 값의 빈 필드를 확인된 값으로 채운다(IndexingRun+ModelFill.swift).
 /// Debug 기록 도구의 `SampleRecording.measure`(SampleRecorderFeature)는 한 장에서 두 단계를 이어 단계별 시간을 잰다.
-/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다. 규칙 분류와 기프티콘 추출은 순수 계산이라 기록 도구가 재지 않는다.
+/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다. 규칙 분류와 기프티콘 규칙 추출은 순수 계산이라 기록 도구가 재지 않고,
+/// 언어 모델 보강은 기록 도구가 하지 않아 재지 않는다(기록 도구는 Classifier 를 주입받지 않는다).
 extension IndexingRun {
   // MARK: - 1단계: 분류
 
@@ -77,7 +79,8 @@ extension IndexingRun {
 
   /// OCR 대기 이미지의 카테고리: 라벨만으로 정한 규칙 분류에서 `.other` 를 뺀 것.
   /// 규칙 분류는 OCR 전(줄 없음)의 결과에 줄을 더하면 카테고리가 늘기만 하므로(Core `RuleClassifier`), 2단계는 카테고리를 더하기만 한다.
-  /// `.other` 를 빼 두어 "기타" 수가 1단계에 부풀었다가 줄지 않게 하고, 글자를 읽어도 아무것도 못 찾은 이미지만 2단계 뒤 `.other` 가 된다.
+  /// `.other` 를 빼 두어 "기타" 수가 1단계에 부풀었다가 줄지 않게 하고, 글자를 읽어도 규칙도 모델 보강도 근거 있는 카테고리를 찾지 못한 이미지만
+  /// 2단계 뒤 `.other` 가 된다.
   static func pendingCategories(asset: ImageAsset, labels: [ImageLabel]) -> Set<ImageCategory> {
     RuleClassifier.classify(asset: asset, labels: labels, textLines: []).subtracting([.other])
   }
@@ -152,9 +155,10 @@ extension IndexingRun {
     report(self.progress)
   }
 
-  /// 2단계: 가장 큰 버전으로 OCR → 저장된 라벨과 지금 보관함의 메타데이터, 읽은 줄로 규칙 분류 → 기프티콘이면 추출.
-  /// 추출의 기준일은 카테고리와 같이 지금 보관함의 생성일이고, 날짜는 인덱서의 달력으로 나눈다.
-  func recognize(_ stored: IndexedImage, asset: ImageAsset) async throws(IndexingStop) -> Outcome {
+  /// 2단계: 가장 큰 버전으로 OCR → 저장된 라벨과 지금 보관함의 메타데이터, 읽은 줄로 규칙 분류 → 기타뿐이면 모델 분류 보강
+  /// → 기프티콘이면 추출과 모델 추출 보강. 추출의 기준일은 카테고리와 같이 지금 보관함의 생성일이고, 날짜는 인덱서의 달력으로 나눈다.
+  /// 모델을 부르기 전이나 응답 도중·뒤에 Task 가 취소되면 던져 이 배치를 버린다. 모델을 쓸 수 없거나 실패하면 규칙 결과로 저장한다.
+  mutating func recognize(_ stored: IndexedImage, asset: ImageAsset) async throws(IndexingStop) -> Outcome {
     let lines: [RecognizedTextLine]
     do throws(AnalysisFailure) {
       let image = try await self.loadImage(asset.id, size: .largestAvailable)
@@ -164,16 +168,26 @@ extension IndexingRun {
     } catch let failure {
       return try failure.outcome()
     }
-    let categories = RuleClassifier.classify(asset: asset, labels: stored.labels, textLines: lines)
-    let gifticon = categories.contains(.gifticon)
-      ? GifticonExtractor.extract(from: lines, referenceDate: asset.creationDate, calendar: self.calendar)
-      : nil
+    var categories = RuleClassifier.classify(asset: asset, labels: stored.labels, textLines: lines)
+    if categories == [.other], !lines.isEmpty {
+      categories = try await self.modelCategories(for: lines) ?? categories
+    }
+    guard categories.contains(.gifticon) else {
+      return .indexed(IndexedImage(
+        asset: asset,
+        labels: stored.labels,
+        textRecognition: .recognized(lines),
+        categories: categories
+      ))
+    }
+    let (gifticon, fill) = try await self.extractGifticon(from: lines, asset: asset)
     return .indexed(IndexedImage(
       asset: asset,
       labels: stored.labels,
       textRecognition: .recognized(lines),
       categories: categories,
-      gifticon: gifticon
+      gifticon: gifticon,
+      gifticonModelFill: fill
     ))
   }
 

@@ -50,6 +50,7 @@ actor PhotoStore {
         stored.memberships = image.categories.subtracting([.travel]).map(\.rawValue).sorted()
           .map(StoredCategoryMembership.init)
         Self.setGifticon(image.gifticon, on: stored)
+        Self.setModelFill(image.gifticonModelFill, on: stored)
       }
     }
   }
@@ -114,6 +115,8 @@ actor PhotoStore {
           continue
         }
         Self.setGifticon(gifticon, on: image)
+        // 규칙으로 다시 추출한 값이므로 보강도 다시 한다.
+        Self.setModelFill(.initial(for: gifticon), on: image)
       }
     }
   }
@@ -194,7 +197,7 @@ actor PhotoStore {
   }
 
   /// 변경을 저장한다. 도중에 실패하면 저장하지 않은 변경을 되돌려, 다음 조회·저장에 반쯤 끝난 상태가 남지 않게 한다.
-  private func write(_ changes: () throws -> Void) throws {
+  func write(_ changes: () throws -> Void) throws {
     do {
       try changes()
       try self.modelContext.save()
@@ -218,11 +221,11 @@ actor PhotoStore {
     }
   }
 
-  /// 저장된 추출 값. nil 이면 추출하지 않은 것으로 본다(읽기·추출 대기·`saveGifticons` 가 모두 이 판정을 쓴다).
+  /// 저장된 추출 값. nil 이면 추출하지 않은 것으로 본다(읽기·추출 대기·`saveGifticons`·보강 대기가 모두 이 판정을 쓴다).
   /// 버전은 맞는데 만료일 정수를 날짜로 해석하지 못하면 던지지 않고 추출하지 않은 것으로 본다. 던지면 그 행이 든
   /// `images(in: .gifticon)` 이 계속 실패해 사용자가 회복할 수 없고, 추출 값은 저장된 줄로 다시 만들 수 있다
   /// (추출 대기에 들어 소급 추출이 다시 쓴다). 쓰는 쪽은 늘 유효한 날짜를 쓰므로 정상 흐름에서는 생기지 않는다.
-  private static func storedGifticon(_ stored: StoredImage) -> GifticonInfo? {
+  static func storedGifticon(_ stored: StoredImage) -> GifticonInfo? {
     // `!=` 라 앱을 되돌려 더 높은 버전이 남아도 다시 추출한다.
     guard stored.gifticonRulesVersion == GifticonExtractor.rulesVersion else {
       return nil
@@ -240,7 +243,7 @@ actor PhotoStore {
   }
 
   /// 추출함이면 지금 규칙 버전과 값을, nil(추출 안 함)이면 (0, nil, nil) 을 쓴다.
-  private static func setGifticon(_ gifticon: GifticonInfo?, on stored: StoredImage) {
+  static func setGifticon(_ gifticon: GifticonInfo?, on stored: StoredImage) {
     stored.gifticonRulesVersion = gifticon == nil ? 0 : GifticonExtractor.rulesVersion
     stored.gifticonExpiryDay = gifticon?.expiryDate.map { Self.dayNumber($0) }
     stored.gifticonRedemptionPlace = gifticon?.redemptionPlace
@@ -281,7 +284,8 @@ actor PhotoStore {
       labels: decoder.decode([ImageLabel].self, from: stored.labelsData),
       textRecognition: Self.textRecognition(stored, decoder: decoder),
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
-      gifticon: Self.storedGifticon(stored)
+      gifticon: Self.storedGifticon(stored),
+      gifticonModelFill: Self.modelFill(stored)
     )
   }
 }

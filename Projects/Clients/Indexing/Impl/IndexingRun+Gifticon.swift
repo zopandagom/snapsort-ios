@@ -19,6 +19,7 @@ extension IndexingRun {
   /// 소급 대상 중 최신 `batchSize` 장의 저장된 줄로 추출해 추출 값만 저장한다.
   /// 고른 배치는 저장할 것이 없어도 모두 대상에서 빼서, 저장 행이 없거나 조건이 맞지 않는 이미지로 같은 실행에서 다시 돌지 않는다.
   /// 저장소는 기프티콘·읽음·추출 안 함 행만 바꾸므로, 그 사이 지워졌거나 다시 대기가 된 행에는 쓰지 않는다.
+  /// 저장한 값에 모델로 채울 필드가 있으면 소급 보강 대상에 더해 같은 실행에서 보강까지 한다(저장소가 보강 상태를 되돌린다).
   /// 저장소를 읽거나 쓰지 못하면 던지지 않고 이번 실행의 소급만 멈춘다(`stopGifticonBackfill()`). 취소는 그대로 던진다.
   private mutating func extractNextGifticonBatch() async throws(IndexingStop) {
     if Task.isCancelled {
@@ -34,19 +35,27 @@ extension IndexingRun {
         try await self.photoStore.images(ids: Set(batchIDs))
       }
       var gifticons: [ImageAsset.ID: GifticonInfo] = [:]
+      var needsModelFill: Set<ImageAsset.ID> = []
       for image in stored where image.categories.contains(.gifticon) {
         guard let lines = image.textLines, let asset = self.assets[image.id] else { continue }
-        gifticons[image.id] = GifticonExtractor.extract(
+        let gifticon = GifticonExtractor.extract(
           from: lines,
           referenceDate: asset.creationDate,
           calendar: self.calendar
         )
+        gifticons[image.id] = gifticon
+        if GifticonExtractor.needsModelFill(gifticon, textLines: lines) {
+          needsModelFill.insert(image.id)
+        }
       }
       if !gifticons.isEmpty {
         let batch = gifticons
         try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveGifticons(batch) }
       }
       self.pendingGifticonIDs.subtract(batchIDs)
+      // 저장에 성공한 뒤에만 더한다. 저장소가 쓰지 않은 행이 섞여도 소급 보강 저장이 조건을 다시 보므로 무해하다.
+      // 모델을 쓸 수 없으면 소급 보강이 쓰지 않고 뺀다.
+      self.pendingModelFillIDs.formUnion(needsModelFill)
     } catch {
       // 소급은 카테고리·개수를 바꾸지 않으므로, 저장소 실패로 멈추면 다 분석한 뒤 "새 사진을 분류하지 못했다"는 틀린 안내가 나온다.
       // 그래서 이번 실행에서는 소급만 멈추고 분류·2단계는 이어 간다. 다음 실행이나 전체 다시 비교가 대상을 다시 채운다.
