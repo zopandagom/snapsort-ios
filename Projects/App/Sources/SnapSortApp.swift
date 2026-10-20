@@ -1,3 +1,4 @@
+import ClassifierImpl
 import Foundation
 import ImageAnalysisImpl
 import IndexingImpl
@@ -40,7 +41,8 @@ struct SnapSortApp: App {
       IndexingClientImpl(
         photoLibrary: photoLibrary,
         imageAnalysis: imageAnalysis,
-        photoStore: photoStore
+        photoStore: photoStore,
+        classifier: ClassifierClientImpl()
       )
     }
     self._libraryModel = State(initialValue: LibraryModel(
