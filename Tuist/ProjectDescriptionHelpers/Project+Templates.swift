@@ -47,7 +47,7 @@ public extension Project {
   /// Client 모듈: Interface(프로토콜·값 타입) / Impl(Apple 프레임워크 구현 또는 다른 Client 조합) / Testing(Fake) / Tests.
   /// - Parameters:
   ///   - shared: Client 가 사용하는 Shared 모듈. 네 타깃 모두에 연결된다.
-  ///   - clients: Impl 이 조합하는 다른 Client (예: Indexing 이 쓰는 PhotoLibrary·ImageAnalysis·PhotoStore).
+  ///   - clients: Impl 이 조합하는 다른 Client (예: Indexing 이 쓰는 PhotoLibrary·ImageAnalysis·PhotoStore·Classifier).
   ///     Impl 에는 Interface 가, Tests 에는 Interface 와 Fake 가 든 Testing 이 연결된다.
   static func client(
     _ client: Client,
