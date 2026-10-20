@@ -25,6 +25,18 @@ struct ImageAnalysisClientFakeTests {
     #expect(try await fake.recognizeText(.stub()) == lines)
   }
 
+  @Test("정해 둔 바코드를 돌려준다")
+  func returnsConfiguredBarcodes() async throws {
+    let barcodes = [DetectedBarcode(
+      payload: "SnapSort",
+      symbology: .code128,
+      boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.8, height: 0.1)
+    )]
+    let fake = ImageAnalysisClientFake(detectBarcodesResult: .success(barcodes))
+
+    #expect(try await fake.detectBarcodes(.stub()) == barcodes)
+  }
+
   @Test("이미지마다 정한 결과를 돌려준다")
   func returnsResultPerImage() async throws {
     let fake = ImageAnalysisClientFake(
@@ -44,13 +56,20 @@ struct ImageAnalysisClientFakeTests {
 
   @Test("정해 둔 실패를 던진다")
   func throwsConfiguredError() async {
-    let fake = ImageAnalysisClientFake(classifyResult: .failure(.failed), recognizeTextResult: .failure(.failed))
+    let fake = ImageAnalysisClientFake(
+      classifyResult: .failure(.failed),
+      recognizeTextResult: .failure(.failed),
+      detectBarcodesResult: .failure(.failed)
+    )
 
     await #expect(throws: ImageAnalysisError.failed) {
       try await fake.classify(.stub(), minimumConfidence: 0.1)
     }
     await #expect(throws: ImageAnalysisError.failed) {
       try await fake.recognizeText(.stub())
+    }
+    await #expect(throws: ImageAnalysisError.failed) {
+      try await fake.detectBarcodes(.stub())
     }
   }
 
@@ -76,10 +95,16 @@ struct ImageAnalysisClientFakeTests {
       } catch {
         errors.append(error)
       }
+      do throws(ImageAnalysisError) {
+        _ = try await fake.detectBarcodes(.stub())
+        errors.append(nil)
+      } catch {
+        errors.append(error)
+      }
       return errors
     }
 
-    #expect(await task.value == [.cancelled, .cancelled])
+    #expect(await task.value == [.cancelled, .cancelled, .cancelled])
   }
 
   @Test("기준 미만 라벨은 정해 둔 결과에서도 뺀다")
@@ -100,9 +125,15 @@ struct ImageAnalysisClientFakeTests {
 
     _ = try await fake.classify(.stub(), minimumConfidence: 0.01)
     _ = try await fake.recognizeText(.stub())
+    _ = try await fake.detectBarcodes(.stub())
     _ = try await fake.classify(.stub(), minimumConfidence: 0.1)
 
-    #expect(fake.requests == [.classify(minimumConfidence: 0.01), .recognizeText, .classify(minimumConfidence: 0.1)])
+    #expect(fake.requests == [
+      .classify(minimumConfidence: 0.01),
+      .recognizeText,
+      .detectBarcodes,
+      .classify(minimumConfidence: 0.1),
+    ])
   }
 
   @Test("결과를 기다리는 동안 Task 가 취소되면 결과 대신 취소를 던진다")
@@ -118,11 +149,16 @@ struct ImageAnalysisClientFakeTests {
         startedSignals.continuation.yield()
         try? await Task.sleep(for: .seconds(60))
         return .success([])
+      },
+      detectBarcodes: { _ in
+        startedSignals.continuation.yield()
+        try? await Task.sleep(for: .seconds(60))
+        return .success([])
       }
     )
 
     var started = startedSignals.stream.makeAsyncIterator()
-    for operation in [AnalysisRequest.classify(minimumConfidence: 0.1), .recognizeText] {
+    for operation in [AnalysisRequest.classify(minimumConfidence: 0.1), .recognizeText, .detectBarcodes] {
       let task = Task { () async -> ImageAnalysisError? in
         do throws(ImageAnalysisError) {
           switch operation {
@@ -130,6 +166,8 @@ struct ImageAnalysisClientFakeTests {
             _ = try await fake.classify(.stub(), minimumConfidence: minimumConfidence)
           case .recognizeText:
             _ = try await fake.recognizeText(.stub())
+          case .detectBarcodes:
+            _ = try await fake.detectBarcodes(.stub())
           }
           return nil
         } catch {

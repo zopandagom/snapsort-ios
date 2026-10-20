@@ -27,7 +27,7 @@ enum TextRecognition {
     }
   }
 
-  /// 0~1 정규화 사각형의 원점을 Vision 의 왼쪽 아래에서 `RecognizedTextLine` 이 약속한 왼쪽 위로 바꾼다.
+  /// 0~1 정규화 사각형의 원점을 Vision 의 왼쪽 아래에서 `RecognizedTextLine` 이 약속한 왼쪽 위로 바꾼다. 바코드 위치도 이것으로 바꾼다.
   static func topLeftOrigin(_ rect: CGRect) -> CGRect {
     CGRect(x: rect.minX, y: 1 - rect.maxY, width: rect.width, height: rect.height)
   }
