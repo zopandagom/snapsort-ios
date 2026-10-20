@@ -240,6 +240,94 @@ struct GifticonExtractorTests {
   }
 }
 
+// 영문 날짜·잇는 말로 이어진 기간. 끝을 읽지 못하면 기간 시작을 만료일로 쓰지 않는다.
+extension GifticonExtractorTests {
+  @Test(
+    "아래 줄의 서수 붙은 영문 월 날짜도 이어진 기간이다",
+    arguments: ["~ Dec 31st, 2026", "~ December 1st, 2026", "- Dec 2nd, 2026"]
+  )
+  func ignoresStartBeforeOrdinalEnglishDate(_ below: String) {
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line(below, y: 0.55)]).expiryDate == nil)
+  }
+
+  @Test(
+    "아래 줄의 일-월 순·연-월 이름 순 영문 날짜도 이어진 기간이다",
+    arguments: ["~ 31 Dec 2026", "~ 31st December 2026", "~ 2026 Dec 31"]
+  )
+  func ignoresStartBeforeDayMonthEnglishDate(_ below: String) {
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line(below, y: 0.55)]).expiryDate == nil)
+  }
+
+  @Test("물결표 뒤 날짜에 글이 붙어도 이어진 기간의 끝이다", arguments: ["~ 2027.01.31 자정", "~ 2027.01.31까지 사용 가능"])
+  func readsTildeContinuationWithTrailingText(_ below: String) {
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line(below, y: 0.55)]).expiryDate
+      == LocalDate(year: 2027, month: 1, day: 31))
+  }
+
+  @Test("줄표 뒤 날짜에 시각 말만 붙으면 이어진 기간의 끝이다")
+  func readsDashContinuationWithTimeWord() {
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line("- 2027.01.31 자정", y: 0.55)]).expiryDate
+      == LocalDate(year: 2027, month: 1, day: 31))
+  }
+
+  @Test(
+    "영문 잇는 말로 이은 기간은 끝 날짜를 쓴다",
+    arguments: [
+      "유효기간 2026.01.01 to 2026.12.31",
+      "유효기간 2026.01.01 until 2026.12.31",
+      "유효기간 2026.01.01 through 2026.12.31"
+    ]
+  )
+  func usesRangeEndJoinedByEnglishWord(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == LocalDate(year: 2026, month: 12, day: 31))
+  }
+
+  @Test("에서·내지로 이은 기간은 끝 날짜를 쓴다", arguments: ["유효기간 2026.01.01에서 2026.12.31", "유효기간 2026.01.01 내지 2026.12.31"])
+  func usesRangeEndJoinedByKoreanWord(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == LocalDate(year: 2026, month: 12, day: 31))
+  }
+
+  // 사이 글이 기간이면 뒤 날짜(2026-12-31), 아니면 라벨 뒤 첫 날짜(2026-10-01)를 쓴다.
+  @Test(
+    "사이 글이 에서·내지만이 아니면 기간이 아니다",
+    arguments: ["유효기간 2026.10.01 매장에서 2026.12.31", "유효기간 2026.10.01 서울에서 2026.12.31", "유효기간 2026.10.01 국내지점 2026.12.31"]
+  )
+  func ignoresLongerWordContainingKoreanJoiner(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == LocalDate(year: 2026, month: 10, day: 1))
+  }
+
+  @Test("까지 기한은 사이 글이 에서로 끝나는 단어여도 그 기한이다")
+  func readsDeadlineAfterWordEndingInKoreanJoiner() {
+    #expect(extract([line("발행 2026.10.01 매장에서 2026.12.31까지 사용")]).expiryDate
+      == LocalDate(year: 2026, month: 12, day: 31))
+  }
+
+  @Test("영문 잇는 말 뒤 끝을 읽지 못하면 비운다")
+  func ignoresUnreadEndAfterEnglishJoiner() {
+    #expect(extract([line("유효기간 2026.01.01 to Dec 31, 2026")]).expiryDate == nil)
+  }
+
+  @Test("영문 잇는 말로 끝난 줄은 다음 줄에서 끝을 찾는다")
+  func readsEndAfterLineEndingInEnglishJoiner() {
+    #expect(extract([line("유효기간 2026.01.01 to", y: 0.5), line("2026.12.31", y: 0.55)]).expiryDate
+      == LocalDate(year: 2026, month: 12, day: 31))
+  }
+
+  @Test("아래 줄이 영문 잇는 말과 날짜로 시작하면 이어진 기간이다")
+  func readsBelowLineStartingWithEnglishJoiner() {
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line("to 2026.12.31", y: 0.55)]).expiryDate
+      == LocalDate(year: 2026, month: 12, day: 31))
+    #expect(extract([line("유효기간 2026.01.01", y: 0.5), line("until Dec 31, 2026", y: 0.55)]).expiryDate == nil)
+  }
+
+  @Test("영문 단어 속 잇는 말은 기간이 아니다")
+  func ignoresJoinerInsideEnglishWord() {
+    let end = LocalDate(year: 2026, month: 12, day: 31)
+    #expect(extract([line("유효기간 2026.12.31 total 3")]).expiryDate == end)
+    #expect(extract([line("유효기간 2026.12.31", y: 0.5), line("today only", y: 0.55)]).expiryDate == end)
+  }
+}
+
 extension GifticonExtractorTests {
   static let calendar: Calendar = {
     var calendar = Calendar(identifier: .gregorian)

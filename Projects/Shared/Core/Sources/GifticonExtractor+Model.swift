@@ -50,9 +50,22 @@ extension GifticonExtractor {
   /// 날짜 없이 기준일부터 센 상대 기간("구매일로부터 1년", "발급 후 90일"). 공백을 지운 텍스트에 대조한다.
   /// 숫자 뒤에 날짜가 이어지는 기간 시작("2026년 1월 1일부터 2026년 12월 31일")은 아니다.
   private static var relativePeriodPattern: Regex<Substring> { #/(?:로부터|부터|후)\d{1,3}(?:일|개월|달|년|주)/# }
-  /// 연도 없는 월.일("12.31", "~ 3.31")처럼 `DateMention` 이 날짜로 읽지 않는 숫자. 앞뒤가 숫자나 기호로 이어지면 아니다
-  /// (앞쪽은 Swift 정규식이 lookbehind 를 지원하지 않아 `hasUnreadMonthDay` 가 본다).
+  // `DateMention` 이 날짜로 읽지 않는 날짜 모양 조각(`hasUnreadDate`). Swift 정규식이 lookbehind 를 지원하지 않아
+  // 앞 경계는 `hasUnreadDate` 가 앞 글자로 보고, 뒤 경계는 부정 전방탐색으로 쓴다.
+  /// 연도 없는 월.일("12.31", "~ 3.31"). 뒤가 숫자나 기호로 이어지면 아니다.
   private static var unreadMonthDayPattern: Regex<Substring> { #/\d{1,2}[./\-]\d{1,2}(?![\d./\-])/# }
+  /// 영문 월 이름 + 숫자("Dec 31, 2026", "dec.31"). 긴 이름부터 대조한다.
+  private static var englishMonthDatePattern: Regex<Substring> {
+    #/
+      (?i)(?:january|february|march|april|may|june|july|august|september|sept|october|november|december
+        |jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\.?\s*\d{1,2}
+    /#
+  }
+
+  /// 연월만 있는 날짜("2026년 12월", "2026.12"). 월 뒤에 숫자가 이어지면("2026-1234") 아니다.
+  private static var yearMonthPattern: Regex<Substring> { #/\d{4}\s*[./\-년]\s*\d{1,2}(?!\d)\s*월?/# }
+  /// 일 없는 월("12월 말", "12월까지").
+  private static var monthWithoutDayPattern: Regex<Substring> { #/\d{1,2}\s*월(?!\s*\d)/# }
 
   /// 규칙이 비운 필드 중 모델로 채울 수 있는 것이 있는지. 둘 다 찾았거나, 비운 필드가 규칙의 판단으로 막혀 있으면
   /// (만료일: 만료일 라벨 줄·"까지" 기한·상대 기간이 있음. 교환처: 교환처 라벨 줄이 있음) false 라 모델에 묻지 않는다.
@@ -143,11 +156,12 @@ extension GifticonExtractor {
     guard case let .date(date, isEndFixed) = self.rangeEnd(in: rest, reference: reference, notBefore: nil),
           self.contains(answer, endOf: date, in: rest, reference: reference)
     else { return nil }
-    // 줄 끝 날짜의 오른쪽이나 아래 줄이 이어짐 기호로 시작하면("2026.10.01" / "~ 2027.03.31") 그 날짜는 기간 시작이다.
+    // 줄 끝 날짜의 오른쪽이나 아래 줄이 이어짐 표시(이어짐 기호·영문 잇는 말)와 날짜 모양으로 시작하면(끝을 읽든 못 읽든,
+    // "2026.10.01" / "~ 2027.03.31") 그 날짜는 기간 시작이다.
     if !isEndFixed {
       let neighbors = self.neighborLines(of: line, in: lines)
       if [neighbors.sameRow, neighbors.below]
-        .contains(where: { $0.flatMap { self.textAfterLeadingSeparator($0.text) } != nil })
+        .contains(where: { $0.flatMap { self.leadingContinuation($0.text, base: date) } != nil })
       {
         return nil
       }
@@ -204,27 +218,39 @@ extension GifticonExtractor {
     return String(clue)
   }
 
-  /// 원문의 모든 날짜가 연도까지 정해지고 `date` 보다 늦지 않은지. `DateMention` 이 읽지 못하는 연도 없는 월.일("~ 3.31")이 있거나
+  /// 원문의 모든 날짜가 연도까지 정해지고 `date` 보다 늦지 않은지. `DateMention` 이 읽지 못하는 날짜 모양(`hasUnreadDate`)이 있거나
   /// 연도를 생략했는데 기준일이 없거나 달력에 없는 날짜가 있으면, 더 늦은 만료일이 있을 수 있어 false 다.
   private static func isLatestDate(_ date: LocalDate, in lines: [RecognizedTextLine], reference: LocalDate?) -> Bool {
-    let monthDay = self.unreadMonthDayPattern
-    return lines.allSatisfy { line in
+    lines.allSatisfy { line in
       let mentions = DateMention.mentions(in: line.text)
       let isResolved = mentions.indices.allSatisfy { index in
         self.resolvedDate(at: index, of: mentions, in: line.text, base: reference).map { $0 <= date } ?? false
       }
-      return isResolved && !self.hasUnreadMonthDay(line.text, pattern: monthDay)
+      return isResolved && !self.hasUnreadDate(line.text, mentions: mentions)
     }
   }
 
-  /// 달력에 있을 수 있는 연도 없는 월.일이 있는지. 앞 글자가 숫자나 기호(".", "/", "-")면 더 긴 숫자열·날짜의 일부다.
-  private static func hasUnreadMonthDay(_ text: String, pattern: Regex<Substring>) -> Bool {
-    text.matches(of: pattern).contains { match in
-      let before = match.range.lowerBound == text.startIndex ? nil : text[text.index(before: match.range.lowerBound)]
-      guard before.map({ !$0.isNumber && !"./-".contains($0) }) ?? true else { return false }
+  /// `mentions` 와 겹치지 않는 날짜 모양 조각이 있는지: 달력에 있을 수 있는 연도 없는 월.일, 영문 월 이름 + 숫자, 연월만, 일 없는 월.
+  /// 월.일·연월은 앞 글자가 숫자나 기호(".", "/", "-")면 더 긴 숫자열(쿠폰 번호·전화번호)이나 날짜의 일부라 세지 않는다.
+  /// 영문 월은 앞 글자가 영문자면 다른 단어의 일부("decaf 3")라 세지 않는다(한글 뒤 "유효Dec 31" 은 센다).
+  private static func hasUnreadDate(_ text: String, mentions: [DateMention]) -> Bool {
+    func isUnread(_ range: Range<String.Index>, unlessAfter isJoined: (Character) -> Bool) -> Bool {
+      let before = range.lowerBound == text.startIndex ? nil : text[text.index(before: range.lowerBound)]
+      return !(before.map(isJoined) ?? false) && !mentions.contains { $0.match.range.overlaps(range) }
+    }
+    let isNumberOrJoiner: (Character) -> Bool = { $0.isNumber || "./-".contains($0) }
+    let monthDay = text.matches(of: self.unreadMonthDayPattern).contains { match in
       let numbers = match.output.split { !$0.isNumber }.compactMap { Int($0) }
       return numbers.count == 2 && (1 ... 12).contains(numbers[0]) && (1 ... 31).contains(numbers[1])
+        && isUnread(match.range, unlessAfter: isNumberOrJoiner)
     }
+    let englishMonth = text.matches(of: self.englishMonthDatePattern)
+      .contains { isUnread($0.range, unlessAfter: { $0.isASCII && $0.isLetter }) }
+    let yearMonth = text.matches(of: self.yearMonthPattern)
+      .contains { isUnread($0.range, unlessAfter: isNumberOrJoiner) }
+    let monthOnly = text.matches(of: self.monthWithoutDayPattern)
+      .contains { isUnread($0.range, unlessAfter: \.isNumber) }
+    return monthDay || englishMonth || yearMonth || monthOnly
   }
 
   // MARK: - 교환처

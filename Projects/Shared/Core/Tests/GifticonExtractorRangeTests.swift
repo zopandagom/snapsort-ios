@@ -300,4 +300,54 @@ extension GifticonExtractorTests {
     let info = extract([line("유효기간 2026.02.30 ~ 12월 31일")], referenceDate: date(year: 2027, month: 3, day: 1))
     #expect(info.expiryDate == nil)
   }
+
+  @Test(
+    "기간 끝이 영문 월 날짜면 만료일을 비운다",
+    arguments: ["유효기간 2026.01.01 ~ Dec 31, 2026", "유효기간 2026.01.01 ~ December 31, 2026", "유효기간 2026.01.01 - dec.31"]
+  )
+  func ignoresRangeEndingInEnglishMonth(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == nil)
+  }
+
+  @Test("부터 뒤 끝이 영문 월 날짜면 만료일을 비운다")
+  func ignoresStartSuffixFollowedByEnglishMonth() {
+    #expect(extract([line("유효기간 2026.01.01부터 Dec. 31, 2026")]).expiryDate == nil)
+  }
+
+  @Test("부터 뒤에 끝 날짜가 없으면 만료일을 비운다", arguments: ["유효기간 2026.10.01부터 사용 가능", "유효기간 2026.10.01 10:00부터 사용"])
+  func ignoresStartSuffixWithoutEnd(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == nil)
+  }
+
+  @Test("오른쪽이나 아래 줄이 기호와 영문 월 날짜로 시작하면 기간 시작을 쓰지 않는다")
+  func ignoresStartWhenNeighborContinuesWithEnglishMonth() {
+    let below = [line("유효기간 2026.01.01", y: 0.5), line("~ December 31, 2026", y: 0.55)]
+    let right = [line("유효기간 2026.01.01", x: 0.1, width: 0.4), line("~ Dec 31, 2026", x: 0.55, width: 0.4)]
+
+    #expect(extract(below).expiryDate == nil)
+    #expect(extract(right).expiryDate == nil)
+  }
+
+  @Test("줄 끝 기호 뒤 다음 줄이 영문 월 날짜면 만료일을 비운다")
+  func ignoresContinuedRangeEndingInEnglishMonth() {
+    let info = extract([line("유효기간 2026.01.01 ~", y: 0.5), line("Dec 31, 2026", y: 0.55)])
+    #expect(info.expiryDate == nil)
+  }
+
+  @Test("기호 뒤 안내문은 기간 끝이 아니다")
+  func keepsDateBeforeSeparatorNotice() {
+    let sameLine = extract([line("유효기간 2026.12.31 ~ 사용 시 확인")])
+    let belowLine = extract([line("유효기간 2026.12.31", y: 0.5), line("- 1인 1매", y: 0.55)])
+
+    #expect(sameLine.expiryDate == LocalDate(year: 2026, month: 12, day: 31))
+    #expect(belowLine.expiryDate == LocalDate(year: 2026, month: 12, day: 31))
+  }
+
+  @Test(
+    "영문 단어가 월 이름으로 시작해도 뒤가 숫자가 아니면 날짜가 아니다",
+    arguments: ["유효기간 2026.12.31 ~ maybe", "유효기간 2026.12.31 ~ march-madness"]
+  )
+  func keepsDateBeforeWordStartingWithMonthName(_ text: String) {
+    #expect(extract([line(text)]).expiryDate == LocalDate(year: 2026, month: 12, day: 31))
+  }
 }

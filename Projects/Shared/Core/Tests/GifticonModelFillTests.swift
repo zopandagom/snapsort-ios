@@ -133,6 +133,84 @@ struct GifticonModelFillTests {
     #expect(fillExpiry("2026.12.31", otherItem) == nil)
   }
 
+  @Test("기간 끝이 영문 월 날짜면 시작 날짜 답을 받지 않는다")
+  func rejectsStartOfRangeEndingInEnglishMonth() {
+    #expect(fillExpiry("2026.01.01", [line("만료 2026.01.01 ~ Dec 31, 2026")]) == nil)
+  }
+
+  @Test("부터 뒤에 끝 날짜가 없으면 시작 날짜 답을 받지 않는다")
+  func rejectsStartBeforeStartSuffix() {
+    #expect(fillExpiry("2026.10.01", [line("만료 2026.10.01부터 사용 가능")]) == nil)
+  }
+
+  @Test("아래 줄이 기호와 영문 월 날짜로 시작하면 받지 않는다")
+  func rejectsStartWhenBelowContinuesWithEnglishMonth() {
+    let lines = [line("만료 2026.01.01", y: 0.5), line("~ Dec 31, 2026", y: 0.55)]
+
+    #expect(fillExpiry("2026.01.01", lines) == nil)
+  }
+
+  @Test("원문에 읽지 못한 영문 월 날짜가 있으면 받지 않는다")
+  func rejectsWhenEnglishMonthDateExists() {
+    #expect(fillExpiry("2026.11.30", [line("만료 2026.11.30", y: 0.5), line("Valid Dec 31, 2026", y: 0.7)]) == nil)
+  }
+
+  @Test("원문에 연월만 있는 날짜가 있으면 받지 않는다")
+  func rejectsWhenYearMonthExists() {
+    #expect(fillExpiry("2026.11.30", [line("만료 2026.11.30", y: 0.5), line("2026년 12월까지 사용", y: 0.7)]) == nil)
+  }
+
+  @Test("원문에 일 없는 월이 있으면 받지 않는다")
+  func rejectsWhenMonthWithoutDayExists() {
+    #expect(fillExpiry("2026.11.30", [line("만료 2026.11.30", y: 0.5), line("12월 말까지", y: 0.7)]) == nil)
+  }
+
+  @Test("한글에 붙은 영문 월 날짜도 읽지 못한 날짜로 본다")
+  func rejectsWhenEnglishMonthFollowsHangul() {
+    #expect(fillExpiry("2026.11.30", [line("만료 2026.11.30", y: 0.5), line("유효Dec 31, 2026", y: 0.7)]) == nil)
+  }
+
+  @Test("영문 단어 속 월 이름은 날짜가 아니다", arguments: ["decaf 3잔", "Gomar 2잔"])
+  func acceptsWhenMonthNameIsInsideWord(_ text: String) {
+    let lines = [line("만료 2026.12.31", y: 0.5), line(text, y: 0.7)]
+
+    #expect(fillExpiry("2026.12.31", lines) == day(2026, 12, 31))
+  }
+
+  @Test("쿠폰 번호·전화번호는 읽지 못한 날짜로 보지 않는다", arguments: ["2026-1234", "1234-5678-9012", "010-1234-5678"])
+  func acceptsWithCouponOrPhoneNumber(_ text: String) {
+    let lines = [line("만료 2026.12.31", y: 0.5), line(text, y: 0.7)]
+
+    #expect(fillExpiry("2026.12.31", lines) == day(2026, 12, 31))
+  }
+
+  @Test("영문 잇는 말로 이은 기간의 시작 답은 받지 않는다")
+  func rejectsStartOfRangeJoinedByEnglishWord() {
+    #expect(fillExpiry("2026.01.01", [line("Valid 2026.01.01 to 2026.12.31")]) == nil)
+  }
+
+  @Test("영문 잇는 말로 이은 기간의 끝 답은 받는다")
+  func acceptsEndOfRangeJoinedByEnglishWord() {
+    #expect(fillExpiry("2026.12.31", [line("Valid 2026.01.01 to 2026.12.31")]) == day(2026, 12, 31))
+  }
+
+  @Test("아래 줄이 서수·일-월 순 영문 날짜로 이어지면 받지 않는다")
+  func rejectsStartWhenBelowContinuesWithDayMonthDate() {
+    #expect(fillExpiry("2026.01.01", [line("만료 2026.01.01", y: 0.5), line("~ 31st Dec 2026", y: 0.55)]) == nil)
+  }
+
+  @Test("기간 표시 이웃 줄이 다른 항목 안내로 끝나도 받지 않는다")
+  func rejectsStartWhenBelowRangeLineEndsWithNotice() {
+    let lines = [line("만료 2026.10.18", y: 0.5), line("~ 2027.01.31까지 연장 신청 가능", y: 0.55)]
+
+    #expect(fillExpiry("2026.10.18", lines) == nil)
+  }
+
+  @Test("AM·PM 시각이 있는 기간의 시작 답은 받지 않는다")
+  func rejectsStartOfRangeWithEnglishTime() {
+    #expect(fillExpiry("2026.01.01", [line("Valid 2026.01.01 12:00 AM ~ 2026.12.31 11:59 PM")]) == nil)
+  }
+
   @Test("만료일 라벨 줄이 있으면 모델 만료일을 받지 않는다")
   func rejectsWhenExpiryLabelLineExists() {
     let lines = [line("유효기간 2026.10.01 ~ 12.31", y: 0.5), line("Valid until 2026.12.31", y: 0.7)]
