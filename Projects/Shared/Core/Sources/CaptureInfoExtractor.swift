@@ -48,6 +48,8 @@ public enum CaptureInfoExtractor {
   static let accountKeywords = ["계좌", "입금", "은행", "뱅크", "농협", "신협", "새마을금고", "우체국", "kb국민", "sc제일"]
   /// 택배사 이름이기도 한 계좌 키워드. 송장 키워드와 함께 있을 때 이것만 있으면 송장으로 본다.
   static let trackingAccountKeywords: Set = ["우체국"]
+  /// 은행 이름이 아닌 계좌 키워드. 이것만 있는 줄("입금 후 010-… 로 문자 주세요")에서는 휴대폰 번호를 계좌로 받지 않는다.
+  static let nonBankAccountKeywords: Set = ["계좌", "입금"]
   /// 송장·계좌번호로 보는 숫자 개수 범위. 국내 택배 송장(10~13자리)과 은행 계좌(10~14자리)를 덮고,
   /// 날짜("2026-12-31", 8자리)와 대표번호("1588-1234", 8자리)는 빠진다.
   static let numberDigitRange = 10 ... 14
@@ -65,7 +67,7 @@ public enum CaptureInfoExtractor {
       let isTracking = Self.trackingKeywords.contains { normalized.contains($0) }
         && accountKeywords.isSubset(of: Self.trackingAccountKeywords)
       guard isTracking || !accountKeywords.isEmpty else { continue }
-      let found = Self.numbers(onKeywordLineAt: index, in: texts)
+      let found = Self.numbers(onKeywordLineAt: index, in: texts, isAccount: !isTracking)
       if isTracking {
         trackingNumbers += found
       } else {
@@ -97,21 +99,38 @@ public enum CaptureInfoExtractor {
   /// 키워드 줄의 번호. 그 줄에 숫자 묶음이 하나도 없으면 바로 다음 줄이 번호로 시작할 때 그 줄의 번호(라벨 아래에 값을 적는 배치).
   /// 키워드 줄에 숫자가 있는데 번호가 아니면(전화번호·날짜) 그 숫자가 키워드의 값이므로 다음 줄을 보지 않는다.
   /// 영문자와 붙은 숫자는 이름의 일부("GS25 반값택배")라 다음 줄을 막지 않는다.
-  private static func numbers(onKeywordLineAt index: Int, in texts: [String]) -> [CapturedText] {
-    let onLine = Self.numbers(in: texts[index]).map { CapturedText(text: $0, lineIndex: index) }
+  /// 휴대폰 번호를 그대로 쓰는 계좌("평생계좌")는 계좌 줄에 은행 이름이 있을 때만 받는다. 다음 줄의 번호는 키워드 줄이나
+  /// 그 줄 중 한 곳에 은행 이름이 있으면 받는다("입금 계좌" / "010-1234-5678 신한은행").
+  private static func numbers(onKeywordLineAt index: Int, in texts: [String], isAccount: Bool) -> [CapturedText] {
+    let keywordLineHasBank = isAccount && Self.hasBankName(texts[index])
+    let onLine = Self.numbers(in: texts[index], acceptsMobileNumber: keywordLineHasBank).map {
+      CapturedText(text: $0, lineIndex: index)
+    }
     guard onLine.isEmpty,
           Self.numberGroups(in: texts[index]).isEmpty,
           texts.indices.contains(index + 1)
     else { return onLine }
     let next = texts[index + 1]
     guard next.first?.isASCIIDigit == true else { return [] }
-    return Self.numbers(in: next).map { CapturedText(text: $0, lineIndex: index + 1) }
+    let acceptsMobileNumber = keywordLineHasBank || (isAccount && Self.hasBankName(next))
+    return Self.numbers(in: next, acceptsMobileNumber: acceptsMobileNumber).map {
+      CapturedText(text: $0, lineIndex: index + 1)
+    }
+  }
+
+  /// 줄에 은행 이름(계좌 키워드 중 "계좌"·"입금" 밖의 것)이 있는지.
+  private static func hasBankName(_ text: String) -> Bool {
+    let normalized = Self.normalizedForKeywords(text)
+    return Self.accountKeywords.contains { normalized.contains($0) && !Self.nonBankAccountKeywords.contains($0) }
   }
 
   /// 한 줄에서 송장·계좌번호로 볼 수 있는 숫자 묶음. 전화번호와 범위 밖 자릿수는 뺀다.
+  /// `acceptsMobileNumber`(은행 이름이 있는 계좌 줄)면 휴대폰 번호 모양(01X)을 빼지 않는다. 휴대폰 번호를 그대로 쓰는 계좌("평생계좌",
+  /// "신한은행 010-1234-5678")가 흔해서다. 지역번호·안심번호, 송장 줄의 휴대폰 번호("택배 기사님 010-…"), 은행 이름 없이
+  /// "입금"·"계좌"만 있는 줄의 휴대폰 번호("입금 후 010-… 로 문자 주세요")는 계속 뺀다.
   /// 국제 표기 전화번호는 "+" 바로 뒤의 묶음("+82-10-1234-5678")이거나, 앞부분이 공백·괄호를 빼고 "+82"(뒤에 "(0)" 이 붙은 것 포함)로
   /// 끝나는 묶음("+82 10-1234-5678", "(+82) 10-1234-5678", "+82 (0)10-1234-5678")이라 뺀다.
-  static func numbers(in text: String) -> [String] {
+  static func numbers(in text: String, acceptsMobileNumber: Bool) -> [String] {
     self.numberGroups(in: text).compactMap { match in
       let before = text[..<match.range.lowerBound]
       let prefix = before.filter { !$0.isWhitespace && $0 != "(" && $0 != ")" }
@@ -119,7 +138,7 @@ public enum CaptureInfoExtractor {
       let number = String(match.output)
       guard !isInternationalPhone,
             Self.numberDigitRange.contains(Self.digits(number).count),
-            !Self.isPhoneNumber(number)
+            !Self.isPhoneNumber(number) || (acceptsMobileNumber && number.hasPrefix("01"))
       else { return nil }
       return number
     }
@@ -137,7 +156,7 @@ public enum CaptureInfoExtractor {
 
   /// 0 으로 시작하는 전화번호 모양: "010-1234-5678"·"02-123-4567" 처럼 2~3·3~4·4자리 세 묶음, 또는 하이픈 없는 10~11자리.
   /// 택배·배달 화면의 안심번호(050X)는 "0504-1234-5678" 처럼 4·3~4·4자리 세 묶음, 또는 하이픈 없는 11~12자리다.
-  /// 네 묶음("010-1234-5678-09", 휴대폰 번호 계좌)은 계좌로 둔다.
+  /// 네 묶음("010-1234-5678-09", 휴대폰 번호 계좌)은 계좌로 둔다. 은행 이름이 있는 계좌 줄의 01X 휴대폰 모양은 `numbers(in:acceptsMobileNumber:)` 가 받는다.
   static func isPhoneNumber(_ number: String) -> Bool {
     guard number.hasPrefix("0") else { return false }
     let groups = number.split(separator: "-").map(\.count)

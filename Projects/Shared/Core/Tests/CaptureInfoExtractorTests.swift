@@ -32,6 +32,8 @@ struct CaptureInfoExtractorTests {
       ("택배비 입금계좌 110-123-456789", "110-123-456789"),
       ("우체국택배 계좌 012345-01-234567", "012345-01-234567"),
       ("택배비 송금 신한은행 110-123-456789", "110-123-456789"),
+      ("신한은행 010-1234-5678", "010-1234-5678"),
+      ("기업은행 01012345678", "01012345678"),
     ]
   )
   func readsAccountNumber(_ text: String, _ expected: String) {
@@ -70,6 +72,17 @@ struct CaptureInfoExtractorTests {
     #expect(info.accountNumbers.isEmpty)
   }
 
+  @Test("라벨 아래 줄의 휴대폰 번호 계좌는 라벨이나 그 줄에 은행 이름이 있을 때만 읽는다")
+  func readsMobileAccountOnNextLineOnlyWithBankName() {
+    let withBankBelow = CaptureInfoExtractor.extract(from: [line("입금 계좌"), line("010-1234-5678 신한은행")])
+    let withBankLabel = CaptureInfoExtractor.extract(from: [line("신한은행"), line("010-1234-5678")])
+    let withoutBank = CaptureInfoExtractor.extract(from: [line("입금 계좌"), line("010-1234-5678 로 연락 주세요")])
+
+    #expect(withBankBelow.accountNumbers == [CapturedText(text: "010-1234-5678", lineIndex: 1)])
+    #expect(withBankLabel.accountNumbers == [CapturedText(text: "010-1234-5678", lineIndex: 1)])
+    #expect(withoutBank.accountNumbers.isEmpty)
+  }
+
   @Test("다음 줄이 번호로 시작하지 않으면 읽지 않는다")
   func ignoresNextLineNotStartingWithNumber() {
     let info = CaptureInfoExtractor.extract(from: [line("입금 계좌"), line("예금주 110-123-456789")])
@@ -89,6 +102,8 @@ struct CaptureInfoExtractorTests {
       "택배 기사님 (+82) 10-1234-5678",
       "택배 기사님 +82 (0)10-1234-5678",
       "신한은행 02-123-4567",
+      "입금 후 010-1234-5678 로 문자 주세요",
+      "계좌 문의 01012345678",
       "신한은행 고객센터 1599-8000",
       "택배 주문번호 A1234567890",
       "택배 도착 예정 2026-10-20",
