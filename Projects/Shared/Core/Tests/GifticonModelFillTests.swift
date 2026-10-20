@@ -224,6 +224,13 @@ struct GifticonModelFillTests {
     #expect(GifticonExtractor.needsModelFill(missingExpiry, textLines: noClue))
     #expect(GifticonExtractor.needsModelFill(missingPlace, textLines: noClue))
   }
+
+  @Test("줄이 없으면 모델에 묻지 않는다")
+  func doesNotAskModelWithoutLines() {
+    let empty = GifticonInfo(expiryDate: nil, redemptionPlace: nil)
+
+    #expect(!GifticonExtractor.needsModelFill(empty, textLines: []))
+  }
 }
 
 private let calendar: Calendar = {

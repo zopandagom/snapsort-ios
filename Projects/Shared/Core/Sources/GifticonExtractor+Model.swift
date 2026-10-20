@@ -22,7 +22,9 @@ public struct GifticonModelAnswer: Sendable, Hashable {
 /// 원문 표기로 받는다. 규칙이 단서를 보고 정한 필드(찾았거나 일부러 비움)는 모델을 쓰지 않는다.
 /// 단서·다른 항목 단어 목록은 `ClassificationRules` 키워드 표와 따로 둔다(`scripts/mask-samples.py` 는 그 표만 읽는다).
 extension GifticonExtractor {
-  /// 모델 보강 버전. 확인 규칙이나 Classifier 프롬프트를 바꿔 같은 줄에서 다른 값이 나올 수 있으면 올린다.
+  /// 모델 보강 버전. 기프티콘 확인 규칙(이 파일)이나 기프티콘 요청(기프티콘 instructions, `GifticonFields` 의 `@Guide`,
+  /// 두 요청이 함께 쓰는 입력 형식 `ClassifierPrompt.text`·글자 수 상한·생성 옵션)을 바꿔 같은 줄에서 다른 기프티콘 값이 나올 수 있으면 올린다.
+  /// 분류 요청(분류 instructions, `InformationKinds`)만 바꾸면 올리지 않는다(분류 보강은 보강 상태를 남기지 않는다).
   /// 저장소가 이 버전으로 보강하지 않은 행을 보강 대기로 돌려주고, 인덱서가 규칙 추출부터 다시 계산해 보강한다.
   public static let modelFillVersion = 1
 
@@ -54,9 +56,10 @@ extension GifticonExtractor {
 
   /// 규칙이 비운 필드 중 모델로 채울 수 있는 것이 있는지. 둘 다 찾았거나, 비운 필드가 규칙의 판단으로 막혀 있으면
   /// (만료일: 만료일 라벨 줄·"까지" 기한·상대 기간이 있음. 교환처: 교환처 라벨 줄이 있음) false 라 모델에 묻지 않는다.
+  /// 줄이 없어도 false 다(대조할 원문이 없어 어떤 답도 확인을 통과할 수 없다).
   public static func needsModelFill(_ info: GifticonInfo, textLines: [RecognizedTextLine]) -> Bool {
-    (info.expiryDate == nil && !self.hasRuleExpiryClue(textLines))
-      || (info.redemptionPlace == nil && !self.hasRuleRedemptionPlaceLabel(textLines))
+    !textLines.isEmpty && ((info.expiryDate == nil && !self.hasRuleExpiryClue(textLines))
+      || (info.redemptionPlace == nil && !self.hasRuleRedemptionPlaceLabel(textLines)))
   }
 
   /// `info` 의 nil 필드만, 원문으로 확인한 모델 답으로 채운다. 규칙이 찾은 필드는 그대로 둔다.
