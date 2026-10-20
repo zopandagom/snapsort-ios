@@ -9,7 +9,8 @@ import FoundationModels
 public struct ClassifierClientImpl: ClassifierClient {
   /// 탐욕 샘플링으로 같은 줄에서 같은 답을 얻는다. 답은 짧은 필드라 응답 토큰을 묶는다(임시 값).
   /// 기프티콘 요청도 쓰므로, 바꿔서 같은 줄에서 다른 기프티콘 답이 나올 수 있으면 `GifticonExtractor.modelFillVersion` 을 올린다.
-  private static let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
+  /// iOS 27 SDK 에서 deprecated 인 `init(sampling:)` 을 쓴다. CI 의 iOS 26 SDK 에는 `init(samplingMode:)` 가 없다.
+  private static let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 256)
 
   public init() {}
 

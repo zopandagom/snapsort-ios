@@ -92,14 +92,16 @@ struct ClassifierClientImplTests {
       LanguageModelSession.GenerationError.refusal(.init(transcriptEntries: []), context),
       LanguageModelSession.GenerationError.decodingFailure(context),
     ]
-    if #available(iOS 27.0, *) {
-      errors += [
-        LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "")),
-        LanguageModelError.guardrailViolation(.init(debugDescription: "")),
-        LanguageModelError.refusal(.init(explanation: "", debugDescription: "")),
-        GeneratedContent.ParsingError(rawContent: "", debugDescription: ""),
-      ]
-    }
+    #if compiler(>=6.4) // iOS 27 SDK 에만 있는 오류 타입
+      if #available(iOS 27.0, *) {
+        errors += [
+          LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "")),
+          LanguageModelError.guardrailViolation(.init(debugDescription: "")),
+          LanguageModelError.refusal(.init(explanation: "", debugDescription: "")),
+          GeneratedContent.ParsingError(rawContent: "", debugDescription: ""),
+        ]
+      }
+    #endif
     for error in errors {
       #expect(ClassifierFailure.reason(of: error) == .input, "\(error)")
       #expect(ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .failed, "\(error)")
@@ -115,18 +117,20 @@ struct ClassifierClientImplTests {
       LanguageModelSession.GenerationError.concurrentRequests(context),
       LanguageModelSession.GenerationError.unsupportedGuide(context),
     ]
-    if #available(iOS 27.0, *) {
-      errors += [
-        LanguageModelError.unsupportedLanguageOrLocale(.init(languageCode: .korean, debugDescription: "")),
-        LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "")),
-        LanguageModelError.timeout(.init(debugDescription: "")),
-        LanguageModelError.unsupportedCapability(.init(capability: .vision, debugDescription: "")),
-        LanguageModelError.unsupportedTranscriptContent(.init(unsupportedContent: [], debugDescription: "")),
-        LanguageModelError.unsupportedGenerationGuide(.init(schemaName: nil, debugDescription: "")),
-        LanguageModelSession.Error.concurrentRequests,
-        LanguageModelSession.Error.transcriptMutationWhileResponding,
-      ]
-    }
+    #if compiler(>=6.4) // iOS 27 SDK 에만 있는 오류 타입
+      if #available(iOS 27.0, *) {
+        errors += [
+          LanguageModelError.unsupportedLanguageOrLocale(.init(languageCode: .korean, debugDescription: "")),
+          LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "")),
+          LanguageModelError.timeout(.init(debugDescription: "")),
+          LanguageModelError.unsupportedCapability(.init(capability: .vision, debugDescription: "")),
+          LanguageModelError.unsupportedTranscriptContent(.init(unsupportedContent: [], debugDescription: "")),
+          LanguageModelError.unsupportedGenerationGuide(.init(schemaName: nil, debugDescription: "")),
+          LanguageModelSession.Error.concurrentRequests,
+          LanguageModelSession.Error.transcriptMutationWhileResponding,
+        ]
+      }
+    #endif
     for error in errors {
       #expect(ClassifierFailure.reason(of: error) == .system, "\(error)")
       #expect(ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .rejected, "\(error)")
@@ -138,9 +142,11 @@ struct ClassifierClientImplTests {
     var errors: [any Error] = [
       LanguageModelSession.GenerationError.assetsUnavailable(.init(debugDescription: "")),
     ]
-    if #available(iOS 27.0, *) {
-      errors.append(SystemLanguageModel.Error.assetsUnavailable(.init(debugDescription: "")))
-    }
+    #if compiler(>=6.4) // iOS 27 SDK 에만 있는 오류 타입
+      if #available(iOS 27.0, *) {
+        errors.append(SystemLanguageModel.Error.assetsUnavailable(.init(debugDescription: "")))
+      }
+    #endif
     for error in errors {
       #expect(ClassifierFailure.reason(of: error) == .unavailable, "\(error)")
       // 요청 뒤 `isModelAvailable()` 이 아직 참이어도 쓸 수 없음이다.

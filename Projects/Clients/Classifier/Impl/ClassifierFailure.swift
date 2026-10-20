@@ -6,6 +6,8 @@ import FoundationModels
 /// 입력 탓만 그 이미지의 실패로 센다. 입력 탓인지 알 수 없는 오류(시뮬레이터의 `NSError` 등)는 시스템 거부로 본다.
 /// 실패로 세면 행이 보강을 마친 것으로 굳어 다시 묻지 않으므로, 모르면 굳히지 않는다.
 /// iOS 27 SDK 는 iOS 26 의 `GenerationError` 를 deprecated 하고 새 타입으로 나눴으므로 새 타입을 먼저 본다.
+/// 새 타입은 iOS 27 SDK(Swift 6.4 컴파일러)에만 있어 `#if compiler(>=6.4)` 로 감싼다. iOS 26 SDK 로 빌드하면(CI)
+/// iOS 27 기기의 새 타입 오류는 종류를 알 수 없는 오류(시스템 거부)가 된다.
 /// 원인 오류에는 OCR 텍스트가 섞일 수 있어 남기지 않는다.
 enum ClassifierFailure {
   enum Reason: Equatable {
@@ -36,11 +38,13 @@ enum ClassifierFailure {
   }
 
   static func reason(of error: any Error) -> Reason {
-    if #available(iOS 27.0, *) {
-      if let reason = self.reasonOfCurrentError(error) {
-        return reason
+    #if compiler(>=6.4)
+      if #available(iOS 27.0, *) {
+        if let reason = self.reasonOfCurrentError(error) {
+          return reason
+        }
       }
-    }
+    #endif
     guard let error = error as? LanguageModelSession.GenerationError else {
       return .system
     }
@@ -57,30 +61,33 @@ enum ClassifierFailure {
     }
   }
 
-  /// iOS 27 SDK 의 오류 타입. 그 타입이 아니면 nil.
-  @available(iOS 27.0, *)
-  private static func reasonOfCurrentError(_ error: any Error) -> Reason? {
-    if let error = error as? LanguageModelError {
-      switch error {
-      case .contextSizeExceeded, .guardrailViolation, .refusal:
+  #if compiler(>=6.4)
+    /// iOS 27 SDK 의 오류 타입. 그 타입이 아니면 nil.
+    @available(iOS 27.0, *)
+    private static func reasonOfCurrentError(_ error: any Error) -> Reason? {
+      if let error = error as? LanguageModelError {
+        switch error {
+        case .contextSizeExceeded, .guardrailViolation, .refusal:
+          return .input
+        // 입력은 글자 수 상한 안이므로 시간 초과·형식 정의 문제는 입력과 관계없다.
+        case .unsupportedLanguageOrLocale, .rateLimited, .timeout, .unsupportedCapability,
+             .unsupportedTranscriptContent,
+             .unsupportedGenerationGuide:
+          return .system
+        @unknown default:
+          return .system
+        }
+      }
+      if error is GeneratedContent.ParsingError {
         return .input
-      // 입력은 글자 수 상한 안이므로 시간 초과·형식 정의 문제는 입력과 관계없다.
-      case .unsupportedLanguageOrLocale, .rateLimited, .timeout, .unsupportedCapability, .unsupportedTranscriptContent,
-           .unsupportedGenerationGuide:
-        return .system
-      @unknown default:
+      }
+      if error is SystemLanguageModel.Error {
+        return .unavailable
+      }
+      if error is LanguageModelSession.Error {
         return .system
       }
+      return nil
     }
-    if error is GeneratedContent.ParsingError {
-      return .input
-    }
-    if error is SystemLanguageModel.Error {
-      return .unavailable
-    }
-    if error is LanguageModelSession.Error {
-      return .system
-    }
-    return nil
-  }
+  #endif
 }
