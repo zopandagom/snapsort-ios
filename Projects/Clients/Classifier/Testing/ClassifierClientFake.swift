@@ -4,6 +4,7 @@ import Synchronization
 
 /// 테스트와 Example 앱용 대역. 정해 둔 답을 돌려주고, 모델까지 간 요청을 기록한다.
 /// 실제 구현처럼 시작 전에 취소·쓸 수 있음을 확인하고, 끝난 뒤에 한 번 더 취소를 확인한다.
+/// Impl 의 입력 상한으로 잘라 낸 뒤 줄이 없는 경우는 흉내 내지 않는다(줄이 없을 때만 빈 답).
 /// 쓸 수 있음을 실행 도중 바꾸고 요청을 기록해야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class ClassifierClientFake: ClassifierClient {
   private let classifyHandler: @Sendable ([RecognizedTextLine]) async -> Result<Set<ImageCategory>, ClassifierError>

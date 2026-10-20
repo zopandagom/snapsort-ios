@@ -21,12 +21,12 @@ public struct ClassifierClientImpl: ClassifierClient {
   @concurrent
   public func classify(_ textLines: [RecognizedTextLine]) async throws(ClassifierError) -> Set<ImageCategory> {
     try self.checkBeforeRequest()
-    if textLines.isEmpty {
+    guard let prompt = ClassifierPrompt.text(textLines) else {
       return []
     }
     let answer = try await self.respond(
       instructions: ClassifierPrompt.classifyInstructions,
-      textLines: textLines,
+      prompt: prompt,
       generating: InformationKinds.self
     )
     return answer.categories
@@ -37,12 +37,12 @@ public struct ClassifierClientImpl: ClassifierClient {
     -> GifticonModelAnswer
   {
     try self.checkBeforeRequest()
-    if textLines.isEmpty {
+    guard let prompt = ClassifierPrompt.text(textLines) else {
       return GifticonModelAnswer(expiryText: nil, redemptionPlace: nil)
     }
     let answer = try await self.respond(
       instructions: ClassifierPrompt.gifticonInstructions,
-      textLines: textLines,
+      prompt: prompt,
       generating: GifticonFields.self
     )
     return answer.modelAnswer
@@ -60,14 +60,14 @@ public struct ClassifierClientImpl: ClassifierClient {
   /// 새 세션으로 한 번 묻고 실패를 이유로 바꾼다. 끝난 뒤에 Task 취소를 한 번 더 확인한다.
   private func respond<Content: Generable>(
     instructions: String,
-    textLines: [RecognizedTextLine],
+    prompt: String,
     generating type: Content.Type
   ) async throws(ClassifierError) -> Content {
     let session = LanguageModelSession(model: SystemLanguageModel.default, instructions: instructions)
     let content: Content
     do {
       content = try await session.respond(
-        to: ClassifierPrompt.text(textLines),
+        to: prompt,
         generating: type,
         options: Self.options
       ).content

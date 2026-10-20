@@ -26,8 +26,9 @@ enum ClassifierPrompt {
 
   /// 줄마다 번호를 붙여 읽는 순서대로 넣는다. 번호가 없으면 모델이 줄 속 지시문을 따랐다.
   /// 줄을 차례로 더하다 번호 붙인 줄의 글자 수가 상한을 넘기 전에 멈춘다.
+  /// 들어간 줄이 없으면(줄이 없거나 첫 줄이 상한을 넘으면) nil 이고, 받는 쪽은 모델을 부르지 않는다.
   /// 기프티콘 요청도 쓰므로, 바꿔서 같은 줄에서 다른 기프티콘 답이 나올 수 있으면 `modelFillVersion` 을 올린다.
-  static func text(_ lines: [RecognizedTextLine]) -> String {
+  static func text(_ lines: [RecognizedTextLine]) -> String? {
     var numberedLines: [String] = []
     var characterCount = 0
     for (index, line) in lines.enumerated() {
@@ -38,6 +39,9 @@ enum ClassifierPrompt {
       }
       numberedLines.append(numbered)
       characterCount += added
+    }
+    if numberedLines.isEmpty {
+      return nil
     }
     return "OCR 줄:\n" + numberedLines.joined(separator: "\n")
   }

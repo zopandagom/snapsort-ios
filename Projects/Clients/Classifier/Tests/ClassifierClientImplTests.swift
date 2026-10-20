@@ -22,7 +22,17 @@ struct ClassifierClientImplTests {
     #expect(ClassifierPrompt.text([.line(first), .line(second), .line("다")])
       == "OCR 줄:\n1: \(first)\n2: \(second)")
     #expect(ClassifierPrompt.text([.line(first), .line(second + "나")]) == "OCR 줄:\n1: \(first)")
-    #expect(ClassifierPrompt.text([]) == "OCR 줄:\n")
+    #expect(ClassifierPrompt.text([]) == nil)
+  }
+
+  @Test("보낼 줄이 없으면 프롬프트는 nil 이다")
+  func returnsNilPromptWithoutLinesToSend() {
+    let limit = ClassifierPrompt.maximumPromptCharacters
+    #expect(ClassifierPrompt.text([]) == nil)
+    // "1: " 을 붙이면 상한을 넘는 첫 줄만 있으면 보낼 줄이 없다.
+    #expect(ClassifierPrompt.text([.line(String(repeating: "가", count: limit - 2)), .line("다")]) == nil)
+    let exact = String(repeating: "가", count: limit - 3)
+    #expect(ClassifierPrompt.text([.line(exact)]) == "OCR 줄:\n1: \(exact)")
   }
 
   @Test("모델 종류를 정보형 카테고리로 바꾸고 none 은 버린다")
