@@ -1,5 +1,7 @@
 import ClassifierInterface
 import Core
+import Foundation
+import FoundationModels
 import Testing
 @testable import ClassifierImpl
 
@@ -58,9 +60,10 @@ struct ClassifierClientImplTests {
     }
   }
 
-  @Test("Task 가 취소되지 않았으면 CancellationError 도 failed 다")
-  func mapsCancellationErrorWithoutTaskCancelToFailed() {
-    #expect(ClassifierFailure.error(CancellationError(), isTaskCancelled: false, isModelAvailable: true) == .failed)
+  @Test("Task 가 취소되지 않았으면 CancellationError 도 취소가 아니다")
+  func mapsCancellationErrorWithoutTaskCancelToRejected() {
+    // 종류를 알 수 없는 오류와 같다. 취소로 바꾸면 인덱서가 실행을 멈춘다.
+    #expect(ClassifierFailure.error(CancellationError(), isTaskCancelled: false, isModelAvailable: true) == .rejected)
   }
 
   @Test("오류 뒤 모델을 쓸 수 없으면 unavailable 이다")
@@ -70,8 +73,83 @@ struct ClassifierClientImplTests {
     }
   }
 
-  @Test("그 밖의 오류는 failed 다")
-  func mapsOtherErrorsToFailed() {
-    #expect(ClassifierFailure.error(ModelFailure(), isTaskCancelled: false, isModelAvailable: true) == .failed)
+  @Test("입력 때문인 오류는 failed 다")
+  func mapsInputErrorsToFailed() {
+    let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
+    var errors: [any Error] = [
+      LanguageModelSession.GenerationError.exceededContextWindowSize(context),
+      LanguageModelSession.GenerationError.guardrailViolation(context),
+      LanguageModelSession.GenerationError.refusal(.init(transcriptEntries: []), context),
+      LanguageModelSession.GenerationError.decodingFailure(context),
+    ]
+    if #available(iOS 27.0, *) {
+      errors += [
+        LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "")),
+        LanguageModelError.guardrailViolation(.init(debugDescription: "")),
+        LanguageModelError.refusal(.init(explanation: "", debugDescription: "")),
+        GeneratedContent.ParsingError(rawContent: "", debugDescription: ""),
+      ]
+    }
+    for error in errors {
+      #expect(ClassifierFailure.reason(of: error) == .input, "\(error)")
+      #expect(ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .failed, "\(error)")
+    }
+  }
+
+  @Test("입력과 관계없는 시스템 거부는 rejected 다")
+  func mapsSystemErrorsToRejected() {
+    let context = LanguageModelSession.GenerationError.Context(debugDescription: "")
+    var errors: [any Error] = [
+      LanguageModelSession.GenerationError.unsupportedLanguageOrLocale(context),
+      LanguageModelSession.GenerationError.rateLimited(context),
+      LanguageModelSession.GenerationError.concurrentRequests(context),
+      LanguageModelSession.GenerationError.unsupportedGuide(context),
+    ]
+    if #available(iOS 27.0, *) {
+      errors += [
+        LanguageModelError.unsupportedLanguageOrLocale(.init(languageCode: .korean, debugDescription: "")),
+        LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "")),
+        LanguageModelError.timeout(.init(debugDescription: "")),
+        LanguageModelError.unsupportedCapability(.init(capability: .vision, debugDescription: "")),
+        LanguageModelError.unsupportedTranscriptContent(.init(unsupportedContent: [], debugDescription: "")),
+        LanguageModelError.unsupportedGenerationGuide(.init(schemaName: nil, debugDescription: "")),
+        LanguageModelSession.Error.concurrentRequests,
+        LanguageModelSession.Error.transcriptMutationWhileResponding,
+      ]
+    }
+    for error in errors {
+      #expect(ClassifierFailure.reason(of: error) == .system, "\(error)")
+      #expect(ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .rejected, "\(error)")
+    }
+  }
+
+  @Test("모델 자산이 없다는 오류는 unavailable 다")
+  func mapsAssetsUnavailableToUnavailable() {
+    var errors: [any Error] = [
+      LanguageModelSession.GenerationError.assetsUnavailable(.init(debugDescription: "")),
+    ]
+    if #available(iOS 27.0, *) {
+      errors.append(SystemLanguageModel.Error.assetsUnavailable(.init(debugDescription: "")))
+    }
+    for error in errors {
+      #expect(ClassifierFailure.reason(of: error) == .unavailable, "\(error)")
+      // 요청 뒤 `isModelAvailable()` 이 아직 참이어도 쓸 수 없음이다.
+      #expect(
+        ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .unavailable,
+        "\(error)"
+      )
+    }
+  }
+
+  @Test("종류를 알 수 없는 오류는 rejected 다(시뮬레이터의 NSError)")
+  func mapsUnknownErrorsToRejected() {
+    let errors: [any Error] = [
+      NSError(domain: "FoundationModels.LanguageModelError", code: -1),
+      ModelFailure(),
+    ]
+    for error in errors {
+      #expect(ClassifierFailure.reason(of: error) == .system, "\(error)")
+      #expect(ClassifierFailure.error(error, isTaskCancelled: false, isModelAvailable: true) == .rejected, "\(error)")
+    }
   }
 }

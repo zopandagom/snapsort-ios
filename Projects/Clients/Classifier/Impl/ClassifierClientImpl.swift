@@ -8,6 +8,7 @@ import FoundationModels
 /// 사진에서 읽은 텍스트와 모델 답은 로그에 남기지 않는다.
 public struct ClassifierClientImpl: ClassifierClient {
   /// 탐욕 샘플링으로 같은 줄에서 같은 답을 얻는다. 답은 짧은 필드라 응답 토큰을 묶는다(임시 값).
+  /// 기프티콘 요청도 쓰므로, 바꿔서 같은 줄에서 다른 기프티콘 답이 나올 수 있으면 `GifticonExtractor.modelFillVersion` 을 올린다.
   private static let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
 
   public init() {}
@@ -36,6 +37,9 @@ public struct ClassifierClientImpl: ClassifierClient {
     -> GifticonModelAnswer
   {
     try self.checkBeforeRequest()
+    if textLines.isEmpty {
+      return GifticonModelAnswer(expiryText: nil, redemptionPlace: nil)
+    }
     let answer = try await self.respond(
       instructions: ClassifierPrompt.gifticonInstructions,
       textLines: textLines,

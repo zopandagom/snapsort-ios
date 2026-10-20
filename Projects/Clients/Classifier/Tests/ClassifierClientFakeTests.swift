@@ -23,6 +23,16 @@ struct ClassifierClientFakeTests {
     #expect(fake.requests == [.classify(self.lines), .extractGifticon(self.lines)])
   }
 
+  @Test("기프티콘 추출도 줄이 없으면 모델까지 가지 않고 빈 답이다")
+  func returnsEmptyAnswerWithoutRequestForEmptyLines() async throws {
+    let fake = ClassifierClientFake(
+      extractResult: .success(GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: "GS25"))
+    )
+
+    #expect(try await fake.extractGifticon(from: []) == GifticonModelAnswer(expiryText: nil, redemptionPlace: nil))
+    #expect(fake.requests.isEmpty)
+  }
+
   @Test("모델을 쓸 수 없으면 unavailable 을 던진다")
   func throwsUnavailableWhenModelUnavailable() async {
     let fake = ClassifierClientFake(isModelAvailable: false, classifyResult: .success([.receipt]))

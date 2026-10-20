@@ -47,7 +47,7 @@ public final class ClassifierClientFake: ClassifierClient {
     self.state.withLock { $0.isModelAvailable = isAvailable }
   }
 
-  /// 모델까지 간 요청을 부른 순서대로. 부르기 전에 취소·쓸 수 없음으로 던진 요청과, 줄이 없어 빈 집합을 돌려준 `classify` 는 없다.
+  /// 모델까지 간 요청을 부른 순서대로. 부르기 전에 취소·쓸 수 없음으로 던진 요청과, 줄이 없어 빈 답을 돌려준 요청은 없다.
   /// 정해 둔 답이 오류인 요청은 있다.
   public var requests: [ClassifierRequest] {
     self.state.withLock { $0.requests }
@@ -71,6 +71,9 @@ public final class ClassifierClientFake: ClassifierClient {
     -> GifticonModelAnswer
   {
     try self.checkBeforeRequest()
+    if textLines.isEmpty {
+      return GifticonModelAnswer(expiryText: nil, redemptionPlace: nil)
+    }
     return try await self.perform(.extractGifticon(textLines)) { await self.extractGifticonHandler(textLines) }
   }
 

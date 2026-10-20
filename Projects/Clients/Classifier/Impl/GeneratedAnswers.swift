@@ -2,6 +2,7 @@ import Core
 import FoundationModels
 
 /// 기프티콘 요청의 답 형식. 모델 출력은 이 필드로만 받는다(이미지 속 지시문이 형식을 바꾸지 못한다).
+/// `@Guide` 를 바꿔서 같은 줄에서 다른 기프티콘 답이 나올 수 있으면 `GifticonExtractor.modelFillVersion` 을 올린다.
 @Generable
 struct GifticonFields {
   @Guide(description: "만료일(유효기간 끝) 날짜를 OCR 줄에 적힌 그대로 복사한 텍스트. 만료일이라고 적혀 있지 않으면 nil. 발행일·주문일·선물 받은 날은 만료일이 아니다.")
@@ -16,7 +17,7 @@ enum InformationKind {
   case gifticon, receipt, chat, shopping, map, document, none
 }
 
-/// 분류 요청의 답 형식.
+/// 분류 요청의 답 형식. 바꿔도 `GifticonExtractor.modelFillVersion` 을 올리지 않는다(분류 보강은 보강 상태를 남기지 않는다).
 @Generable
 struct InformationKinds {
   @Guide(description: "OCR 텍스트에 근거가 분명한 종류만. 근거가 없으면 [none].", .maximumCount(2))

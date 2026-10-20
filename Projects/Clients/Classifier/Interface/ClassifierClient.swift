@@ -13,11 +13,12 @@ public protocol ClassifierClient: Sendable {
   /// 정보형 밖의 카테고리는 돌려주지 않는다. 먼저 호출한 Task 가 취소됐으면 `.cancelled`,
   /// 모델을 쓸 수 없으면(`isModelAvailable()` 거짓) `.unavailable` 을 던지고, 그다음 줄이 없으면 모델을 부르지 않고 빈 집합이다.
   /// 응답 도중이나 뒤에 Task 가 취소되면 `.cancelled`, 응답이 실패했고 그때 모델을 쓸 수 없으면 `.unavailable`,
-  /// 그 밖의 실패는 `.failed` 다.
+  /// 이 입력 때문인 실패는 `.failed`, 입력과 관계없는 시스템 거부(종류를 알 수 없는 오류 포함)는 `.rejected` 다.
   func classify(_ textLines: [RecognizedTextLine]) async throws(ClassifierError) -> Set<ImageCategory>
 
   /// 기프티콘 이미지의 OCR 줄에서 만료일·교환처를 적힌 그대로 찾는다. 없으면 그 필드가 nil.
-  /// 먼저 호출한 Task 가 취소됐으면 `.cancelled`, 모델을 쓸 수 없으면 `.unavailable` 을 던진다. 줄이 없어도 모델을 부른다.
-  /// 응답 도중이나 뒤의 취소, 응답 실패 때의 쓸 수 없음·그 밖의 실패는 `classify` 와 같다.
+  /// 먼저 호출한 Task 가 취소됐으면 `.cancelled`, 모델을 쓸 수 없으면 `.unavailable` 을 던지고,
+  /// 그다음 줄이 없으면 모델을 부르지 않고 빈 답이다.
+  /// 응답 도중이나 뒤의 취소, 응답 실패 때의 쓸 수 없음·입력 실패(`.failed`)·시스템 거부(`.rejected`)는 `classify` 와 같다.
   func extractGifticon(from textLines: [RecognizedTextLine]) async throws(ClassifierError) -> GifticonModelAnswer
 }
