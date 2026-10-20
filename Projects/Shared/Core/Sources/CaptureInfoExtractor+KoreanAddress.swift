@@ -6,7 +6,8 @@
 /// - 동·리("우동"), 숫자 뒤 "가"("종로1가"), 도로명("…로"·"…길", 뒤에 "166번길" 이 오면 함께. "…으로"는 뺀다).
 ///   짧은 "세종" 뒤에 읍·면 없이 바로 오면 "…대로"·숫자 붙은 도로명("도움1로")과 세 글자 이상 동만 받는다(시·군·구가 거르는 몫을 대신한다).
 ///   "세종특별자치시"·"세종시"는 행정구역 이름이라 보통 문장과 헷갈리지 않아 좁히지 않는다("세종특별자치시 갈매로 388").
-/// - 번호는 낱말 전체가 "161"·"223-14"·"산 12" 꼴이어야 한다. 뒤에 "번지"나 문장 부호 ","·"."·")" 만 붙을 수 있다("30분"·"2.5"·"010-1234-5678" 은 아니다).
+/// - 번호는 낱말 전체가 "161"·"223-14"·"산 12" 꼴이어야 한다. 뒤에 "번지", 문장 부호 ","·"."·")", 괄호로 시작하는 참고 항목("110(태평로1가)")만 붙을 수
+/// 있다("30분"·"2.5"·"010-1234-5678" 은 아니다).
 /// 번호 뒤의 층·호·괄호 설명은 넣지 않는다. 시·도 없이 시작한 주소("강남구 역삼동")는 찾지 않는다.
 extension CaptureInfoExtractor {
   /// 한 줄에서 찾은 한국 주소. 원문의 띄어쓰기를 그대로 둔다.
@@ -114,11 +115,15 @@ extension CaptureInfoExtractor {
     return hasBranch ? 2 : 1
   }
 
-  /// 낱말이 건물·지번 번호면 번호가 끝나는 곳. 뒤에는 "번지"나 문장 부호 ","·"."·")" 만 붙을 수 있다.
+  /// 낱말이 건물·지번 번호면 번호가 끝나는 곳. 뒤에는 "번지", 문장 부호 ","·"."·")", 괄호로 시작하는 참고 항목만 붙을 수 있다.
   private static func numberEnd(in word: Substring) -> String.Index? {
     guard let match = word.prefixMatch(of: numberPattern) else { return nil }
-    let rest = word[match.range.upperBound...]
-    guard rest.isEmpty || rest == "번지" || rest.allSatisfy({ ",.)".contains($0) }) else { return nil }
+    var rest = word[match.range.upperBound...]
+    if rest.hasPrefix("번지") {
+      rest = rest.dropFirst(2)
+    }
+    // 괄호 참고 항목은 띄어 쓰지 않고 붙기도 한다("세종대로 110(태평로1가)"). 번호 끝에서 자른다.
+    guard rest.first == "(" || rest.allSatisfy({ ",.)".contains($0) }) else { return nil }
     return match.range.upperBound
   }
 
