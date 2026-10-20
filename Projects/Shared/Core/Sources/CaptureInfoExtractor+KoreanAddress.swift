@@ -4,7 +4,8 @@
 ///   읍·면은 목록의 시·군 바로 뒤나, 시 바로 뒤에 온 일반구 뒤("용인시 처인구 포곡읍")에서만 받는다
 ///   (서울 강남구 같은 자치구에는 읍·면이 없다). 세종은 시·군·구가 없어 세종의 읍·면 0~1개를 거친다.
 /// - 동·리("우동"), 숫자 뒤 "가"("종로1가"), 도로명("…로"·"…길", 뒤에 "166번길" 이 오면 함께. "…으로"는 뺀다).
-///   세종에서 읍·면 없이 바로 오면 "…대로"·숫자 붙은 도로명("도움1로")과 세 글자 이상 동만 받는다(시·군·구가 거르는 몫을 대신한다).
+///   짧은 "세종" 뒤에 읍·면 없이 바로 오면 "…대로"·숫자 붙은 도로명("도움1로")과 세 글자 이상 동만 받는다(시·군·구가 거르는 몫을 대신한다).
+///   "세종특별자치시"·"세종시"는 행정구역 이름이라 보통 문장과 헷갈리지 않아 좁히지 않는다("세종특별자치시 갈매로 388").
 /// - 번호는 낱말 전체가 "161"·"223-14"·"산 12" 꼴이어야 한다. 뒤에 "번지"나 문장 부호 ","·"."·")" 만 붙을 수 있다("30분"·"2.5"·"010-1234-5678" 은 아니다).
 /// 번호 뒤의 층·호·괄호 설명은 넣지 않는다. 시·도 없이 시작한 주소("강남구 역삼동")는 찾지 않는다.
 extension CaptureInfoExtractor {
@@ -32,10 +33,13 @@ extension CaptureInfoExtractor {
     guard let province = Self.province(in: words[first]) else { return nil }
     var index = first + 1
     let isStrictLocation: Bool
-    if KoreanAdministrativeDivisions.sejong.contains(String(words[first][province...])) {
+    let provinceName = words[first][province...]
+    if KoreanAdministrativeDivisions.sejong.contains(String(provinceName)) {
       let hasTown = index < words.count && KoreanAdministrativeDivisions.sejongTowns.contains(String(words[index]))
       index += hasTown ? 1 : 0
-      isStrictLocation = !hasTown
+      // 짧은 "세종"은 "세종대왕"·"세종 가면" 처럼 보통 문장에도 나와 읍·면이 없으면 좁게 본다.
+      // "세종특별자치시"·"세종시"는 행정구역 이름이라 다른 시·도처럼 본다.
+      isStrictLocation = !hasTown && provinceName == "세종"
     } else {
       let districtCount = Self.districtCount(startingAt: index, in: words)
       guard districtCount > 0 else { return nil }
@@ -93,7 +97,7 @@ extension CaptureInfoExtractor {
   /// 동·리·가나 도로명의 낱말 수(도로명 뒤에 "166번길" 이 오면 2). 아니면 nil.
   private static func locationCount(startingAt index: Int, in words: [Substring], isStrict: Bool) -> Int? {
     let word = words[index]
-    // 세종에서 읍·면 없이 오는 동은 세 글자 이상 "…동"만 받는다(세종의 읍·면 밖 지역은 동이다. 리·"…N가"는 없다).
+    // 짧은 "세종" 뒤에 읍·면 없이 오는 동은 세 글자 이상 "…동"만 받는다(세종의 읍·면 밖 지역은 동이다. 리·"…N가"는 없다).
     if isStrict,
        word.wholeMatch(of: Self.dongOrRiPattern) != nil || word.wholeMatch(of: Self.numberedGaPattern) != nil
     {
