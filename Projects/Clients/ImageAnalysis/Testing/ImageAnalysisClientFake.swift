@@ -7,24 +7,34 @@ import Synchronization
 public final class ImageAnalysisClientFake: ImageAnalysisClient {
   private let classifyHandler: @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>
   private let recognizeTextHandler: @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>
+  private let detectBarcodesHandler: @Sendable (AnalysisImage) async -> Result<[DetectedBarcode], ImageAnalysisError>
   private let recordedRequests = Mutex<[AnalysisRequest]>([])
 
   /// 어떤 이미지든 같은 결과를 돌려준다.
   public convenience init(
     classifyResult: Result<[ImageLabel], ImageAnalysisError> = .success([]),
-    recognizeTextResult: Result<[RecognizedTextLine], ImageAnalysisError> = .success([])
+    recognizeTextResult: Result<[RecognizedTextLine], ImageAnalysisError> = .success([]),
+    detectBarcodesResult: Result<[DetectedBarcode], ImageAnalysisError> = .success([])
   ) {
-    self.init(classify: { _ in classifyResult }, recognizeText: { _ in recognizeTextResult })
+    self.init(
+      classify: { _ in classifyResult },
+      recognizeText: { _ in recognizeTextResult },
+      detectBarcodes: { _ in detectBarcodesResult }
+    )
   }
 
   /// 이미지마다 다른 결과를 돌려준다. 여러 이미지를 함께 다루는 테스트가 이미지 크기 등으로 결과를 고른다.
   /// 결과를 기다리게 해 분석 도중의 취소를 흉내 낼 수 있다.
   public init(
     classify: @escaping @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>,
-    recognizeText: @escaping @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>
+    recognizeText: @escaping @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>,
+    detectBarcodes: @escaping @Sendable (AnalysisImage) async -> Result<[DetectedBarcode], ImageAnalysisError> = { _ in
+      .success([])
+    }
   ) {
     self.classifyHandler = classify
     self.recognizeTextHandler = recognizeText
+    self.detectBarcodesHandler = detectBarcodes
   }
 
   /// 부른 순서대로의 요청.
@@ -47,6 +57,11 @@ public final class ImageAnalysisClientFake: ImageAnalysisClient {
     return try await Self.perform { await self.recognizeTextHandler(image) }
   }
 
+  public func detectBarcodes(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [DetectedBarcode] {
+    self.recordedRequests.withLock { $0.append(.detectBarcodes) }
+    return try await Self.perform { await self.detectBarcodesHandler(image) }
+  }
+
   /// 실제 구현처럼 결과를 받기 전과 받은 뒤에 Task 취소를 확인한다.
   private static func perform<Output>(
     _ handler: () async -> Result<Output, ImageAnalysisError>
@@ -66,4 +81,5 @@ public final class ImageAnalysisClientFake: ImageAnalysisClient {
 public enum AnalysisRequest: Sendable, Equatable {
   case classify(minimumConfidence: Float)
   case recognizeText
+  case detectBarcodes
 }

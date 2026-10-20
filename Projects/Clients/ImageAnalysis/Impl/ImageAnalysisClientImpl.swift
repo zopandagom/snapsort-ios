@@ -41,6 +41,25 @@ public struct ImageAnalysisClientImpl: ImageAnalysisClient {
     )
   }
 
+  /// 큰 이미지를 분석하므로 메인 밖에서 실행한다. 바코드 종류는 Vision 이 지원하는 전부를 찾는다(기본값).
+  @concurrent
+  public func detectBarcodes(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [DetectedBarcode] {
+    let observations = try await Self.perform {
+      try await DetectBarcodesRequest().perform(on: image.cgImage, orientation: image.orientation)
+    }
+    return BarcodeDetection.barcodes(
+      observations.compactMap { observation in
+        observation.payloadString.map { payload in
+          DetectedBarcode(
+            payload: payload,
+            symbology: BarcodeDetection.symbology(observation.symbology),
+            boundingBox: TextRecognition.topLeftOrigin(observation.boundingBox.cgRect)
+          )
+        }
+      }
+    )
+  }
+
   /// Vision 요청을 실행하고 실패를 이유로 바꾼다. 시작 전과 끝난 뒤에 Task 취소를 확인한다.
   private static func perform<Output>(
     _ request: () async throws -> Output
