@@ -117,7 +117,7 @@ extension CaptureInfoExtractor {
 
   /// 낱말이 건물·지번 번호면 번호가 끝나는 곳. 뒤에는 "번지", 문장 부호 ","·"."·")", 괄호로 시작하는 참고 항목만 붙을 수 있다.
   private static func numberEnd(in word: Substring) -> String.Index? {
-    guard let match = word.prefixMatch(of: numberPattern) else { return nil }
+    guard let match = word.prefixMatch(of: buildingNumberPattern) else { return nil }
     var rest = word[match.range.upperBound...]
     if rest.hasPrefix("번지") {
       rest = rest.dropFirst(2)
@@ -133,5 +133,5 @@ extension CaptureInfoExtractor {
   private static var dongOrRiPattern: Regex<Substring> { #/[가-힣0-9]+(?:동|리)/# }
   private static var roadPattern: Regex<Substring> { #/[가-힣A-Za-z0-9.]+(?:로|길)/# }
   private static var branchRoadPattern: Regex<Substring> { #/[0-9]+번?길/# }
-  private static var numberPattern: Regex<Substring> { #/(?:산)?[0-9]+(?:-[0-9]+)?/# }
+  private static var buildingNumberPattern: Regex<Substring> { #/(?:산)?[0-9]+(?:-[0-9]+)?/# }
 }
