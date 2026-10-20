@@ -118,7 +118,8 @@ struct PhotoStoreClientFakeTests {
       id: "pending",
       textRecognition: .recognized([]),
       categories: [.gifticon],
-      gifticon: found
+      gifticon: found,
+      gifticonModelFill: .done
     )] + others).sorted { $0.id < $1.id })
     #expect(try await fake.gifticonExtractionPendingIDs().isEmpty)
     #expect(fake.savedGifticonBatches == [request])
@@ -269,6 +270,9 @@ struct PhotoStoreClientFakeTests {
     }
     await #expect(throws: PhotoStoreError.failed) {
       try await fake.upcomingGifticonExpiries(from: LocalDate(Date(), calendar: .current))
+    }
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.gifticonModelFillPendingIDs()
     }
   }
 }

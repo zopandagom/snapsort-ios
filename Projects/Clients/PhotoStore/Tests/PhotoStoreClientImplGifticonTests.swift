@@ -193,7 +193,9 @@ struct PhotoStoreClientImplGifticonTests {
       labels: image.labels,
       textRecognition: image.textRecognition,
       categories: image.categories,
-      gifticon: gifticon
+      gifticon: gifticon,
+      // `saveGifticons` 는 보강 상태도 규칙 추출 기준으로 되돌린다.
+      gifticonModelFill: .initial(for: gifticon)
     )
   }
 
