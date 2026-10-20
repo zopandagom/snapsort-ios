@@ -1,5 +1,6 @@
 /// 이미지 한 장의 메타데이터·이미지 분류 라벨·OCR 텍스트로 카테고리를 고르는 키워드 규칙 분류기 (docs/ARCHITECTURE.md §4).
-/// 모든 기기에서 동작하는 기본 분류다. Foundation Models 는 지원 기기에서 이 결과를 보강한다.
+/// 모든 기기에서 동작하는 기본 분류다. 글자를 읽었는데 결과가 기타뿐인 이미지는 지원 기기에서 언어 모델이 제안한 정보형 중
+/// OCR 원문에 근거가 있는 것(`ModelCategoryPolicy`)으로 보강한다.
 public enum RuleClassifier {
   /// 이미지가 속한 카테고리. 여러 개일 수 있고, 어디에도 해당하지 않으면 `[.other]` 다.
   /// - 정보형: 해당 라벨이 있거나 OCR 텍스트에 키워드가 기준 개수 이상 있으면. 문서는 라벨에 더해 OCR 글자가 기준 이상이어야 한다.
@@ -105,7 +106,7 @@ public enum RuleClassifier {
 /// 키워드를 찾을 OCR 줄 하나. 공백을 지운 글자와 공백이 있던 자리를 함께 둔다.
 /// OCR 이 "교 환 처", "유효 기간"처럼 띄워 읽어도 키워드를 찾되, "몇 시까지 도착해"의 "지도"처럼
 /// 앞 단어 중간에서 시작해 공백을 넘어 걸린 것은 인정하지 않는다.
-private struct KeywordLine {
+struct KeywordLine {
   private let characters: [Character]
   /// 바로 앞에 공백이 있던 글자의 위치.
   private let spaceBefore: Set<Int>

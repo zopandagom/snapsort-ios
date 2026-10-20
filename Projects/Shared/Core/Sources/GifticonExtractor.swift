@@ -23,6 +23,7 @@ public struct GifticonInfo: Sendable, Hashable {
 public enum GifticonExtractor {
   /// 추출 규칙 버전. 규칙을 바꿔 같은 줄에서 다른 값이 나올 수 있으면 올린다.
   /// 저장소가 이 버전으로 추출하지 않은 행을 다시 추출 대상으로 돌려준다.
+  /// 언어 모델 보강의 확인 규칙(`GifticonExtractor+Model.swift`)은 이 버전이 아니라 `modelFillVersion` 으로 센다.
   public static let rulesVersion = 1
 
   /// 만료일 라벨. 공백 없이 소문자로 적는다.
@@ -163,7 +164,7 @@ public enum GifticonExtractor {
   /// 줄이 이어짐 기호와 숫자로 시작하고 그 뒤가 날짜 표기뿐이면("~ 2027.10.17", "~ 2027.10.17(일)까지") 기호 뒤 텍스트.
   /// 날짜로 읽지 못하는 숫자("~ 27.10")도 기간의 끝이다. 글이 섞인 글머리표 안내문("- 본 상품은", "- 1인 1매",
   /// "- 2027.01.31까지 연장 신청 가능")은 아니다.
-  private static func textAfterLeadingSeparator(_ text: String) -> Substring? {
+  static func textAfterLeadingSeparator(_ text: String) -> Substring? {
     let trimmed = text.drop(while: \.isWhitespace)
     guard let first = trimmed.first, self.rangeSeparators.contains(first) else { return nil }
     let rest = trimmed.dropFirst()
@@ -220,7 +221,7 @@ public enum GifticonExtractor {
   /// - 연도를 생략한 끝 날짜는 기간 안의 연도가 적힌 앞 날짜 이후, 없으면 `notBefore`·기준일 이후 처음 오는 그 날짜다
   ///   ("10월 1일 ~ 12월 31일" 의 시작일을 기준일 뒤로 보내지 않는다).
   /// - Parameter notBefore: 앞 줄에서 시작한 기간의 시작 날짜. 이보다 이른 날짜는 끝 날짜가 아니다.
-  private static func rangeEnd(in text: some StringProtocol, reference: LocalDate?, notBefore: LocalDate?) -> RangeEnd {
+  static func rangeEnd(in text: some StringProtocol, reference: LocalDate?, notBefore: LocalDate?) -> RangeEnd {
     let text = String(text)
     let mentions = DateMention.mentions(in: text)
     let dates = mentions.indices.map { self.resolvedDate(at: $0, of: mentions, in: text, base: notBefore ?? reference) }
@@ -282,7 +283,7 @@ public enum GifticonExtractor {
   }
 
   /// 라벨 중 하나로 시작하는 줄과, 그 줄에서 라벨 뒤의 원래 텍스트. OCR 순서대로다.
-  private static func labeledLines(
+  static func labeledLines(
     _ lines: [RecognizedTextLine],
     labels: [String]
   ) -> [(line: RecognizedTextLine, rest: Substring)] {
@@ -295,7 +296,7 @@ public enum GifticonExtractor {
 
   /// 줄 맨 앞(앞쪽 기호 "[", "■", "*" 와 공백은 건너뛴다)에 `label` 이 있으면 그 뒤의 원래 텍스트. 라벨 안의 공백은 무시한다.
   /// "제휴사(교환처) 사정에 따라…" 같은 안내문 속 라벨 단어는 라벨로 보지 않는다.
-  private static func text(after label: String, in text: String) -> Substring? {
+  static func text(after label: String, in text: String) -> Substring? {
     guard var index = text.firstIndex(where: { $0.isLetter || $0.isNumber }) else { return nil }
     for expected in label {
       while index < text.endIndex, text[index].isWhitespace {
@@ -322,7 +323,7 @@ public enum GifticonExtractor {
 
   /// 오른쪽 같은 높이의 가장 가까운 줄과, 바로 아래에서 가로로 겹치는 가장 가까운 줄.
   /// 다른 라벨로 시작하는 줄은 값이 아니므로 고르지 않는다(교환처가 로고라 읽은 글자가 없을 때 아래의 유효기간 줄을 고르지 않게).
-  private static func neighborLines(
+  static func neighborLines(
     of line: RecognizedTextLine,
     in lines: [RecognizedTextLine]
   ) -> (sameRow: RecognizedTextLine?, below: RecognizedTextLine?) {
@@ -345,7 +346,7 @@ public enum GifticonExtractor {
   }
 
   /// 앞뒤 공백과 구분 기호(":", "-", "|")를 뺀 값. 앞쪽의 닫는 괄호("[교환처] 편의점")도 뺀다. 비었으면 nil.
-  private static func cleanedValue(_ text: some StringProtocol) -> String? {
+  static func cleanedValue(_ text: some StringProtocol) -> String? {
     let separators = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ":：-|"))
     let value = text.drop { $0.isWhitespace || "])】）".contains($0) }.trimmingCharacters(in: separators)
     return value.isEmpty ? nil : value
