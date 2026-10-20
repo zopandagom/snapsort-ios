@@ -196,6 +196,26 @@ struct CaptureInfoExtractorTests {
     #expect(CaptureInfoExtractor.extract(from: [line(text)]).addresses.isEmpty)
   }
 
+  @Test("한 줄에 주소가 둘이면 둘 다 읽는다")
+  func readsTwoAddressesOnOneLine() {
+    let info = CaptureInfoExtractor.extract(from: [line("서울 중구 세종대로 110 → 부산광역시 해운대구 우동 1408")])
+
+    #expect(info.addresses == [
+      CapturedText(text: "서울 중구 세종대로 110", lineIndex: 0),
+      CapturedText(text: "부산광역시 해운대구 우동 1408", lineIndex: 0),
+    ])
+  }
+
+  @Test("같은 주소가 여러 줄에 있으면 처음 것만 둔다")
+  func dropsDuplicateAddresses() {
+    let info = CaptureInfoExtractor.extract(from: [
+      line("배송지 서울 중구 세종대로 110"),
+      line("서울 중구 세종대로 110"),
+    ])
+
+    #expect(info.addresses == [CapturedText(text: "서울 중구 세종대로 110", lineIndex: 0)])
+  }
+
   @Test("한글이 없는 줄은 기기의 주소 감지로 읽는다")
   func readsNonKoreanAddressWithDetector() {
     let info = CaptureInfoExtractor.extract(from: [line("1 Infinite Loop, Cupertino, CA 95014")])
