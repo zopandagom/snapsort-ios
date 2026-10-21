@@ -75,4 +75,72 @@ struct LibraryModelCategoryCountTests {
     appear.cancel()
     await appear.value
   }
+
+  @Test("진행률을 받을 때마다(같은 값 포함) 저장소 변경 번호가 오른다")
+  func progressBumpsStoreRevision() async {
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
+    let model = LibraryModel(
+      photoLibrary: photoLibrary,
+      indexing: indexing,
+      photoStore: PhotoStoreClientFake(),
+      notification: nil
+    )
+    let appear = Task { await model.onAppear() }
+    await waitUntil { indexing.activeRunCount == 1 }
+    let before = model.storeRevision
+
+    // 소급이 끝날 때처럼 같은 값의 진행률이 다시 와도 오른다.
+    let progress = IndexingProgress(totalCount: 2, indexedCount: 1, skippedCount: 0)
+    indexing.sendProgress(progress)
+    await waitUntil { model.storeRevision == before + 1 }
+    indexing.sendProgress(progress)
+    await waitUntil { model.storeRevision == before + 2 }
+
+    appear.cancel()
+    await appear.value
+  }
+
+  @Test("인덱싱이 멈추면 저장소 변경 번호가 오른다")
+  func stopBumpsStoreRevision() async {
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
+    let model = LibraryModel(
+      photoLibrary: photoLibrary,
+      indexing: indexing,
+      photoStore: PhotoStoreClientFake(),
+      notification: nil
+    )
+    let appear = Task { await model.onAppear() }
+    await waitUntil { indexing.activeRunCount == 1 }
+    let before = model.storeRevision
+
+    indexing.finishRuns()
+    await waitUntil { model.isIndexingStopped }
+    #expect(model.storeRevision == before + 1)
+
+    appear.cancel()
+    await appear.value
+  }
+
+  @Test("화면을 떠나 구독을 끝내면 번호를 올리지 않는다")
+  func cancelDoesNotBumpStoreRevision() async {
+    let indexing = IndexingClientFake(finishesAfterProgress: false)
+    let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
+    let model = LibraryModel(
+      photoLibrary: photoLibrary,
+      indexing: indexing,
+      photoStore: PhotoStoreClientFake(),
+      notification: nil
+    )
+    let appear = Task { await model.onAppear() }
+    await waitUntil { indexing.activeRunCount == 1 }
+    let before = model.storeRevision
+
+    appear.cancel()
+    await appear.value
+
+    #expect(model.storeRevision == before)
+    #expect(!model.isIndexingStopped)
+  }
 }

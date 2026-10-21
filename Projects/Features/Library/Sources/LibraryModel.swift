@@ -35,6 +35,10 @@ public final class LibraryModel {
   public private(set) var hasPlannedReminder = false
   /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
   public private(set) var isRequestingNotificationAuthorization = false
+  /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
+  /// 인덱싱이 멈출 때. 카테고리 화면이 이 변화로 다시 읽는다(LibraryView 가 CategoryModel 에 넘긴다).
+  /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
+  public private(set) var storeRevision = 0
 
   /// "만료 알림 받기" 버튼을 보일지.
   public var showsExpiryReminderButton: Bool {
@@ -174,7 +178,8 @@ public final class LibraryModel {
   }
 
   /// 인덱서는 보관함 변경을 스스로 관찰하므로, 진행률만 받아 상태에 반영한다.
-  /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출·소급 보강이 끝날 때 진행률을 보내므로, 그때마다 개수를 다시 읽고 만료 알림 동기화를 요청한다.
+  /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출·소급 보강이 끝날 때 진행률을 보내므로, 그때마다 저장소 변경 번호(`storeRevision`)를 올리고
+  /// 개수를 다시 읽고 만료 알림 동기화를 요청한다.
   /// 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 Task 가 새 Task 의 상태를 덮지 않게 한다.
   private func index(with indexing: any IndexingClient, generation: Int) async {
     guard self.isCurrent(generation) else { return }
@@ -184,6 +189,8 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
+      // 개수를 다시 읽기 전에 올려 카테고리 화면의 다시 읽기가 함께 시작되게 한다.
+      self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.requestReminderSync()
     }
@@ -194,6 +201,7 @@ public final class LibraryModel {
     // 마지막 진행률 뒤에 저장소를 바꾸고(삭제 등) 멈췄을 수 있으므로 한 번 더 읽는다.
     await self.refreshCategoryCounts(generation: generation)
     guard self.isCurrent(generation), !Task.isCancelled else { return }
+    self.storeRevision += 1
     self.requestReminderSync()
     self.isIndexingStopped = true
   }
