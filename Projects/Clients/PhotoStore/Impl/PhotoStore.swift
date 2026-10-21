@@ -166,6 +166,7 @@ actor PhotoStore {
       for stored in try self.modelContext.fetch(FetchDescriptor<StoredTrip>()) {
         self.modelContext.delete(stored)
       }
+      try self.deletePlaces(notIn: trips)
       for trip in trips {
         self.modelContext.insert(
           StoredTrip(

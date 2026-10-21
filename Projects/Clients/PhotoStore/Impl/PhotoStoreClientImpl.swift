@@ -32,7 +32,7 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     let container: ModelContainer
     do {
       container = try ModelContainer(
-        for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self,
+        for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self, StoredPlaceName.self,
         configurations: configuration
       )
     } catch {
@@ -122,6 +122,40 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
 
   public func tripCount() async throws(PhotoStoreError) -> Int {
     try await Self.perform { try await self.store.value.tripCount() }
+  }
+
+  public func assets(ids: [ImageAsset.ID]) async throws(PhotoStoreError) -> [ImageAsset] {
+    try await Self.perform { try await self.store.value.assets(ids: ids) }
+  }
+
+  public func assets(
+    in categories: Set<ImageCategory>,
+    createdIn interval: DateInterval
+  ) async throws(PhotoStoreError) -> [ImageCategory: [ImageAsset]] {
+    try await Self.perform { try await self.store.value.assets(in: categories, createdIn: interval) }
+  }
+
+  public func places(
+    for keys: Set<RoundedCoordinate>,
+    localeIdentifier: String
+  ) async throws(PhotoStoreError) -> [RoundedCoordinate: CachedPlace] {
+    try await Self.perform { try await self.store.value.places(for: keys, localeIdentifier: localeIdentifier) }
+  }
+
+  public func savePlace(
+    _ name: CachedPlaceName,
+    timeZoneIdentifier: String?,
+    for key: RoundedCoordinate,
+    localeIdentifier: String
+  ) async throws(PhotoStoreError) -> Bool {
+    try await Self.perform {
+      try await self.store.value.savePlace(
+        name,
+        timeZoneIdentifier: timeZoneIdentifier,
+        for: key,
+        localeIdentifier: localeIdentifier
+      )
+    }
   }
 
   /// SwiftData·인코딩 실패를 `.failed` 로 바꾼다. 원인 오류에는 OCR 텍스트가 섞일 수 있어 남기지 않는다.
