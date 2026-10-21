@@ -1,6 +1,7 @@
 import CoreGraphics
 
-/// 이미지에서 읽은 바코드 하나 (docs/ARCHITECTURE.md §4 캡처 정보 추출). 기프티콘 바코드를 화면에 크게 다시 그리는 입력이다.
+/// 이미지에서 읽은 바코드 하나 (docs/ARCHITECTURE.md §4 캡처 정보 추출). 기프티콘 바코드를 화면에 크게 보이는(다시 그리거나 영역을 확대하는, `BarcodeImageRenderer`)
+/// 입력이다.
 /// 내용은 기프티콘을 바로 쓸 수 있는 번호이므로 기기 밖으로 보내거나 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 public struct DetectedBarcode: Sendable, Hashable {
   /// 바코드에 담긴 글자. 글자로 읽을 수 없는 바코드(이진 데이터)는 결과에 넣지 않는다.
