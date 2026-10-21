@@ -277,6 +277,70 @@ struct PhotoStoreClientFakeTests {
   }
 }
 
+// 카테고리 화면용 메타데이터 조회 `assets(in:)`.
+extension PhotoStoreClientFakeTests {
+  @Test("Fake 도 images(in:) 와 같은 순서로 메타데이터를 돌려준다")
+  func fakeAssetsMatchImagesOrder() async throws {
+    let fake = PhotoStoreClientFake(images: [
+      .stub(id: "old", creationDate: Date(timeIntervalSince1970: 100), categories: [.chat]),
+      .stub(id: "undated", creationDate: nil, categories: [.chat]),
+      .stub(id: "sameB", creationDate: Date(timeIntervalSince1970: 150), categories: [.chat]),
+      .stub(id: "new", creationDate: Date(timeIntervalSince1970: 200), categories: [.chat]),
+      .stub(id: "sameA", creationDate: Date(timeIntervalSince1970: 150), categories: [.chat]),
+      .stub(id: "food", categories: [.food, .travel]),
+    ])
+
+    let assets = try await fake.assets(in: .chat)
+
+    #expect(assets.map(\.id) == ["new", "sameA", "sameB", "old", "undated"])
+    #expect(try await assets == fake.images(in: .chat).map(\.asset))
+    #expect(try await fake.assets(in: .travel).isEmpty)
+    #expect(fake.assetsCallCount == 2)
+  }
+
+  @Test("모든 호출 실패를 정하면 던진다")
+  func fakeAssetsThrowsError() async {
+    let fake = PhotoStoreClientFake(images: [.stub(id: "a", categories: [.chat])], error: .failed)
+
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.assets(in: .chat)
+    }
+  }
+
+  @Test("정한 번째 호출만 실패하고 다음 호출은 성공한다")
+  func fakeAssetsErrorsByCall() async throws {
+    let indexes = Mutex<[Int]>([])
+    let fake = PhotoStoreClientFake(
+      images: [.stub(id: "a", categories: [.chat])],
+      assetsErrors: [1: .failed],
+      onAssets: { index in indexes.withLock { $0.append(index) } }
+    )
+
+    #expect(try await fake.assets(in: .chat).map(\.id) == ["a"])
+    await #expect(throws: PhotoStoreError.failed) {
+      try await fake.assets(in: .chat)
+    }
+    #expect(try await fake.assets(in: .chat).map(\.id) == ["a"])
+    #expect(fake.assetsCallCount == 3)
+    // 실패한 호출에서는 훅을 부르지 않는다.
+    #expect(indexes.withLock { $0 } == [0, 2])
+  }
+
+  @Test("메타데이터 조회 훅을 기다리는 동안 바뀐 저장소가 아니라 훅 전에 계산한 값을 돌려준다")
+  func fakeAssetsComputedBeforeHook() async throws {
+    let fake = Later<PhotoStoreClientFake>()
+    let instance = PhotoStoreClientFake(onAssets: { index in
+      if index == 0 {
+        try? await fake.value?.save([.stub(id: "a", categories: [.chat])])
+      }
+    })
+    fake.set(instance)
+
+    #expect(try await instance.assets(in: .chat).isEmpty)
+    #expect(try await instance.assets(in: .chat).map(\.id) == ["a"])
+  }
+}
+
 /// 훅이 만들기 전의 대역을 참조하도록 나중에 채운다.
 private final class Later<Value: Sendable>: Sendable {
   private let storage = Mutex<Value?>(nil)

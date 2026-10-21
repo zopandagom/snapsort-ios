@@ -17,6 +17,7 @@ import SwiftUI
 struct SnapSortApp: App {
   @State private var onboardingModel: OnboardingModel
   @State private var libraryModel: LibraryModel
+  @State private var categoryModel: CategoryModel
   #if DEBUG
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
@@ -51,6 +52,8 @@ struct SnapSortApp: App {
       photoStore: photoStore,
       notification: NotificationClientImpl()
     ))
+    // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
+    self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
         photoLibrary: photoLibrary,
@@ -64,9 +67,13 @@ struct SnapSortApp: App {
       // 화면 간 흐름은 App 이 정한다. 읽을 수 있는 권한이 생기면 보관함으로 넘어간다.
       if self.onboardingModel.access.canRead {
         #if DEBUG
-          SampleRecorderEntry(libraryModel: self.libraryModel, sampleRecorderModel: self.sampleRecorderModel)
+          SampleRecorderEntry(
+            libraryModel: self.libraryModel,
+            categoryModel: self.categoryModel,
+            sampleRecorderModel: self.sampleRecorderModel
+          )
         #else
-          LibraryView(model: self.libraryModel)
+          LibraryView(model: self.libraryModel, categoryModel: self.categoryModel)
         #endif
       } else {
         OnboardingView(model: self.onboardingModel)

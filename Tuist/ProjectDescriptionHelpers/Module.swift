@@ -37,6 +37,7 @@ public enum Feature: String, CaseIterable {
 /// 각 Shared 모듈은 모듈 / Tests 두 타깃으로 나뉜다.
 public enum Shared: String, CaseIterable {
   case core = "Core"
+  case designSystem = "DesignSystem"
 
   public var name: String { self.rawValue }
   public var tests: String { "\(self.rawValue)Tests" }

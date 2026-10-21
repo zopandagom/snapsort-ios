@@ -40,8 +40,14 @@ public protocol PhotoStoreClient: Sendable {
   /// 소급 추출이 저장된 줄을 읽는 데 쓰므로, 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
   func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage]
 
-  /// 그 카테고리에 속한 이미지를 최신순(생성일 없는 이미지는 맨 뒤)으로 돌려준다.
+  /// 그 카테고리에 속한 이미지를 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로 돌려준다.
+  /// 라벨·OCR 줄까지 읽는다. 목록 화면은 `assets(in:)` 을 쓴다.
   func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage]
+
+  /// 그 카테고리에 속한 이미지의 메타데이터를 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로 돌려준다.
+  /// 라벨·OCR 줄·추출 값을 읽지 않아 `images(in:)` 보다 가볍다. 카테고리 화면처럼 자주 다시 읽는 목록에서 쓴다.
+  /// 여행은 이미지 카테고리가 아니므로 `.travel` 은 늘 비어 있다.
+  func assets(in category: ImageCategory) async throws(PhotoStoreError) -> [ImageAsset]
 
   /// 지금 규칙 버전으로 추출해 만료일을 찾은 기프티콘 중 만료일이 `date` 와 같거나 늦은 것을 만료일 오름차순(같으면 식별자 순)으로 돌려준다.
   /// 저장된 yyyymmdd 정수로 조건·정렬한다. 추출 대기 행(다른 규칙 버전, 만료일 정수를 날짜로 해석하지 못함)은 빠지므로,

@@ -55,7 +55,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 ## 출시 전 준비 체크리스트 (코드 외)
 | 항목 | 필요 시점 | 상태 |
 |---|---|---|
-| Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☐ |
+| Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☑ |
 | App ID `com.zopandagom.snapsort` + App Group 등록 | W4 (위젯과 SwiftData 저장소 공유. W2 는 App 기본 위치에 저장) | ☐ |
 | App Store Connect 앱 생성, 앱 이름 선점 ("SnapSort" / 한국어 이름) | 가능한 빨리 | ☐ |
 | 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
