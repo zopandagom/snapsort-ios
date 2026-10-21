@@ -3,8 +3,10 @@ import Foundation
 import ImageAnalysisImpl
 import IndexingImpl
 import LibraryFeature
+import MapImpl
 import NotificationImpl
 import OnboardingFeature
+import PasteboardImpl
 import PhotoLibraryImpl
 import PhotoStoreImpl
 import SwiftUI
@@ -18,6 +20,8 @@ struct SnapSortApp: App {
   @State private var onboardingModel: OnboardingModel
   @State private var libraryModel: LibraryModel
   @State private var categoryModel: CategoryModel
+  @State private var gifticonListModel: GifticonListModel
+  @State private var captureActionsModel: CaptureActionsModel
   #if DEBUG
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
@@ -54,6 +58,14 @@ struct SnapSortApp: App {
     ))
     // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
+    self._gifticonListModel = State(initialValue: GifticonListModel(photoStore: photoStore))
+    // 사진 상세의 캡처 행동. 지도 앱 열기·복사는 사용자가 누를 때만 한다.
+    self._captureActionsModel = State(initialValue: CaptureActionsModel(
+      photoStore: photoStore,
+      imageAnalysis: imageAnalysis,
+      map: MapClientImpl(),
+      pasteboard: PasteboardClientImpl()
+    ))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
         photoLibrary: photoLibrary,
@@ -70,10 +82,17 @@ struct SnapSortApp: App {
           SampleRecorderEntry(
             libraryModel: self.libraryModel,
             categoryModel: self.categoryModel,
+            gifticonListModel: self.gifticonListModel,
+            captureActionsModel: self.captureActionsModel,
             sampleRecorderModel: self.sampleRecorderModel
           )
         #else
-          LibraryView(model: self.libraryModel, categoryModel: self.categoryModel)
+          LibraryView(
+            model: self.libraryModel,
+            categoryModel: self.categoryModel,
+            gifticonListModel: self.gifticonListModel,
+            captureActionsModel: self.captureActionsModel
+          )
         #endif
       } else {
         OnboardingView(model: self.onboardingModel)

@@ -8,6 +8,8 @@
   struct SampleRecorderEntry: View {
     let libraryModel: LibraryModel
     let categoryModel: CategoryModel
+    let gifticonListModel: GifticonListModel
+    let captureActionsModel: CaptureActionsModel
     let sampleRecorderModel: SampleRecorderModel
 
     /// 화면 전환만 정하는 일시 상태.
@@ -19,15 +21,20 @@
           self.isShowingRecorder = false
         }
       } else {
-        LibraryView(model: self.libraryModel, categoryModel: self.categoryModel)
-          .overlay(alignment: .bottomLeading) {
-            Button("기록") {
-              self.isShowingRecorder = true
-            }
-            .buttonStyle(.bordered)
-            .font(.caption)
-            .padding()
+        LibraryView(
+          model: self.libraryModel,
+          categoryModel: self.categoryModel,
+          gifticonListModel: self.gifticonListModel,
+          captureActionsModel: self.captureActionsModel
+        )
+        .overlay(alignment: .bottomLeading) {
+          Button("기록") {
+            self.isShowingRecorder = true
           }
+          .buttonStyle(.bordered)
+          .font(.caption)
+          .padding()
+        }
       }
     }
   }
