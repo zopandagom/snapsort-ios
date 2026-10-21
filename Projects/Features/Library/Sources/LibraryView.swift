@@ -2,11 +2,15 @@ import Core
 import SwiftUI
 
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
+/// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`)을, 그 칸을 누르면 사진 상세(`PhotoDetailView`)를 연다.
+/// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 `categoryModel` 이벤트로 한다.
 public struct LibraryView: View {
   let model: LibraryModel
+  let categoryModel: CategoryModel
 
-  public init(model: LibraryModel) {
+  public init(model: LibraryModel, categoryModel: CategoryModel) {
     self.model = model
+    self.categoryModel = categoryModel
   }
 
   public var body: some View {
@@ -36,8 +40,19 @@ public struct LibraryView: View {
           self.limitedAccessBanner
         }
       }
+      // 격자 안에 두지 않고 루트 한곳에 둔다.
+      .navigationDestination(for: ImageCategory.self) { category in
+        CategoryView(model: self.categoryModel, category: category)
+      }
+      .navigationDestination(for: PhotoDetailRoute.self) { route in
+        PhotoDetailView(model: self.categoryModel, asset: route.asset)
+      }
     }
+    // 둘 다 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 저장소 변경 신호를 넘긴다.
     .task { await self.model.onAppear() }
+    .onChange(of: self.model.storeRevision) {
+      self.categoryModel.libraryStoreChanged()
+    }
   }
 
   private var emptyDescription: String {
@@ -153,6 +168,7 @@ public struct LibraryView: View {
   }
 
   /// 이미지가 있는 카테고리만 보여 주고, 하나도 없으면 섹션째 숨긴다.
+  /// 여행 줄은 여행 폴더 화면이 생기기 전까지 누를 수 없다.
   @ViewBuilder
   private func categorySection(_ title: String, group: ImageCategoryGroup) -> some View {
     let rows = ImageCategory.allCases.compactMap { category in
@@ -162,10 +178,12 @@ public struct LibraryView: View {
     if !rows.isEmpty {
       Section {
         ForEach(rows, id: \.category) { row in
-          LabeledContent {
-            Text(row.category.countText(row.count))
-          } label: {
-            Label(row.category.title, systemImage: row.category.systemImage)
+          if row.category == .travel {
+            self.categoryRow(row.category, count: row.count)
+          } else {
+            NavigationLink(value: row.category) {
+              self.categoryRow(row.category, count: row.count)
+            }
           }
         }
       } header: {
@@ -180,6 +198,14 @@ public struct LibraryView: View {
           Text("글자를 읽는 중이라 개수가 늘어날 수 있습니다.")
         }
       }
+    }
+  }
+
+  private func categoryRow(_ category: ImageCategory, count: Int) -> some View {
+    LabeledContent {
+      Text(category.countText(count))
+    } label: {
+      Label(category.title, systemImage: category.systemImage)
     }
   }
 

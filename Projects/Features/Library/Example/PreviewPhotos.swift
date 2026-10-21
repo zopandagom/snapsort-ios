@@ -1,0 +1,84 @@
+import Core
+import CoreGraphics
+import Foundation
+import PhotoLibraryInterface
+import PhotoLibraryTesting
+
+/// Example 의 분류 결과와 그 이미지 읽기 결과. 저장소와 보관함 대역이 같은 식별자를 쓴다.
+enum PreviewPhotos {
+  /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다.
+  static let counts: [(ImageCategory, Int)] = [
+    (.gifticon, 7), (.receipt, 12), (.chat, 9), (.document, 4),
+    (.food, 21), (.people, 1200), (.landscape, 6), (.other, 3),
+  ]
+  /// 각 카테고리 마지막 이만큼은 생성일이 없다("날짜 없음" 섹션).
+  static let undatedCount = 5
+  /// 데모 버튼으로 더할 수 있는 새 사진 수. 읽기 결과를 미리 만들어 둔다.
+  static let newPhotoCapacity = 50
+
+  static func id(_ category: ImageCategory, _ index: Int) -> ImageAsset.ID {
+    "\(category.rawValue)-\(index)"
+  }
+
+  static func newPhotoID(_ index: Int) -> ImageAsset.ID {
+    "people-new-\(index)"
+  }
+
+  /// 최근 24개월에 고르게 퍼진 생성일. 마지막 `undatedCount` 장은 nil 이다.
+  static func creationDate(index: Int, count: Int) -> Date? {
+    let datedCount = max(count - self.undatedCount, 1)
+    guard index < datedCount else { return nil }
+    let span: TimeInterval = 730 * 86400
+    return Date().addingTimeInterval(-span * Double(index) / Double(datedCount))
+  }
+
+  /// 칸마다 색이 다른 작은 이미지. 50장마다 iCloud 에만 있음·실패·보관함에 없음(결과 없음)·작은 대체 버전이 하나씩 섞인다.
+  /// 데모 버튼으로 더한 새 사진은 모두 읽힌다.
+  static let loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = {
+    var results: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
+    let ids = PreviewPhotos.counts.flatMap { category, count in (0 ..< count).map { PreviewPhotos.id(category, $0) } }
+    for (index, id) in ids.enumerated() {
+      switch index % 50 {
+      case 7: results[id] = .failure(.notAvailableLocally)
+      case 13: results[id] = .failure(.failed)
+      case 21: break
+      default: results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: index % 50 == 3))
+      }
+    }
+    for index in 0 ..< PreviewPhotos.newPhotoCapacity {
+      results[PreviewPhotos.newPhotoID(index)] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
+    }
+    return results
+  }()
+
+  private static func image(index: Int, isLocalFallback: Bool) -> AnalysisImage {
+    AnalysisImage(cgImage: .colored(index: index), orientation: .up, isLocalFallback: isLocalFallback)
+  }
+}
+
+extension CGImage {
+  /// 한 색으로 채운 40×30 이미지. 이웃한 `index` 끼리 색이 다르다.
+  static func colored(index: Int) -> CGImage {
+    let width = 40
+    let height = 30
+    guard
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else { return .stub(width: width, height: height) }
+    context.setFillColor(
+      red: CGFloat(index * 37 % 200 + 40) / 255,
+      green: CGFloat(index * 67 % 200 + 40) / 255,
+      blue: CGFloat(index * 101 % 200 + 40) / 255,
+      alpha: 1
+    )
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    return context.makeImage() ?? .stub(width: width, height: height)
+  }
+}
