@@ -267,25 +267,47 @@ actor PhotoStore {
   }
 
   private static func indexedImage(_ stored: StoredImage, decoder: PropertyListDecoder) throws -> IndexedImage {
-    let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
-      Coordinate(latitude: latitude, longitude: longitude)
-    } else {
-      nil
-    }
+    let asset = Self.imageAsset(stored)
     return try IndexedImage(
-      asset: ImageAsset(
-        id: stored.assetID,
-        creationDate: stored.creationDate,
-        coordinate: coordinate,
-        pixelWidth: stored.pixelWidth,
-        pixelHeight: stored.pixelHeight,
-        isScreenshot: stored.isScreenshot
-      ),
+      asset: asset,
       labels: decoder.decode([ImageLabel].self, from: stored.labelsData),
       textRecognition: Self.textRecognition(stored, decoder: decoder),
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
       gifticon: Self.storedGifticon(stored),
       gifticonModelFill: Self.modelFill(stored)
+    )
+  }
+}
+
+// 카테고리 화면용 목록 조회 (docs/ARCHITECTURE.md §4 저장소).
+extension PhotoStore {
+  /// `images(in:)` 와 같은 행을 같은 순서로 읽되 라벨·OCR 줄을 디코딩하지 않는다. 그래서 줄 데이터가 손상된 행도 나온다.
+  func assets(in category: ImageCategory) throws -> [ImageAsset] {
+    let rawValue = category.rawValue
+    let stored = try self.modelContext.fetch(
+      FetchDescriptor<StoredImage>(
+        predicate: #Predicate { image in
+          image.memberships.contains { $0.category == rawValue }
+        }
+      )
+    )
+    return stored.sorted(by: Self.isNewer).map(Self.imageAsset)
+  }
+
+  /// 행의 메타데이터. `images(in:)`·`images(ids:)` 와 `assets(in:)` 가 함께 쓴다.
+  private static func imageAsset(_ stored: StoredImage) -> ImageAsset {
+    let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
+      Coordinate(latitude: latitude, longitude: longitude)
+    } else {
+      nil
+    }
+    return ImageAsset(
+      id: stored.assetID,
+      creationDate: stored.creationDate,
+      coordinate: coordinate,
+      pixelWidth: stored.pixelWidth,
+      pixelHeight: stored.pixelHeight,
+      isScreenshot: stored.isScreenshot
     )
   }
 }

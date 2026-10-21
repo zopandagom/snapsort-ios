@@ -7,7 +7,8 @@ import Synchronization
 /// 그래서 만료 예정 조회(`upcomingGifticonExpiries`)는 추출 값의 만료일만 보고, 보강 상태는 `IndexedImage.gifticonModelFill`
 /// 로만 다룬다(`.stale` 은 테스트가 그 상태의 이미지를 넣어 만든다).
 /// 모든 호출의 실패와 따로, 소급 추출 호출만의 실패(`gifticonError`), 소급 보강 호출만의 실패(`modelFillError`),
-/// 특정 식별자를 읽는 `images(ids:)` 만의 실패(`failingOnIDRead`)도 정할 수 있다.
+/// 특정 식별자를 읽는 `images(ids:)` 만의 실패(`failingOnIDRead`), `assets(in:)` 의 호출 번호별 실패(`assetsErrors`)도 정할 수 있다.
+/// 늦게 끝나는 읽기는 `onAssets`·`onUpcomingGifticonExpiries` 훅으로 흉내 낸다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -16,6 +17,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   private let gifticonError: PhotoStoreError?
   private let modelFillError: PhotoStoreError?
   private let failingOnIDRead: Set<ImageAsset.ID>
+  private let assetsErrors: [Int: PhotoStoreError]
+  private let onAssets: @Sendable (Int) async -> Void
   private let onSaveGifticons: @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void
   private let onUpcomingGifticonExpiries: @Sendable (Int) async -> Void
   private let state: Mutex<State>
@@ -30,6 +33,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var replaceTripsCount = 0
     var missingOnIDRead: Set<ImageAsset.ID> = []
     var upcomingGifticonExpiriesCount = 0
+    var assetsCallCount = 0
   }
 
   /// - Parameters:
@@ -46,6 +50,10 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///     성공한다. 소급 배치처럼 그 식별자를 읽는 호출만 실패하는 경우를 흉내 낸다(2단계 배치와는 대상 식별자가 겹치지 않아 구분된다).
   ///   - onSaveGifticons: `saveGifticons` 가 오류·한도 확인과 쓰기 전에 기다려 부른다. 소급 추출 배치 도중(저장 직전)에
   ///     보관함이 바뀌는 일을 흉내 낸다. 소급은 이미지 로드·OCR 을 하지 않아 그쪽 대역의 훅이 걸리지 않는다.
+  ///   - assetsErrors: `assets(in:)` 의 호출 번호(0부터)별 실패. 그 번째 호출만 이 실패를 던지고 다른 호출은 성공한다.
+  ///     `error`(모든 호출)가 정해져 있으면 그것이 먼저다. 화면 재조회 도중의 실패와 회복을 흉내 낸다.
+  ///   - onAssets: `assets(in:)` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
+  ///     기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려줘, 늦게 끝난 읽기를 흉내 낸다. 실패하는 호출에서는 부르지 않는다.
   ///   - onUpcomingGifticonExpiries: `upcomingGifticonExpiries(from:)` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다.
   ///     인자는 몇 번째 호출인지(0부터)다. 기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려줘, 늦게 깨어난 읽기를 흉내 낸다.
   public init(
@@ -59,6 +67,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     missingOnIDRead: Set<ImageAsset.ID> = [],
     failingOnIDRead: Set<ImageAsset.ID> = [],
     onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
+    assetsErrors: [Int: PhotoStoreError] = [:],
+    onAssets: @escaping @Sendable (Int) async -> Void = { _ in },
     onUpcomingGifticonExpiries: @escaping @Sendable (Int) async -> Void = { _ in }
   ) {
     self.error = error
@@ -68,6 +78,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.modelFillError = modelFillError
     self.failingOnIDRead = failingOnIDRead
     self.onSaveGifticons = onSaveGifticons
+    self.assetsErrors = assetsErrors
+    self.onAssets = onAssets
     self.onUpcomingGifticonExpiries = onUpcomingGifticonExpiries
     self.state = Mutex(State(
       images: Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }),
@@ -109,6 +121,12 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   /// `delete` 에 넘긴 식별자를 부른 순서대로.
   public var deletedBatches: [Set<ImageAsset.ID>] {
     self.state.withLock { $0.deletedBatches }
+  }
+
+  /// 지금까지 `assets(in:)` 을 부른 횟수. `assetsErrors` 로 실패한 호출은 포함하고, `error`(모든 호출 실패)로 던진 호출은 세지 않는다
+  /// (`throwIfNeeded` 가 번호를 매기기 전에 던진다). 재조회 합치기 테스트가 센다.
+  public var assetsCallCount: Int {
+    self.state.withLock { $0.assetsCallCount }
   }
 
   public func save(_ images: [IndexedImage]) async throws(PhotoStoreError) {
@@ -197,21 +215,22 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   /// 프로토콜 약속대로 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로 돌려준다.
   public func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage] {
     try self.throwIfNeeded()
-    return self.images
-      // Impl 처럼 `.travel` 은 이미지 카테고리로 다루지 않는다.
-      .filter { category != .travel && $0.categories.contains(category) }
-      .sorted { lhs, rhs in
-        switch (lhs.asset.creationDate, rhs.asset.creationDate) {
-        case let (left?, right?) where left != right:
-          left > right
-        case (.some, nil):
-          true
-        case (nil, .some):
-          false
-        default:
-          lhs.id < rhs.id
-        }
-      }
+    return self.images(inCategory: category)
+  }
+
+  /// `images(in:)` 와 같은 이미지의 메타데이터를 같은 순서로 돌려준다.
+  public func assets(in category: ImageCategory) async throws(PhotoStoreError) -> [ImageAsset] {
+    try self.throwIfNeeded()
+    let index = self.state.withLock { state in
+      defer { state.assetsCallCount += 1 }
+      return state.assetsCallCount
+    }
+    if let error = self.assetsErrors[index] {
+      throw error
+    }
+    let assets = self.images(inCategory: category).map(\.asset)
+    await self.onAssets(index)
+    return assets
   }
 
   /// 프로토콜 약속대로 만료일 오름차순(같으면 식별자 순)으로 돌려준다.
@@ -252,6 +271,25 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public func tripCount() async throws(PhotoStoreError) -> Int {
     try self.throwIfNeeded()
     return self.state.withLock { $0.trips.count }
+  }
+
+  /// 그 카테고리 이미지를 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로.
+  private func images(inCategory category: ImageCategory) -> [IndexedImage] {
+    self.images
+      // Impl 처럼 `.travel` 은 이미지 카테고리로 다루지 않는다.
+      .filter { category != .travel && $0.categories.contains(category) }
+      .sorted { lhs, rhs in
+        switch (lhs.asset.creationDate, rhs.asset.creationDate) {
+        case let (left?, right?) where left != right:
+          left > right
+        case (.some, nil):
+          true
+        case (nil, .some):
+          false
+        default:
+          lhs.id < rhs.id
+        }
+      }
   }
 
   /// 기프티콘으로 분류돼 글자를 읽었는데 추출 값이 없다.
