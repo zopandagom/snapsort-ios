@@ -277,11 +277,13 @@ private enum Fixture {
   }
 
   /// 저장소가 쓰지 않는 보강 버전·규칙 버전을 직접 넣기 위해 Impl 스키마로 기프티콘 읽음 행을 만들고 컨테이너를 놓는다.
-  /// 행마다 만료일 2026-12-31·교환처 "스타벅스" 를 둔다.
+  /// 행마다 만료일 2026-12-31·교환처 "스타벅스" 를 둔다. 필드별 출처는 규칙(false)으로 쓰고, `sourcesKnown` 이 false 면
+  /// 출처 속성이 생기기 전의 행처럼 nil 로 둔다.
   static func writeRows(
     at url: URL,
     _ rows: [String: (modelVersion: Int, failures: Int)],
-    rulesVersion: Int = GifticonExtractor.rulesVersion
+    rulesVersion: Int = GifticonExtractor.rulesVersion,
+    sourcesKnown: Bool = true
   ) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let container = try ModelContainer(
@@ -300,6 +302,8 @@ private enum Fixture {
       stored.gifticonRedemptionPlace = "스타벅스"
       stored.gifticonModelVersion = row.modelVersion
       stored.gifticonModelFailures = row.failures
+      stored.gifticonExpiryFromModel = sourcesKnown ? false : nil
+      stored.gifticonRedemptionPlaceFromModel = sourcesKnown ? false : nil
       context.insert(stored)
       stored.memberships = [StoredCategoryMembership(category: ImageCategory.gifticon.rawValue)]
     }

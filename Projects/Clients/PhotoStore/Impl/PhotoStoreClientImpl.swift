@@ -96,6 +96,18 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.upcomingGifticonExpiries(from: date) }
   }
 
+  public func gifticons() async throws(PhotoStoreError) -> [GifticonListItem] {
+    try await Self.perform { try await self.store.value.gifticons() }
+  }
+
+  public func gifticon(id: ImageAsset.ID) async throws(PhotoStoreError) -> GifticonListItem? {
+    try await Self.perform { try await self.store.value.gifticon(id: id) }
+  }
+
+  public func setGifticonUsed(_ isUsed: Bool, id: ImageAsset.ID) async throws(PhotoStoreError) -> Bool {
+    try await Self.perform { try await self.store.value.setGifticonUsed(isUsed, id: id) }
+  }
+
   public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
     try await Self.perform { try await self.store.value.categoryCounts() }
   }

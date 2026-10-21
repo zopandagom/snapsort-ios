@@ -24,6 +24,8 @@ actor PhotoStore {
             self.modelContext.delete(membership)
           }
           found.memberships = []
+          // 사용 여부는 사용자가 정한 값이라 인덱서의 재저장이 덮지 않는다. 기프티콘에서 빠지면 지운다.
+          found.gifticonIsUsed = found.gifticonIsUsed && image.categories.contains(.gifticon)
         } else {
           stored = StoredImage(assetID: image.id)
           self.modelContext.insert(stored)
@@ -208,7 +210,7 @@ actor PhotoStore {
   }
 
   /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다.
-  private static func isNewer(_ lhs: StoredImage, than rhs: StoredImage) -> Bool {
+  static func isNewer(_ lhs: StoredImage, than rhs: StoredImage) -> Bool {
     switch (lhs.creationDate, rhs.creationDate) {
     case let (left?, right?) where left != right:
       left > right
@@ -222,6 +224,7 @@ actor PhotoStore {
   }
 
   /// 저장된 추출 값. nil 이면 추출하지 않은 것으로 본다(읽기·추출 대기·`saveGifticons`·보강 대기가 모두 이 판정을 쓴다).
+  /// 출처 속성이 true 인 필드를 `modelFilledFields` 로 읽는다(nil·false 는 규칙).
   /// 버전은 맞는데 만료일 정수를 날짜로 해석하지 못하면 던지지 않고 추출하지 않은 것으로 본다. 던지면 그 행이 든
   /// `images(in: .gifticon)` 이 계속 실패해 사용자가 회복할 수 없고, 추출 값은 저장된 줄로 다시 만들 수 있다
   /// (추출 대기에 들어 소급 추출이 다시 쓴다). 쓰는 쪽은 늘 유효한 날짜를 쓰므로 정상 흐름에서는 생기지 않는다.
@@ -239,14 +242,27 @@ actor PhotoStore {
     } else {
       expiryDate = nil
     }
-    return GifticonInfo(expiryDate: expiryDate, redemptionPlace: stored.gifticonRedemptionPlace)
+    var modelFilledFields: Set<GifticonInfo.Field> = []
+    if stored.gifticonExpiryFromModel == true {
+      modelFilledFields.insert(.expiryDate)
+    }
+    if stored.gifticonRedemptionPlaceFromModel == true {
+      modelFilledFields.insert(.redemptionPlace)
+    }
+    return GifticonInfo(
+      expiryDate: expiryDate,
+      redemptionPlace: stored.gifticonRedemptionPlace,
+      modelFilledFields: modelFilledFields
+    )
   }
 
-  /// 추출함이면 지금 규칙 버전과 값을, nil(추출 안 함)이면 (0, nil, nil) 을 쓴다.
+  /// 추출함이면 지금 규칙 버전과 값·필드별 출처를, nil(추출 안 함)이면 (0, nil, nil) 과 출처 nil 을 쓴다.
   static func setGifticon(_ gifticon: GifticonInfo?, on stored: StoredImage) {
     stored.gifticonRulesVersion = gifticon == nil ? 0 : GifticonExtractor.rulesVersion
     stored.gifticonExpiryDay = gifticon?.expiryDate.map { Self.dayNumber($0) }
     stored.gifticonRedemptionPlace = gifticon?.redemptionPlace
+    stored.gifticonExpiryFromModel = gifticon.map { $0.modelFilledFields.contains(.expiryDate) }
+    stored.gifticonRedemptionPlaceFromModel = gifticon.map { $0.modelFilledFields.contains(.redemptionPlace) }
   }
 
   /// 저장 형식 yyyymmdd. 연도가 0 이상이면 `localDate` 와 왕복이 정확하다(추출기는 음수 연도를 내지 않는다).
@@ -294,8 +310,8 @@ extension PhotoStore {
     return stored.sorted(by: Self.isNewer).map(Self.imageAsset)
   }
 
-  /// 행의 메타데이터. `images(in:)`·`images(ids:)` 와 `assets(in:)` 가 함께 쓴다.
-  private static func imageAsset(_ stored: StoredImage) -> ImageAsset {
+  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()` 가 함께 쓴다.
+  static func imageAsset(_ stored: StoredImage) -> ImageAsset {
     let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
       Coordinate(latitude: latitude, longitude: longitude)
     } else {
@@ -318,9 +334,11 @@ extension PhotoStore {
     let version = GifticonExtractor.rulesVersion
     let from = Self.dayNumber(date)
     // 만료일 정수가 있는 행은 `setGifticon` 으로만 생기고 그 경로는 늘 기프티콘 읽음 행이라 카테고리 조건은 넣지 않는다.
+    // 사용한 기프티콘은 알리지 않는다.
     var descriptor = FetchDescriptor<StoredImage>(
       predicate: #Predicate { image in
-        image.gifticonRulesVersion == version && (image.gifticonExpiryDay.flatMap { $0 >= from } ?? false)
+        image.gifticonRulesVersion == version && !image.gifticonIsUsed
+          && (image.gifticonExpiryDay.flatMap { $0 >= from } ?? false)
       },
       sortBy: [SortDescriptor(\.gifticonExpiryDay), SortDescriptor(\.assetID)]
     )
