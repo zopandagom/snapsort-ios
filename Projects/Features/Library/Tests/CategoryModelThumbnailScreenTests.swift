@@ -6,7 +6,7 @@ import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
-/// 격자가 아닌 화면(기프티콘 목록)이 썸네일 칸을 빌리는 `thumbnailScreenAppeared(category:)`.
+/// 격자가 아닌 화면(기프티콘 목록, 여행 폴더 목록·상세)이 썸네일 칸을 빌리는 `thumbnailScreenAppeared(category:)`.
 @MainActor
 struct CategoryModelThumbnailScreenTests {
   @Test("다른 카테고리를 보고 있었으면 썸네일과 내용을 비우고 저장소는 읽지 않는다")

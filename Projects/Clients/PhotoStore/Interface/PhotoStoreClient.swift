@@ -1,4 +1,5 @@
 import Core
+import Foundation
 
 /// 분류 결과 저장소 (SwiftData). 사진과 OCR 텍스트는 기기 안에만 저장한다 (docs/ARCHITECTURE.md §4).
 /// 구현은 PhotoStoreImpl, 테스트 대역은 PhotoStoreTesting 에 있다.
@@ -80,6 +81,7 @@ public protocol PhotoStoreClient: Sendable {
   func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int]
 
   /// 여행 판정 결과로 저장된 여행 전체를 바꾼다. 판정은 보관함 전체를 다시 보므로 일부만 고치지 않는다.
+  /// 같은 저장에서 새 여행의 중심점 키(`Trip.placeKey`) 어디에도 해당하지 않는 장소 캐시를 지운다.
   func replaceTrips(_ trips: [Trip]) async throws(PhotoStoreError)
 
   /// 저장된 여행을 시작 시각 순(같으면 끝 시각 순)으로 돌려준다.
@@ -87,4 +89,33 @@ public protocol PhotoStoreClient: Sendable {
 
   /// 저장된 여행 수. 여행마다 든 사진 식별자를 읽지 않고 센다 (화면의 여행 개수처럼 자주 세는 곳에서 쓴다).
   func tripCount() async throws(PhotoStoreError) -> Int
+
+  /// 식별자로 메타데이터만 읽는다. 넘긴 순서대로(중복은 처음 것만), 없는 식별자는 빠진다. 라벨·OCR 줄을 읽지 않는다.
+  /// 여행 사진처럼 수천 개일 수 있어 Impl 이 1,000개씩 나눠 조회한다.
+  func assets(ids: [ImageAsset.ID]) async throws(PhotoStoreError) -> [ImageAsset]
+
+  /// 생성일이 interval.start 이상 interval.end 미만(끝 제외)이고 categories 중 하나에 속한 이미지의 메타데이터.
+  /// 카테고리별 최신순(`assets(in:)` 과 같은 순서). 한 이미지가 여러 카테고리면 각각에 든다.
+  /// 빈 카테고리·`.travel`·생성일 없는 이미지는 빠진다. 여행 폴더 상세가 그 기간의 캡처를 고르는 데 쓴다.
+  func assets(
+    in categories: Set<ImageCategory>,
+    createdIn interval: DateInterval
+  ) async throws(PhotoStoreError) -> [ImageCategory: [ImageAsset]]
+
+  /// keys 중 장소 캐시가 있는 것. 이름은 그 locale 로 캐시된 것만 담고(다르면 nil), 시간대는 locale 과 무관하게 담는다.
+  /// 캐시가 없는 키는 결과에 없다.
+  func places(
+    for keys: Set<RoundedCoordinate>,
+    localeIdentifier: String
+  ) async throws(PhotoStoreError) -> [RoundedCoordinate: CachedPlace]
+
+  /// 장소 캐시에 쓴다. 같은 키는 locale·이름·시간대를 모두 덮는다. 저장된 여행 중 중심점 키가 key 인 여행이 없으면
+  /// 쓰지 않고 false (지오코딩 도중 사진을 지워 여행이 사라졌을 때 캐시가 남지 않게).
+  /// 요청 실패와 항목 없음(`placemarkNotFound`)은 부르는 쪽이 쓰지 않는다(다음에 다시 묻는다).
+  func savePlace(
+    _ name: CachedPlaceName,
+    timeZoneIdentifier: String?,
+    for key: RoundedCoordinate,
+    localeIdentifier: String
+  ) async throws(PhotoStoreError) -> Bool
 }

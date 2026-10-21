@@ -35,7 +35,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
 | 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
 | 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | |
-| 4 | Map(지도 앱 열기, 역지오코딩은 여행 폴더 PR 에서 더함), Pasteboard(이 기기만 복사), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동), Widget |
+| 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세)), Pasteboard(이 기기만 복사), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더), Widget |
 | 5 | Purchase(StoreKit) | Paywall |
 
 ## 작업 진행 방식

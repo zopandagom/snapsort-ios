@@ -11,6 +11,9 @@ import Synchronization
 /// 특정 식별자를 읽는 `images(ids:)` 만의 실패(`failingOnIDRead`), `assets(in:)` 의 호출 번호별 실패(`assetsErrors`)도 정할 수 있다.
 /// 기프티콘 목록 읽기의 호출 번호별 실패(`gifticonsErrors`)와 사용 여부 쓰기만의 실패(`setUsedError`)도 정할 수 있다.
 /// 늦게 끝나는 읽기·쓰기는 `onAssets`·`onUpcomingGifticonExpiries`·`onGifticons`·`onGifticon`·`onSetGifticonUsed` 훅으로 흉내 낸다.
+/// 여행 폴더용으로 장소 캐시(`places`)를 두고 Impl 처럼 `savePlace` 가 여행 키를 확인하고 `replaceTrips` 가 캐시를 정리한다.
+/// `trips()`·`assets(ids:)`·`assets(in:createdIn:)` 의 호출 번호별 실패(`tripsErrors`·`tripAssetsErrors`·`periodAssetsErrors`)와
+/// 늦은 결과 훅(`onTrips`·`onTripAssets`·`onPeriodAssets`), 장소 캐시 읽기·쓰기만의 실패(`placeError`)도 정할 수 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -28,6 +31,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let onGifticon: @Sendable (Int) async -> Void
   let setUsedError: PhotoStoreError?
   let onSetGifticonUsed: @Sendable (Int) async -> Void
+  let tripFolderOptions: TripFolderOptions
   let state: Mutex<State>
 
   struct State {
@@ -45,6 +49,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var gifticonsCallCount = 0
     var gifticonCallCount = 0
     var setGifticonUsedCount = 0
+    var tripFolder = TripFolderState()
   }
 
   /// - Parameters:
@@ -75,6 +80,17 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - setUsedError: 정하면 `setGifticonUsed` 만 이 실패를 던지고 사용 여부를 바꾸지 않는다. 다른 호출은 성공한다.
   ///   - onSetGifticonUsed: `setGifticonUsed` 가 오류를 확인하고 쓰기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
   ///     쓰는 동안 화면을 닫거나 다시 누르는 일을 흉내 낸다.
+  ///   - places: 처음 장소 캐시. 이름은 `placesLocaleIdentifier` 로 캐시한 것으로 본다. 이름이 nil 이면 시간대만 캐시한 것이다.
+  ///     여행 키 확인 없이 그대로 둔다.
+  ///   - placesLocaleIdentifier: `places` 의 이름이 캐시된 locale.
+  ///   - tripsErrors: `trips()` 의 호출 번호(0부터)별 실패. `assetsErrors` 와 같은 방식이다.
+  ///   - onTrips: `trips()` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
+  ///     기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려준다. 실패하는 호출에서는 부르지 않는다.
+  ///   - tripAssetsErrors: `assets(ids:)` 의 호출 번호(0부터)별 실패.
+  ///   - onTripAssets: `assets(ids:)` 가 결과를 계산한 뒤 돌려주기 전에 기다려 부른다. `onTrips` 와 같은 방식이다.
+  ///   - periodAssetsErrors: `assets(in:createdIn:)` 의 호출 번호(0부터)별 실패.
+  ///   - onPeriodAssets: `assets(in:createdIn:)` 가 결과를 계산한 뒤 돌려주기 전에 기다려 부른다. `onTrips` 와 같은 방식이다.
+  ///   - placeError: 정하면 `places(for:localeIdentifier:)`·`savePlace` 만 이 실패를 던지고 캐시를 바꾸지 않는다. 다른 호출은 성공한다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -94,7 +110,16 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     onGifticons: @escaping @Sendable (Int) async -> Void = { _ in },
     onGifticon: @escaping @Sendable (Int) async -> Void = { _ in },
     setUsedError: PhotoStoreError? = nil,
-    onSetGifticonUsed: @escaping @Sendable (Int) async -> Void = { _ in }
+    onSetGifticonUsed: @escaping @Sendable (Int) async -> Void = { _ in },
+    places: [RoundedCoordinate: CachedPlace] = [:],
+    placesLocaleIdentifier: String = "ko_KR",
+    tripsErrors: [Int: PhotoStoreError] = [:],
+    onTrips: @escaping @Sendable (Int) async -> Void = { _ in },
+    tripAssetsErrors: [Int: PhotoStoreError] = [:],
+    onTripAssets: @escaping @Sendable (Int) async -> Void = { _ in },
+    periodAssetsErrors: [Int: PhotoStoreError] = [:],
+    onPeriodAssets: @escaping @Sendable (Int) async -> Void = { _ in },
+    placeError: PhotoStoreError? = nil
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -111,12 +136,22 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.onGifticon = onGifticon
     self.setUsedError = setUsedError
     self.onSetGifticonUsed = onSetGifticonUsed
+    self.tripFolderOptions = TripFolderOptions(
+      tripsErrors: tripsErrors,
+      onTrips: onTrips,
+      tripAssetsErrors: tripAssetsErrors,
+      onTripAssets: onTripAssets,
+      periodAssetsErrors: periodAssetsErrors,
+      onPeriodAssets: onPeriodAssets,
+      placeError: placeError
+    )
     let byID = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.state = Mutex(State(
       images: byID,
       trips: trips,
       missingOnIDRead: missingOnIDRead,
-      usedIDs: usedIDs.filter { byID[$0]?.categories.contains(.gifticon) ?? false }
+      usedIDs: usedIDs.filter { byID[$0]?.categories.contains(.gifticon) ?? false },
+      tripFolder: TripFolderState(places: Self.storedPlaces(places, localeIdentifier: placesLocaleIdentifier))
     ))
   }
 
@@ -273,25 +308,6 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
     try self.throwIfNeeded()
     return self.images.flatMap(\.categories).filter { $0 != .travel }.reduce(into: [:]) { $0[$1, default: 0] += 1 }
-  }
-
-  public func replaceTrips(_ trips: [Trip]) async throws(PhotoStoreError) {
-    try self.throwIfNeeded()
-    self.state.withLock { state in
-      state.trips = trips
-      state.replaceTripsCount += 1
-    }
-  }
-
-  /// Impl 처럼 시작 시각 순(같으면 끝 시각 순)으로 돌려준다.
-  public func trips() async throws(PhotoStoreError) -> [Trip] {
-    try self.throwIfNeeded()
-    return self.state.withLock { $0.trips }.sorted { ($0.startDate, $0.endDate) < ($1.startDate, $1.endDate) }
-  }
-
-  public func tripCount() async throws(PhotoStoreError) -> Int {
-    try self.throwIfNeeded()
-    return self.state.withLock { $0.trips.count }
   }
 
   /// 그 카테고리 이미지를 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로.

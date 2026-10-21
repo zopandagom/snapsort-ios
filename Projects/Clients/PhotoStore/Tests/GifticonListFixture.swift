@@ -19,12 +19,12 @@ enum StoreKind: CaseIterable, CustomTestStringConvertible {
     }
   }
 
-  /// `images` 를 넣고 `usedIDs` 를 사용함으로 둔 저장소. Impl 은 `save` 가 쓰지 않는 보강 상태(`.stale`·`.sourcesUnknown`)의
+  /// `images`·`trips` 를 넣고 `usedIDs` 를 사용함으로 둔 저장소. Impl 은 `save` 가 쓰지 않는 보강 상태(`.stale`·`.sourcesUnknown`)의
   /// 행을 저장 스키마로 직접 쓴 파일에서 연다.
-  func make(_ images: [IndexedImage], usedIDs: Set<ImageAsset.ID> = []) async throws -> TestStore {
+  func make(_ images: [IndexedImage], usedIDs: Set<ImageAsset.ID> = [], trips: [Trip] = []) async throws -> TestStore {
     switch self {
     case .fake:
-      return TestStore(client: PhotoStoreClientFake(images: images, usedIDs: usedIDs), url: nil)
+      return TestStore(client: PhotoStoreClientFake(images: images, trips: trips, usedIDs: usedIDs), url: nil)
     case .impl:
       let url = GifticonListFixture.temporaryStoreURL()
       let isRaw: (IndexedImage) -> Bool = { [.stale, .sourcesUnknown].contains($0.gifticonModelFill) }
@@ -33,6 +33,9 @@ enum StoreKind: CaseIterable, CustomTestStringConvertible {
       try await store.save(images.filter { !isRaw($0) })
       for id in usedIDs {
         _ = try await store.setGifticonUsed(true, id: id)
+      }
+      if !trips.isEmpty {
+        try await store.replaceTrips(trips)
       }
       return TestStore(client: store, url: url)
     }
@@ -97,7 +100,7 @@ enum GifticonListFixture {
   static func writeRawRows(at url: URL, _ images: [IndexedImage]) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let container = try ModelContainer(
-      for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self,
+      for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self, StoredPlaceName.self,
       configurations: ModelConfiguration(url: url, cloudKitDatabase: .none)
     )
     let context = ModelContext(container)

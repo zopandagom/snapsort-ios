@@ -17,36 +17,43 @@ import SwiftUI
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 /// 카테고리를 연 채 아래 버튼으로 저장소를 바꾸면, 인덱서가 진행률을 보낸 것처럼 카테고리 화면이 다시 읽는다.
 /// 기프티콘 줄에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
-/// 지도·복사는 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않는다. 아래 디버그 줄이 Fake 가 받은 마지막 값을 보인다.
+/// 여행 줄에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를 본다.
+/// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
+/// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
   private static let scenario = ExampleScenario.current
   private static let photoStore = PhotoStoreClientFake.previewClassified(
     includesGifticons: Self.scenario != .gifticonEmpty,
-    gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:]
+    gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:],
+    includesTrips: Self.scenario != .tripEmpty,
+    tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:]
   )
+  private static let photoLibrary = Self.scenario == .limited
+    ? PhotoLibraryClientFake.previewLimitedClassified
+    : PhotoLibraryClientFake.previewAuthorized
   /// 계속 분석 중이라 버튼으로 진행률을 더 보낼 수 있다.
   private static let indexing = IndexingClientFake(
     progress: IndexingClientFake.previewInProgress.progress,
     finishesAfterProgress: false
   )
-  private static let map = MapClientFake(openResult: Self.scenario != .mapsUnavailable)
+  private static let map = PreviewTrips.map(
+    failing: Self.scenario == .tripGeocodingFailing,
+    openResult: Self.scenario != .mapsUnavailable
+  )
   private static let pasteboard = PasteboardClientFake()
 
   /// 기본은 알림 권한을 정하기 전이라 "만료 알림 받기" 버튼이 보이고, 누르면 허용된 것처럼 버튼이 사라진다.
   @State private var model = LibraryModel(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    photoLibrary: Self.photoLibrary,
     indexing: Self.indexing,
     photoStore: Self.photoStore,
     notification: Self.scenario == .notificationDenied
       ? NotificationClientFake.previewDenied()
       : NotificationClientFake.previewNotDetermined()
   )
-  @State private var categoryModel = CategoryModel(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    photoStore: Self.photoStore
-  )
+  @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
   @State private var captureActionsModel = CaptureActionsModel(
     photoStore: Self.photoStore,
@@ -54,6 +61,8 @@ struct LibraryFeatureExampleApp: App {
     map: Self.map,
     pasteboard: Self.pasteboard
   )
+  @State private var tripListModel = TripListModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
+  @State private var tripDetailModel = TripDetailModel(photoStore: Self.photoStore, map: Self.map)
   /// 지금까지 더한 새 사진 수. 데모 버튼의 다음 식별자를 정한다.
   @State private var addedCount = 0
 
@@ -63,7 +72,9 @@ struct LibraryFeatureExampleApp: App {
         model: self.model,
         categoryModel: self.categoryModel,
         gifticonListModel: self.gifticonListModel,
-        captureActionsModel: self.captureActionsModel
+        captureActionsModel: self.captureActionsModel,
+        tripListModel: self.tripListModel,
+        tripDetailModel: self.tripDetailModel
       )
       .overlay(alignment: .bottom) {
         VStack(spacing: 4) {
@@ -132,6 +143,13 @@ extension PhotoLibraryClientFake {
   static let previewFailing = PhotoLibraryClientFake(
     currentState: .authorized,
     loadImageResults: PreviewPhotos.loadImageResults.mapValues { _ in .failure(.failed) }
+  )
+
+  /// 제한 접근이지만 분류 결과의 이미지를 모두 읽을 수 있다. `-scenario limited` 에서 여행 목록 안내를 본다.
+  static let previewLimitedClassified = PhotoLibraryClientFake(
+    currentState: .limited,
+    imageAssets: .stubs(count: 128),
+    loadImageResults: PreviewPhotos.loadImageResults
   )
 
   /// "사진 더 선택"을 누르면 고른 사진이 늘어난 것처럼 보이게 한다.
@@ -224,7 +242,9 @@ private func libraryPreview(
     ),
     categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
     gifticonListModel: GifticonListModel(photoStore: photoStore),
-    captureActionsModel: captureActionsPreviewModel(photoStore: photoStore)
+    captureActionsModel: captureActionsPreviewModel(photoStore: photoStore),
+    tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
+    tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map())
   )
 }
 

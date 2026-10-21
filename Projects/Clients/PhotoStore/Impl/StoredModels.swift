@@ -80,3 +80,29 @@ final class StoredTrip {
     self.centerLongitude = centerLongitude
   }
 }
+
+/// 여행 중심점(반올림) 하나의 장소 캐시. 키는 반올림 좌표×100 정수 두 개이고 키마다 한 행이다(같은 키는 locale 과 함께 덮는다).
+/// name nil 은 장소 항목은 왔는데 이름이 없음(`CachedPlaceName.unnamed`). 시간대는 locale 과 무관하게 쓴다.
+/// 새 엔티티라 이 타입이 생기기 전의 저장 파일은 경량 이전으로 빈 캐시가 된다.
+@Model
+final class StoredPlaceName {
+  var latitudeHundredths: Int
+  var longitudeHundredths: Int
+  var localeIdentifier: String
+  var name: String?
+  var timeZoneIdentifier: String?
+
+  init(
+    latitudeHundredths: Int,
+    longitudeHundredths: Int,
+    localeIdentifier: String,
+    name: String?,
+    timeZoneIdentifier: String?
+  ) {
+    self.latitudeHundredths = latitudeHundredths
+    self.longitudeHundredths = longitudeHundredths
+    self.localeIdentifier = localeIdentifier
+    self.name = name
+    self.timeZoneIdentifier = timeZoneIdentifier
+  }
+}

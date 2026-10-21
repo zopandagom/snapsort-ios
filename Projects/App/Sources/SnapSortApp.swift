@@ -22,6 +22,8 @@ struct SnapSortApp: App {
   @State private var categoryModel: CategoryModel
   @State private var gifticonListModel: GifticonListModel
   @State private var captureActionsModel: CaptureActionsModel
+  @State private var tripListModel: TripListModel
+  @State private var tripDetailModel: TripDetailModel
   #if DEBUG
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
@@ -59,13 +61,17 @@ struct SnapSortApp: App {
     // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._gifticonListModel = State(initialValue: GifticonListModel(photoStore: photoStore))
+    let map = MapClientImpl()
     // 사진 상세의 캡처 행동. 지도 앱 열기·복사는 사용자가 누를 때만 한다.
     self._captureActionsModel = State(initialValue: CaptureActionsModel(
       photoStore: photoStore,
       imageAnalysis: imageAnalysis,
-      map: MapClientImpl(),
+      map: map,
       pasteboard: PasteboardClientImpl()
     ))
+    // 여행 폴더. 목록은 지오코딩하지 않고, 상세를 열 때만 여행 중심점의 반올림 좌표로 장소 이름을 묻는다.
+    self._tripListModel = State(initialValue: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore))
+    self._tripDetailModel = State(initialValue: TripDetailModel(photoStore: photoStore, map: map))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
         photoLibrary: photoLibrary,
@@ -84,6 +90,8 @@ struct SnapSortApp: App {
             categoryModel: self.categoryModel,
             gifticonListModel: self.gifticonListModel,
             captureActionsModel: self.captureActionsModel,
+            tripListModel: self.tripListModel,
+            tripDetailModel: self.tripDetailModel,
             sampleRecorderModel: self.sampleRecorderModel
           )
         #else
@@ -91,7 +99,9 @@ struct SnapSortApp: App {
             model: self.libraryModel,
             categoryModel: self.categoryModel,
             gifticonListModel: self.gifticonListModel,
-            captureActionsModel: self.captureActionsModel
+            captureActionsModel: self.captureActionsModel,
+            tripListModel: self.tripListModel,
+            tripDetailModel: self.tripDetailModel
           )
         #endif
       } else {
