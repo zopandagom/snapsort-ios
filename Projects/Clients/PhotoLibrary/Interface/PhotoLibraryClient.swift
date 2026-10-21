@@ -16,7 +16,7 @@ public protocol PhotoLibraryClient: Sendable {
   /// 앨범이 없으면 nil. 제한 접근(`.limited`)에서는 사용자 앨범을 읽을 수 없어 nil 일 수 있다. 지금은 Debug 기록 도구만 쓴다.
   func fetchImageAssets(inAlbumNamed name: String) async -> [ImageAsset]?
 
-  /// 분석에 쓸 이미지를 읽는다. iCloud 원본은 내려받지 않고 기기에 있는 버전만 쓴다 (docs/ARCHITECTURE.md §4).
+  /// 분석·화면 표시에 쓸 이미지를 읽는다. iCloud 원본은 내려받지 않고 기기에 있는 버전만 쓴다 (docs/ARCHITECTURE.md §4).
   /// 호출한 Task 가 취소되면 읽기 요청도 취소하고 `.cancelled` 를 던진다.
   func loadImage(id: ImageAsset.ID, size: ImageSize) async throws(ImageLoadError) -> AnalysisImage
 
