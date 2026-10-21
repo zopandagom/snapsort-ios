@@ -33,7 +33,7 @@ extension IndexingRun {
 
   /// 2단계 기프티콘 추출: 규칙으로 추출하고, 채울 필드가 있고 모델을 쓸 수 있으면 확인된 모델 값으로 채운다.
   /// 저장할 추출 값과 보강 상태를 돌려준다. 입력 때문에 실패한 이미지는 실패 수 1 인 보강 대기로, 모델을 못 쓰거나 시스템이 거부한 이미지는
-  /// 보강 대기로 둔다.
+  /// 보강 대기로 둔다. 보강 값은 `GifticonInfo.modelFilledFields` 로 출처와 함께 저장한다(`filling` 이 채운 필드를 표시한다).
   mutating func extractGifticon(
     from lines: [RecognizedTextLine],
     asset: ImageAsset
@@ -63,7 +63,8 @@ extension IndexingRun {
     }
   }
 
-  /// 대상 중 최신 `textBatchSize` 장을 저장된 줄로 규칙 추출부터 다시 계산하고, 채울 필드가 있으면 모델로 보강해 결과를 저장한다.
+  /// 대상 중 최신 `textBatchSize` 장을 저장된 줄로 규칙 추출부터 다시 계산하고, 채울 필드가 있으면 모델로 보강해 결과를 저장한다
+  /// (보강 값은 `modelFilledFields` 로 출처와 함께 저장한다). 출처 없이 마친 옛 행(`.sourcesUnknown`)은 모델 없이 출처만 정해 마친다.
   /// 모델 없이 끝나는 행(채울 필드가 없음)은 규칙 값으로 마치고, 모델을 쓰지 못하면 옛 보강 버전 행(`.stale`)만 규칙 값으로 되돌린다
   /// (보강 대기 행은 이미 규칙 값이라 쓸 것이 없다). 시스템이 거부한 행도 같게 하고(행 실패로 세지 않는다) 배치 나머지는 계속 묻는다.
   /// 응답 도중 모델을 쓸 수 없게 되면 이 배치의 나머지도 쓸 수 없다고 본다.
@@ -110,6 +111,8 @@ extension IndexingRun {
 
   /// 소급 보강 한 장의 결과. 보강 대기가 아닌 행이거나, 모델을 쓰지 못했거나 시스템이 거부한 보강 대기 행(이미 규칙 값이라 쓸 것이 없다)이면
   /// nil 이다. 시스템 거부는 이 행만 그렇게 두고 배치 나머지는 계속 묻는다.
+  /// 출처 없이 마친 옛 행(`.sourcesUnknown`)은 모델을 부르지 않고, 다시 계산한 규칙 값과 저장된 값을 비교해 출처만 정한다
+  /// (`GifticonExtractor.modelFilledFields(stored:rules:)`). 그래서 모델을 쓸 수 있는지·연속 실패 차단과 관계없이 같은 결과다.
   /// 응답 도중 모델을 쓸 수 없게 되면 `isModelUnavailable` 을 켜 이 배치의 나머지에서 모델을 부르지 않는다.
   private mutating func modelFillResult(
     for image: IndexedImage,
@@ -120,6 +123,14 @@ extension IndexingRun {
           image.gifticonModelFill != .done
     else { return nil }
     let rules = GifticonExtractor.extract(from: lines, referenceDate: asset.creationDate, calendar: self.calendar)
+    // `.stale` 비교보다 앞에 둔다(보강 상태를 `==` 로만 비교해 새 상태를 컴파일러가 잡지 않는다).
+    if image.gifticonModelFill == .sourcesUnknown, let stored = image.gifticon {
+      return .resolvedSources(GifticonInfo(
+        expiryDate: stored.expiryDate,
+        redemptionPlace: stored.redemptionPlace,
+        modelFilledFields: GifticonExtractor.modelFilledFields(stored: stored, rules: rules)
+      ))
+    }
     guard GifticonExtractor.needsModelFill(rules, textLines: lines) else { return .filled(rules) }
     if !isModelUnavailable, self.canUseModel {
       switch try await self.askModelToExtract(lines) {

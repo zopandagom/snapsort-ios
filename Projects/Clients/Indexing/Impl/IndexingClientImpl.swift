@@ -122,8 +122,9 @@ struct IndexingRun {
   /// 2단계 대기(읽기 전 행)와 겹치지 않는다. 진행률에는 넣지 않는다.
   /// 저장소 실패로 이번 실행의 소급을 멈추면 비우고, 전체 다시 비교(`reloadAll`)가 저장소에서 다시 채운다.
   var pendingGifticonIDs: Set<ImageAsset.ID> = []
-  /// 추출 값의 언어 모델 보강을 마치지 않은 기프티콘(`GifticonModelFill.pending`·`.stale`) 보관함 이미지. 저장된 줄로 소급 보강한다
-  /// (IndexingRun+ModelFill.swift). 모델을 쓸 수 있는지와 관계없이 채운다(`.stale` 행 되돌리기와 채울 필드가 없는 행 마치기는 모델 없이 한다).
+  /// 추출 값의 언어 모델 보강을 마치지 않은 기프티콘(`GifticonModelFill.pending`·`.stale`·`.sourcesUnknown`) 보관함 이미지. 저장된 줄로
+  /// 소급 보강한다(IndexingRun+ModelFill.swift). 모델을 쓸 수 있는지와 관계없이 채운다(`.stale` 행 되돌리기, 채울 필드가 없는 행 마치기,
+  /// `.sourcesUnknown` 행 출처 판정은 모델 없이 한다).
   /// 소급 추출 대상과 겹치지 않는다. 진행률에는 넣지 않는다. 저장소 실패로 멈추면 비우고, 전체 다시 비교가 다시 채운다.
   var pendingModelFillIDs: Set<ImageAsset.ID> = []
   /// 이번 실행에서 모델이 잇달아 실패한 수. 모델이 답하면 0 으로 되돌린다.
