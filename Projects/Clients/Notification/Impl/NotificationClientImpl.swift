@@ -1,6 +1,7 @@
 import Core
 import Foundation
 import NotificationInterface
+import UIKit
 import UserNotifications
 
 /// UserNotifications 기반 구현. 날짜·시각 트리거로 한 번 울리는 로컬 알림만 예약한다 (docs/ARCHITECTURE.md §4 만료 알림).
@@ -51,6 +52,23 @@ public struct NotificationClientImpl: NotificationClient {
 
   public func removePendingRequests(ids: Set<String>) async {
     UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: Array(ids))
+  }
+
+  public func openSettings() async {
+    guard let url = Self.settingsURL else {
+      return
+    }
+    await Self.open(url)
+  }
+
+  /// 설정 앱의 이 앱 알림 설정(`app-settings:notifications`).
+  static var settingsURL: URL? {
+    URL(string: UIApplication.openNotificationSettingsURLString)
+  }
+
+  @MainActor
+  private static func open(_ url: URL) async {
+    _ = await UIApplication.shared.open(url)
   }
 
   /// 모르는 상태에선 예약하지 않도록 거부로 본다.

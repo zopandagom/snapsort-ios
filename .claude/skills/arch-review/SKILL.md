@@ -26,7 +26,7 @@ agent: Explore
 2. **Swift 6 동시성**: `@MainActor` 밖에서 Model 상태 변경, 비 Sendable 값(`PHAsset`, `UIImage` 등)이 actor 경계를 넘음, `@unchecked Sendable`·`nonisolated(unsafe)` 남용, 무거운 작업이 메인에서 실행.
 3. **단방향 MV**: `private(set)` 이 아닌 상태, View 가 부수효과를 직접 실행, 이벤트 메서드 이름이 "무슨 일이 일어났는가" 형식이 아님, Model 이 다른 Model 을 참조.
 4. **모듈 경계**: 의존 규칙 표 위반, Interface 의 프레임워크 타입 노출, 매니페스트에서 템플릿 우회·빌드 설정 덮어쓰기, MapKit 경계 위반 (허용·예외: ARCHITECTURE §2 "모듈 종류와 타깃", §4 위치·지도 행).
-5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: CONVENTIONS §4).
+5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·바코드 내용·주소·사진 식별자 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: CONVENTIONS §4).
 6. **테스트**: CONVENTIONS §3 이 요구하는 테스트의 누락, 실제 보관함·권한에 의존하는 테스트.
 7. **문서 정합성**: CONVENTIONS §5 "리뷰 기준"의 문서 불일치. 이번 변경과 관련된 문서 줄은 문서 범위를 바뀐 타입·함수·동작 이름과 바뀐 규칙의 핵심 문구로 grep 해서 찾는다.
 8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`): 스크립트 정확성, CONVENTIONS §5 "리뷰 기준"의 fail-open·함께 지킬 수 없는 규칙.

@@ -1,10 +1,13 @@
 import Core
 import Foundation
+import ImageAnalysisTesting
 import IndexingInterface
 import IndexingTesting
 import LibraryFeature
+import MapTesting
 import NotificationInterface
 import NotificationTesting
+import PasteboardTesting
 import PhotoLibraryInterface
 import PhotoLibraryTesting
 import PhotoStoreInterface
@@ -13,33 +16,57 @@ import SwiftUI
 
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 /// 카테고리를 연 채 아래 버튼으로 저장소를 바꾸면, 인덱서가 진행률을 보낸 것처럼 카테고리 화면이 다시 읽는다.
+/// 기프티콘 줄에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
+/// 지도·복사는 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않는다. 아래 디버그 줄이 Fake 가 받은 마지막 값을 보인다.
+/// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
-  private static let photoStore = PhotoStoreClientFake.previewClassified()
+  private static let scenario = ExampleScenario.current
+  private static let photoStore = PhotoStoreClientFake.previewClassified(
+    includesGifticons: Self.scenario != .gifticonEmpty,
+    gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:]
+  )
   /// 계속 분석 중이라 버튼으로 진행률을 더 보낼 수 있다.
   private static let indexing = IndexingClientFake(
     progress: IndexingClientFake.previewInProgress.progress,
     finishesAfterProgress: false
   )
+  private static let map = MapClientFake(openResult: Self.scenario != .mapsUnavailable)
+  private static let pasteboard = PasteboardClientFake()
 
-  /// 알림 권한을 정하기 전이라 "만료 알림 받기" 버튼이 보이고, 누르면 허용된 것처럼 버튼이 사라진다.
+  /// 기본은 알림 권한을 정하기 전이라 "만료 알림 받기" 버튼이 보이고, 누르면 허용된 것처럼 버튼이 사라진다.
   @State private var model = LibraryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     indexing: Self.indexing,
     photoStore: Self.photoStore,
-    notification: NotificationClientFake.previewNotDetermined()
+    notification: Self.scenario == .notificationDenied
+      ? NotificationClientFake.previewDenied()
+      : NotificationClientFake.previewNotDetermined()
   )
   @State private var categoryModel = CategoryModel(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
     photoStore: Self.photoStore
+  )
+  @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
+  @State private var captureActionsModel = CaptureActionsModel(
+    photoStore: Self.photoStore,
+    imageAnalysis: ImageAnalysisClientFake.previewGifticons(),
+    map: Self.map,
+    pasteboard: Self.pasteboard
   )
   /// 지금까지 더한 새 사진 수. 데모 버튼의 다음 식별자를 정한다.
   @State private var addedCount = 0
 
   var body: some Scene {
     WindowGroup {
-      LibraryView(model: self.model, categoryModel: self.categoryModel)
-        .overlay(alignment: .bottom) {
+      LibraryView(
+        model: self.model,
+        categoryModel: self.categoryModel,
+        gifticonListModel: self.gifticonListModel,
+        captureActionsModel: self.captureActionsModel
+      )
+      .overlay(alignment: .bottom) {
+        VStack(spacing: 4) {
           HStack {
             Button("새 사진 추가") {
               Task { await self.addNewestPhoto() }
@@ -49,9 +76,11 @@ struct LibraryFeatureExampleApp: App {
             }
           }
           .buttonStyle(.borderedProminent)
-          .font(.caption)
-          .padding()
+          FakeRecordView(map: Self.map, pasteboard: Self.pasteboard)
         }
+        .font(.caption)
+        .padding()
+      }
     }
   }
 
@@ -163,6 +192,11 @@ extension IndexingClientFake {
 }
 
 extension NotificationClientFake {
+  /// 알림을 거부했다. "설정에서 알림 켜기"를 누르면 설정 열기 횟수만 센다.
+  static func previewDenied() -> NotificationClientFake {
+    NotificationClientFake(authorization: .denied)
+  }
+
   /// 권한을 정하기 전. 요청하면 허용된다. Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
   static func previewNotDetermined() -> NotificationClientFake {
     NotificationClientFake(authorization: .notDetermined, authorizationAfterRequest: .authorized)
@@ -173,43 +207,7 @@ extension NotificationClientFake {
   }
 }
 
-extension PhotoStoreClientFake {
-  /// 정보형·사진형 카테고리와 여행이 섞인 분류 결과(`PreviewPhotos`). Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
-  /// - Parameters:
-  ///   - hasUpcomingExpiry: 참이면 기프티콘이 오늘부터 10일 뒤 만료되어 만료 알림을 예약할 수 있다.
-  ///     거짓이면 기프티콘의 만료일을 찾지 못한 것으로 둔다.
-  ///   - assetsErrors: 카테고리 화면 읽기(`assets(in:)`)의 호출 번호별 실패.
-  static func previewClassified(
-    hasUpcomingExpiry: Bool = true,
-    assetsErrors: [Int: PhotoStoreError] = [:]
-  ) -> PhotoStoreClientFake {
-    let expiryDate = hasUpcomingExpiry ? LocalDate(Date(), calendar: .current).addingDays(10) : nil
-    let images = PreviewPhotos.counts.flatMap { category, count in
-      (0 ..< count).map { index in
-        // 기프티콘 추출 값은 글자를 읽은 기프티콘에만 담긴다(`IndexedImage` init).
-        IndexedImage(
-          asset: .stub(
-            id: PreviewPhotos.id(category, index),
-            creationDate: PreviewPhotos.creationDate(index: index, count: count)
-          ),
-          labels: [],
-          textRecognition: category == .gifticon ? .recognized([]) : .notNeeded,
-          categories: [category],
-          gifticon: GifticonInfo(expiryDate: expiryDate, redemptionPlace: nil)
-        )
-      }
-    }
-    let trip = Trip(
-      assetIDs: [],
-      startDate: Date(timeIntervalSince1970: 0),
-      endDate: Date(timeIntervalSince1970: 86400),
-      center: Coordinate(latitude: 33.5, longitude: 126.5)
-    )
-    return PhotoStoreClientFake(images: images, trips: [trip, trip], assetsErrors: assetsErrors)
-  }
-}
-
-/// 같은 저장소를 읽는 두 Model 로 보관함 화면을 만든다. 카테고리 줄을 누르면 그 저장소로 카테고리 화면이 열린다.
+/// 같은 저장소를 읽는 Model 들로 보관함 화면을 만든다. 카테고리 줄을 누르면 그 저장소로 카테고리 화면이 열린다.
 @MainActor
 private func libraryPreview(
   photoLibrary: PhotoLibraryClientFake,
@@ -224,7 +222,9 @@ private func libraryPreview(
       photoStore: photoStore,
       notification: notification
     ),
-    categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore)
+    categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
+    gifticonListModel: GifticonListModel(photoStore: photoStore),
+    captureActionsModel: captureActionsPreviewModel(photoStore: photoStore)
   )
 }
 
@@ -300,6 +300,15 @@ private func libraryPreview(
   )
 }
 
+#Preview("보관함 - 알림 거부") {
+  libraryPreview(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake.previewFinished,
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: NotificationClientFake.previewDenied()
+  )
+}
+
 #Preview("만료 예정 없음") {
   libraryPreview(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,
@@ -347,6 +356,7 @@ private func libraryPreview(
   NavigationStack {
     PhotoDetailView(
       model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewLoadingForever, photoStore: nil),
+      captureModel: captureActionsPreviewModel(photoStore: nil),
       asset: .stub(id: PreviewPhotos.id(.food, 0), creationDate: Date())
     )
   }
@@ -356,6 +366,7 @@ private func libraryPreview(
   NavigationStack {
     PhotoDetailView(
       model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewFailing, photoStore: nil),
+      captureModel: captureActionsPreviewModel(photoStore: nil),
       asset: .stub(id: PreviewPhotos.id(.food, 0), creationDate: Date())
     )
   }

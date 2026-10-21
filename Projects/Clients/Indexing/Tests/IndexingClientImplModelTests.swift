@@ -182,7 +182,8 @@ struct IndexingClientImplModelTests {
     #expect(image?.categories == [.gifticon])
     #expect(image?.gifticon == GifticonInfo(
       expiryDate: LocalDate(year: 2026, month: 12, day: 31),
-      redemptionPlace: nil
+      redemptionPlace: nil,
+      modelFilledFields: [.expiryDate]
     ))
     #expect(image?.gifticonModelFill == .done)
     let lines = ocrLines(modelOnlyGifticonText)
@@ -196,8 +197,12 @@ struct IndexingClientImplModelTests {
 let modelFillText = ["교환처 카페", "모바일 상품권", "Valid until 2026.12.31"]
 /// `modelFillText` 의 규칙 추출 값.
 let modelFillRules = GifticonInfo(expiryDate: nil, redemptionPlace: "카페")
-/// `modelFillText` 를 `modelExpiryAnswer` 로 보강한 값.
-let modelFilledGifticon = GifticonInfo(expiryDate: LocalDate(year: 2026, month: 12, day: 31), redemptionPlace: "카페")
+/// `modelFillText` 를 `modelExpiryAnswer` 로 보강한 값. 만료일은 모델이 채웠다.
+let modelFilledGifticon = GifticonInfo(
+  expiryDate: LocalDate(year: 2026, month: 12, day: 31),
+  redemptionPlace: "카페",
+  modelFilledFields: [.expiryDate]
+)
 /// 원문 그대로의 만료일 답.
 let modelExpiryAnswer = GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: nil)
 /// 옛 보강 버전으로 받은 모델 값이 남은 추출 값(`.stale` 행).

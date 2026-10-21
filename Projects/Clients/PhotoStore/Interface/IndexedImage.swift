@@ -15,10 +15,11 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// 추출했는데 못 찾은 값은 `GifticonInfo` 의 그 필드가 nil 이다.
   /// nil 은 "만료일 없음"이 아니다(규칙 버전을 올린 직후 소급 전에도 nil). 알림을 지우는 근거로 쓰지 않는다.
   /// 기프티콘 카테고리이고 `.recognized` 일 때만 담고, 아니면 init 이 nil 로 둔다.
+  /// 필드별 출처(`GifticonInfo.modelFilledFields`)도 함께 저장한다.
   public let gifticon: GifticonInfo?
   /// 추출 값의 언어 모델 보강 상태. `gifticon` 이 nil 이면 init 이 `.pending(failures: 0)` 으로 둔다.
-  /// 두 값이 다 있어도 `.done` 으로 바꾸지 않는다: 저장소는 값이 규칙에서 왔는지 모델에서 왔는지 모르므로,
-  /// 다른 보강 버전의 모델 값이 남은 행이 마친 것으로 읽히지 않게 한다. 규칙만으로 두 값을 찾았으면 쓰는 쪽이 `.done` 을 넘긴다.
+  /// 두 값이 다 있어도 읽기에서 `.done` 으로 바꾸지 않는다: `.done` 판정은 쓰는 쪽이 `GifticonModelFill.initial(for:)` 나
+  /// 보강 결과로 정한다(다른 보강 버전의 모델 값이 남은 행이 마친 것으로 읽히지 않게 한다).
   public let gifticonModelFill: GifticonModelFill
 
   public var id: ImageAsset.ID { self.asset.id }
@@ -71,6 +72,10 @@ public enum GifticonModelFill: Sendable, Hashable {
   /// 다른 보강 버전(`GifticonExtractor.modelFillVersion`)으로 보강했다. 값에 옛 확인 규칙으로 받은 모델 값이 남아 있을 수 있어,
   /// 모델을 쓸 수 있든 없든 소급이 규칙 추출부터 다시 계산한 값으로 되돌린다.
   case stale
+  /// 지금 보강 버전으로 마쳤지만 필드별 출처를 저장하기 전에 저장한 행(경량 이전 뒤). 값은 마침과 같이 지금 값으로 쓰고(알림 포함),
+  /// 인덱서 소급 보강이 저장된 줄로 출처만 정해 마친다(`GifticonModelFillResult.resolvedSources`). 모델을 다시 부르지 않는다.
+  /// 출처를 정하기 전에는 화면이 값이 있는 필드를 모두 "추정"으로 보인다.
+  case sourcesUnknown
   /// 지금 보강 버전으로 마쳤다(채웠거나, 확인된 값이 없었거나, 채울 필드가 없었거나, 실패 한도에 닿았다).
   case done
 
@@ -88,8 +93,8 @@ public enum GifticonModelFill: Sendable, Hashable {
   }
 }
 
-/// 소급 보강 한 장의 결과(`PhotoStoreClient.saveGifticonModelFills`). 어느 경우든 인덱서가 저장된 줄로 규칙 추출부터
-/// 다시 계산한 값을 담아, 다른 보강 버전의 모델 값이 남지 않게 한다.
+/// 소급 보강 한 장의 결과(`PhotoStoreClient.saveGifticonModelFills`). `.resolvedSources` 밖의 경우는 인덱서가 저장된 줄로
+/// 규칙 추출부터 다시 계산한 값을 담아, 다른 보강 버전의 모델 값이 남지 않게 한다. 값의 필드별 출처는 담긴 `modelFilledFields` 로 쓴다.
 public enum GifticonModelFillResult: Sendable, Hashable {
   /// 규칙 값 + 확인한 모델 값(또는 채울 필드가 없어 규칙 값만). 추출 값을 이것으로 바꾸고 보강을 마친 것으로 둔다.
   case filled(GifticonInfo)
@@ -99,4 +104,7 @@ public enum GifticonModelFillResult: Sendable, Hashable {
   /// 모델을 지금 쓸 수 없거나 시스템이 요청을 받지 않았다(입력과 무관). 추출 값을 규칙 값으로 바꾸고 보강하지 않은 상태로 둔다. 실패 수는 그대로다(`.stale` 이면 0).
   /// `.stale` 행을 되돌릴 때 쓴다(`.pending` 행은 이미 규칙 값이라 쓸 것이 없다).
   case deferred(rules: GifticonInfo)
+  /// `.sourcesUnknown` 행의 출처를 정했다. 값은 저장된 값 그대로이고 `modelFilledFields` 만 새로 정한 것이다.
+  /// 저장소는 행이 아직 `.sourcesUnknown` 이고 저장된 두 값이 이 값과 같을 때만 출처를 쓰고 마친다(그 밖은 무시, 다음 실행이 다시 본다).
+  case resolvedSources(GifticonInfo)
 }

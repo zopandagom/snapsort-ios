@@ -77,6 +77,8 @@ extension GifticonExtractor {
 
   /// `info` 의 nil 필드만, 원문으로 확인한 모델 답으로 채운다. 규칙이 찾은 필드는 그대로 둔다.
   /// 확인하지 못한 답은 버린다(그 필드는 nil 로 남는다). `referenceDate`·`calendar` 는 `extract` 와 같은 것을 넘긴다.
+  /// 채운 필드는 `info.modelFilledFields` 에 더해 돌려준다(저장소가 필드별 출처로 저장하고 화면이 "추정"으로 보인다).
+  /// 받는 값은 바뀌지 않으므로 출처를 담는 것만으로는 `modelFillVersion` 을 올리지 않는다.
   public static func filling(
     _ info: GifticonInfo,
     with answer: GifticonModelAnswer,
@@ -85,14 +87,39 @@ extension GifticonExtractor {
     calendar: Calendar
   ) -> GifticonInfo {
     let reference = referenceDate.map { LocalDate($0, calendar: calendar) }
+    let modelExpiry = info.expiryDate == nil
+      ? answer.expiryText.flatMap { self.modelExpiryDate(answer: $0, lines: textLines, reference: reference) }
+      : nil
+    let modelPlace = info.redemptionPlace == nil
+      ? answer.redemptionPlace.flatMap { self.modelRedemptionPlace(answer: $0, lines: textLines) }
+      : nil
+    var filled = info.modelFilledFields
+    if modelExpiry != nil {
+      filled.insert(.expiryDate)
+    }
+    if modelPlace != nil {
+      filled.insert(.redemptionPlace)
+    }
     return GifticonInfo(
-      expiryDate: info.expiryDate ?? answer.expiryText.flatMap {
-        self.modelExpiryDate(answer: $0, lines: textLines, reference: reference)
-      },
-      redemptionPlace: info.redemptionPlace ?? answer.redemptionPlace.flatMap {
-        self.modelRedemptionPlace(answer: $0, lines: textLines)
-      }
+      expiryDate: info.expiryDate ?? modelExpiry,
+      redemptionPlace: info.redemptionPlace ?? modelPlace,
+      modelFilledFields: filled
     )
+  }
+
+  /// 출처 속성이 생기기 전에 지금 보강 버전으로 마친 행의 필드별 출처. `stored` 는 저장된 값, `rules` 는 같은 줄·생성일·달력으로
+  /// 다시 계산한 규칙 값. 값이 있고 규칙 값과 다른 필드를 모델 출처로 본다(`filling` 은 규칙이 비운 필드만 채우므로 같은 버전에서
+  /// 다른 값은 모델 값이다. 기준일·기기 달력이 바뀌어 규칙 값이 달라진 경우도 모델로 보아 "추정"으로 보인다 — 확인된 값처럼 보이지 않는 쪽).
+  /// 값은 바꾸지 않는다.
+  public static func modelFilledFields(stored: GifticonInfo, rules: GifticonInfo) -> Set<GifticonInfo.Field> {
+    var fields: Set<GifticonInfo.Field> = []
+    if stored.expiryDate != nil, stored.expiryDate != rules.expiryDate {
+      fields.insert(.expiryDate)
+    }
+    if stored.redemptionPlace != nil, stored.redemptionPlace != rules.redemptionPlace {
+      fields.insert(.redemptionPlace)
+    }
+    return fields
   }
 
   // MARK: - 만료일

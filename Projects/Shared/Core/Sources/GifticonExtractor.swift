@@ -2,14 +2,29 @@ import CoreGraphics
 import Foundation
 
 /// 기프티콘 이미지에서 읽은 정보. 찾지 못한 값은 nil 이다.
+/// 필드마다 값이 규칙에서 왔는지 언어 모델 답으로 채웠는지(`modelFilledFields`)를 함께 담아, 화면이 모델 값을 "추정"으로 보인다.
 public struct GifticonInfo: Sendable, Hashable {
   public let expiryDate: LocalDate?
   /// 교환처 라벨 옆이나 아래에 적힌 텍스트(예: "스타벅스"). 브랜드 이름으로 정규화하지 않는다.
   public let redemptionPlace: String?
+  /// 언어 모델 답으로 채운 필드(`GifticonExtractor.filling`). 값이 nil 인 필드는 넣지 않는다(init 이 정규화).
+  public let modelFilledFields: Set<Field>
 
-  public init(expiryDate: LocalDate?, redemptionPlace: String?) {
+  /// 추출 값의 필드.
+  public enum Field: Sendable, Hashable, CaseIterable {
+    case expiryDate
+    case redemptionPlace
+  }
+
+  public init(expiryDate: LocalDate?, redemptionPlace: String?, modelFilledFields: Set<Field> = []) {
     self.expiryDate = expiryDate
     self.redemptionPlace = redemptionPlace
+    self.modelFilledFields = modelFilledFields.filter { field in
+      switch field {
+      case .expiryDate: expiryDate != nil
+      case .redemptionPlace: redemptionPlace != nil
+      }
+    }
   }
 }
 

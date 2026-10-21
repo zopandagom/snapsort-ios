@@ -3,7 +3,7 @@ import DesignSystem
 import SwiftUI
 
 /// 카테고리 화면: 그 카테고리 이미지를 생성일의 연·월 섹션으로 나눈 최신순 썸네일 격자 (docs/ARCHITECTURE.md §4 카테고리 화면).
-/// 칸을 누르면 사진 상세로 간다(이동 목적지는 LibraryView 가 루트에 둔다).
+/// 칸을 누르면 사진 상세로 간다(이동 목적지는 LibraryView 가 루트에 둔다). 기프티콘은 이 격자 대신 `GifticonListView` 로 연다.
 /// body 는 `content` 만 읽고 썸네일은 칸(`CategoryThumbnailCell`)이 읽어, 썸네일 하나가 끝날 때 섹션 전체를 다시 그리지 않는다.
 public struct CategoryView: View {
   let model: CategoryModel
@@ -86,9 +86,12 @@ public struct CategoryView: View {
   }
 }
 
-/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면의 칸에서만 연다.
+/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면의 칸과 기프티콘 목록의 줄에서만 연다.
 struct PhotoDetailRoute: Hashable {
   let asset: ImageAsset
+  /// 기프티콘 목록에서 열 때만 그 항목. 이때만 상세가 기프티콘 정보·사용함 버튼·바코드를 보인다.
+  /// 다른 카테고리 격자에서 연 같은 이미지에는 주소·번호 행동만 보인다.
+  var gifticon: GifticonListItem?
 }
 
 /// 격자 칸 하나. 보일 때 썸네일을 읽는다. 사라지면(`.task` 취소) 읽는 중이면 취소하고, 읽었으면 Model 이 최근 64장까지 남긴다.

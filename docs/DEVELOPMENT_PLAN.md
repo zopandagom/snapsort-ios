@@ -10,10 +10,10 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 
 | 영역 | 기능 | 기술 메모 |
 |---|---|---|
-| 카테고리별 묶음 | 모든 카테고리는 월별 섹션이 기본. 추가 기준: 기프티콘 만료 임박순·사용함/미사용, 영수증 가게별 + 월 합계 금액, 여행 여행 단위 폴더, 쇼핑 브랜드·쇼핑몰별, 대화 캡처 앱별, 지도 지역별·지도 위 핀 | 저장 모델은 지금 계산되는 값만 둔다: 월별은 생성일, 여행 폴더는 여행 판정 결과, 지도 지역별·핀은 좌표. 기프티콘 만료일·교환처는 추출 값으로 저장하고(만료 임박순 조회는 `PhotoStoreClient.upcomingGifticonExpiries(from:)`), 사용 여부·가게·금액·브랜드·앱은 각 추출 작업에서 필드를 더한다 (ARCHITECTURE §4 저장소) |
+| 카테고리별 묶음 | 모든 카테고리는 월별 섹션이 기본. 추가 기준: 기프티콘 만료 임박순·사용함/미사용, 영수증 가게별 + 월 합계 금액, 여행 여행 단위 폴더, 쇼핑 브랜드·쇼핑몰별, 대화 캡처 앱별, 지도 지역별·지도 위 핀 | 저장 모델은 지금 계산되는 값만 둔다: 월별은 생성일, 여행 폴더는 여행 판정 결과, 지도 지역별·핀은 좌표. 기프티콘 만료일·교환처는 추출 값으로 저장하고(만료 임박순 조회는 `PhotoStoreClient.upcomingGifticonExpiries(from:)`), 사용 여부는 사용자가 바꾸는 필드로 저장한다(`setGifticonUsed`, 사용한 기프티콘은 알리지 않는다). 가게·금액·브랜드·앱은 각 추출 작업에서 필드를 더한다 (ARCHITECTURE §4 저장소) |
 | 카테고리 연결 | 여행 폴더에 그 기간의 캡처(항공권·숙소 예약·영수증·지도 캡처)를 함께 모은다 | 여행 판정(위치·날짜) 결과의 기간으로 다른 카테고리 이미지를 묶음. 관계로 저장하지 않고 조회할 때 기간으로 찾는다 |
 | 정리 도우미 | 지난 것 정리 추천(만료된 기프티콘, 지난 탑승권·예약, 배송 끝난 송장), 비슷한 이미지 묶기, "N장 정리하면 X GB 확보" + 일괄 삭제, 캡처 인박스(새 캡처를 한 장씩 보관/삭제) | 비슷한 이미지는 Vision 특징 벡터(`GenerateImageFeaturePrintRequest`) 거리. 삭제는 `PHAssetChangeRequest.deleteAssets`. 확보 용량은 추정치로 표시하고, 지운 사진은 '최근 삭제된 항목'에 30일 남으므로 비우면 확보된다고 안내 (계산 방법은 구현 때 측정해 확정). 제한 접근이면 고른 사진 안에서만 정리하고 화면에 안내 |
-| 캡처를 행동으로 | 기프티콘 바코드 크게 보기(화면 밝기 최대), 주소 → 지도 앱 열기, 송장·계좌번호 복사 | 바코드는 Vision `DetectBarcodesRequest` 로 읽어 다시 그림. 주소·번호는 저장된 OCR 줄에서 추출(Core `CaptureInfoExtractor`). 추출 값은 저장하지 않고 열 때 찾는다 (ARCHITECTURE §4 캡처 정보 추출) |
+| 캡처를 행동으로 | 기프티콘 바코드 크게 보기(화면 밝기 최대), 주소 → 지도 앱 열기, 송장·계좌번호 복사 | 바코드는 Vision `DetectBarcodesRequest` 로 읽어 QR·Code128·PDF417·Aztec 이고 내용이 ASCII 면 Core Image 로 다시 그리고, 그 밖은 원본의 바코드 영역을 확대(Core `BarcodeImageRenderer`). 주소·번호는 저장된 OCR 줄에서 추출(Core `CaptureInfoExtractor`). 추출 값은 저장하지 않고 열 때 찾는다. 주소는 문자열 그대로 지도 앱에 넘기고(Map Client, 앱이 지오코딩하지 않음), 번호는 이 기기에서만 붙여 넣게 복사한다(Pasteboard Client) (ARCHITECTURE §4 캡처 정보 추출) |
 
 ### 출시 후 후보
 - 일정 캡처 → 캘린더에 추가 (EventKit)
@@ -34,8 +34,8 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 |---|---|---|
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
 | 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
-| 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | Gifticon |
-| 4 | 지오코딩·지도 앱 열기 Client (이름은 구현 PR 에서 확정), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장, Widget |
+| 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | |
+| 4 | Map(지도 앱 열기, 역지오코딩은 여행 폴더 PR 에서 더함), Pasteboard(이 기기만 복사), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동), Widget |
 | 5 | Purchase(StoreKit) | Paywall |
 
 ## 작업 진행 방식

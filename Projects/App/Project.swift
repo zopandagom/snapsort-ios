@@ -19,5 +19,7 @@ let project = Project.app(
     .client(impl: .classifier),
     .client(impl: .indexing),
     .client(impl: .notification),
+    .client(impl: .map),
+    .client(impl: .pasteboard),
   ]
 )

@@ -53,8 +53,8 @@ public struct ImageMonthSection: Sendable, Hashable, Identifiable {
     return sections
   }
 
-  /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다.
-  private static func isNewer(_ lhs: ImageAsset, than rhs: ImageAsset) -> Bool {
+  /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다. 기프티콘 섹션(`GifticonExpirySection`)도 같은 순서를 쓴다.
+  static func isNewer(_ lhs: ImageAsset, than rhs: ImageAsset) -> Bool {
     switch (lhs.creationDate, rhs.creationDate) {
     case let (left?, right?) where left != right:
       left > right

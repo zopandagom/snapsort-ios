@@ -48,6 +48,7 @@ struct Fixture {
   ///   - missingOnIDRead: 저장소의 식별자 읽기(`images(ids:)`)가 빼고 돌려줄 식별자.
   ///   - failingOnIDRead: 저장소의 식별자 읽기가 이 식별자를 하나라도 요청받으면 실패한다. 소급 배치 읽기만의 실패를 흉내 낸다
   ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
+  ///   - usedIDs: 저장소에서 처음 사용함인 기프티콘.
   ///   - accessState: 사진 접근 권한.
   ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
@@ -75,6 +76,7 @@ struct Fixture {
     onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
     missingOnIDRead: Set<ImageAsset.ID> = [],
     failingOnIDRead: Set<ImageAsset.ID> = [],
+    usedIDs: Set<ImageAsset.ID> = [],
     accessState: PhotoAccessState = .authorized,
     classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
@@ -94,7 +96,8 @@ struct Fixture {
       modelFillError: modelFillError,
       missingOnIDRead: missingOnIDRead,
       failingOnIDRead: failingOnIDRead,
-      onSaveGifticons: onSaveGifticons
+      onSaveGifticons: onSaveGifticons,
+      usedIDs: usedIDs
     )
     let failing = FailingIDs(classifyFailures)
     self.classifyFailures = failing

@@ -39,6 +39,21 @@ public struct LocalDate: Sendable, Hashable, Comparable {
     Self(dayNumber: self.dayNumber + days)
   }
 
+  /// `other` 까지의 일수. 그레고리력·시간대 없음으로 센다. `other` 가 앞이면 음수.
+  public func days(until other: LocalDate) -> Int {
+    other.dayNumber - self.dayNumber
+  }
+
+  /// 화면 표시용 시각: `calendar` 의 시간대에서 그날 12:00. 자정이 없는 시간대 전환일에도 날짜가 밀리지 않게 정오로 둔다.
+  /// 받는 쪽은 같은 시간대로 형식화한다(시간대 차이가 12시간 미만이면 다른 시간대로 형식화해도 같은 날짜다).
+  public func noon(in calendar: Calendar) -> Date? {
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = calendar.timeZone
+    var components = self.dateComponents
+    components.hour = 12
+    return gregorian.date(from: components)
+  }
+
   public static func < (lhs: LocalDate, rhs: LocalDate) -> Bool {
     (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
   }

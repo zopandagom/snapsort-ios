@@ -34,6 +34,14 @@ final class StoredImage {
   /// 보강하지 않은 행(버전 0)에서 지금 보강 버전으로 모델이 실패한 횟수. 한도(`GifticonModelFill.maximumFailures`)에 닿으면
   /// 보강을 마친 것으로 쓴다(버전을 지금 버전으로, 이 값은 0 으로).
   var gifticonModelFailures = 0
+  /// 추출 값 필드별 출처. true 면 언어 모델이 채웠다(`GifticonInfo.modelFilledFields`). 추출 안 함이면 nil.
+  /// 이 속성이 생기기 전에 저장한 행은 nil 이라 출처를 모른다(지금 보강 버전으로 마친 행이면 `.sourcesUnknown` 으로 읽는다,
+  /// `PhotoStore.modelFill`). 옵셔널이라 경량 이전이 자동으로 된다.
+  var gifticonExpiryFromModel: Bool?
+  var gifticonRedemptionPlaceFromModel: Bool?
+  /// 사용 여부. 사용자만 바꾸고(`setGifticonUsed`), 기프티콘 카테고리 행만 참일 수 있다(`save` 가 기프티콘에서 빠진 행은 false 로).
+  /// 기본값이 있어 경량 이전으로 미사용이 된다.
+  var gifticonIsUsed = false
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []

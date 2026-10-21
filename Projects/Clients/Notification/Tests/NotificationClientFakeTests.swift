@@ -5,6 +5,17 @@ import Synchronization
 import Testing
 
 struct NotificationClientFakeTests {
+  @Test("설정 열기를 센다")
+  func countsOpenSettings() async {
+    let fake = NotificationClientFake(authorization: .denied)
+
+    await fake.openSettings()
+    await fake.openSettings()
+
+    #expect(fake.openSettingsCount == 2)
+    #expect(fake.authorization == .denied)
+  }
+
   @Test("권한을 요청하면 정해 둔 상태로 바뀌고 횟수를 센다")
   func changesAuthorizationAfterRequest() async {
     let fake = NotificationClientFake(authorization: .notDetermined, authorizationAfterRequest: .authorized)

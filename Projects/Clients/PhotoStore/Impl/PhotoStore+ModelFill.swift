@@ -14,6 +14,7 @@ extension PhotoStore {
     )
     descriptor.propertiesToFetch = [
       \.assetID, \.gifticonRulesVersion, \.gifticonExpiryDay, \.gifticonModelVersion, \.gifticonModelFailures,
+      \.gifticonExpiryFromModel, \.gifticonRedemptionPlaceFromModel,
     ]
     // 추출 대기처럼 만료일 해석(`storedGifticon`)을 조건으로 쓸 수 없어 여기서 거른다. 후보는 기프티콘 읽음 행뿐이다.
     return try Set(
@@ -33,8 +34,9 @@ extension PhotoStore {
         guard Self.isModelFillPending(image), let result = results[image.assetID] else {
           continue
         }
-        // 다른 보강 버전에서 센 실패 수는 없으므로 0 에서 센다.
-        let failures = if case let .pending(failures) = Self.modelFill(image) {
+        // `.stale`·`.sourcesUnknown` 행은 센 실패 수가 없으므로 0 에서 센다.
+        let fill = Self.modelFill(image)
+        let failures = if case let .pending(failures) = fill {
           failures
         } else {
           0
@@ -52,6 +54,15 @@ extension PhotoStore {
         case let .deferred(rules):
           Self.setGifticon(rules, on: image)
           Self.setModelFill(.pending(failures: failures), on: image)
+        case let .resolvedSources(info):
+          // 출처를 정하지 않은 행이고 저장된 두 값이 판정한 값과 같을 때만 출처를 쓴다. 그 사이 값이 바뀐 행에 옛 값으로 정한
+          // 출처를 붙이지 않는다. 버전은 이미 지금 보강 버전이라 출처만 쓰면 다음 읽기부터 마침이다.
+          guard fill == .sourcesUnknown, let stored = Self.storedGifticon(image),
+                stored.expiryDate == info.expiryDate, stored.redemptionPlace == info.redemptionPlace
+          else {
+            continue
+          }
+          Self.setGifticon(info, on: image)
         }
       }
     }
@@ -59,11 +70,13 @@ extension PhotoStore {
 
   /// 보강 상태를 `StoredImage.gifticonModelVersion`·`gifticonModelFailures` 로 읽는다. 지금 보강 버전이면 마침,
   /// 0 이면 보강하지 않음(실패 수와 함께), 그 밖(앱을 되돌려 남은 더 높은 버전 포함)은 다른 보강 버전이다.
-  /// 두 값이 다 있어도 마친 것으로 보지 않는다(`IndexedImage.gifticonModelFill`).
+  /// 지금 보강 버전인데 출처 속성이 하나라도 nil 이면(출처 속성이 생기기 전에 마친 행) 출처를 모르는 마침(`.sourcesUnknown`)이다.
+  /// 값은 되돌리지 않는다(만료 예정 조회는 보강 상태를 보지 않으므로 알림도 그대로). `.pending` 행은 규칙 값만 담으므로
+  /// 출처 nil 이어도 규칙으로 본다. 두 값이 다 있어도 마친 것으로 보지 않는다(`IndexedImage.gifticonModelFill`).
   static func modelFill(_ stored: StoredImage) -> GifticonModelFill {
     switch stored.gifticonModelVersion {
     case GifticonExtractor.modelFillVersion:
-      .done
+      stored.gifticonExpiryFromModel == nil || stored.gifticonRedemptionPlaceFromModel == nil ? .sourcesUnknown : .done
     case 0:
       .pending(failures: stored.gifticonModelFailures)
     default:
@@ -71,8 +84,9 @@ extension PhotoStore {
     }
   }
 
-  /// 마침이면 (지금 버전, 0), 보강하지 않음이면 (0, 실패 수) 를 쓴다. 다른 보강 버전은 쓰는 경로가 없어(인덱서는 읽은 값을
-  /// 되돌려 쓰지 않는다) 보강하지 않음 (0, 0) 으로 쓴다.
+  /// 마침이면 (지금 버전, 0), 보강하지 않음이면 (0, 실패 수) 를 쓴다. 다른 보강 버전·출처를 모르는 마침은 인덱서가 읽은 값을
+  /// 되돌려 쓰지 않는다. 넘기면 보강하지 않음 (0, 0) 으로 써서 다음 읽기에서 `.pending(failures: 0)` 이다
+  /// (출처는 `setGifticon` 이 넘긴 `modelFilledFields` 로 쓰므로 마침으로 쓰면 출처를 모르는 행이 마친 것으로 읽힌다).
   static func setModelFill(_ fill: GifticonModelFill, on stored: StoredImage) {
     switch fill {
     case .done:
@@ -81,7 +95,7 @@ extension PhotoStore {
     case let .pending(failures):
       stored.gifticonModelVersion = 0
       stored.gifticonModelFailures = failures
-    case .stale:
+    case .stale, .sourcesUnknown:
       stored.gifticonModelVersion = 0
       stored.gifticonModelFailures = 0
     }

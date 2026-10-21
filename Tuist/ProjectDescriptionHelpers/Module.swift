@@ -12,6 +12,8 @@ public enum Client: String, CaseIterable {
   case indexing = "Indexing"
   case notification = "Notification"
   case classifier = "Classifier"
+  case map = "Map"
+  case pasteboard = "Pasteboard"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }

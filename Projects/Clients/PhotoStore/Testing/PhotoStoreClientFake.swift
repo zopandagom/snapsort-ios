@@ -5,25 +5,32 @@ import Synchronization
 /// 테스트와 Example 앱용 대역. 메모리에 저장해 Impl 처럼 저장·삭제·추출 값 저장·여행 교체가 조회에 반영되고,
 /// 저장·삭제·추출 값 저장·보강 결과 저장 요청을 기록한다. 추출 규칙 버전과 보강 버전은 두지 않는다(버전 동작은 Impl 테스트가 본다).
 /// 그래서 만료 예정 조회(`upcomingGifticonExpiries`)는 추출 값의 만료일만 보고, 보강 상태는 `IndexedImage.gifticonModelFill`
-/// 로만 다룬다(`.stale` 은 테스트가 그 상태의 이미지를 넣어 만든다).
+/// 로만 다룬다(`.stale`·`.sourcesUnknown` 은 테스트가 그 상태의 이미지를 넣어 만든다. 출처를 모르는 옛 행을 `.sourcesUnknown` 으로
+/// 읽는 판정은 Impl 만 한다). 사용 여부는 `usedIDs` 로 따로 두고 Impl 처럼 `save`·`delete` 가 기프티콘에서 빠진 행을 지운다.
 /// 모든 호출의 실패와 따로, 소급 추출 호출만의 실패(`gifticonError`), 소급 보강 호출만의 실패(`modelFillError`),
 /// 특정 식별자를 읽는 `images(ids:)` 만의 실패(`failingOnIDRead`), `assets(in:)` 의 호출 번호별 실패(`assetsErrors`)도 정할 수 있다.
-/// 늦게 끝나는 읽기는 `onAssets`·`onUpcomingGifticonExpiries` 훅으로 흉내 낸다.
+/// 기프티콘 목록 읽기의 호출 번호별 실패(`gifticonsErrors`)와 사용 여부 쓰기만의 실패(`setUsedError`)도 정할 수 있다.
+/// 늦게 끝나는 읽기·쓰기는 `onAssets`·`onUpcomingGifticonExpiries`·`onGifticons`·`onGifticon`·`onSetGifticonUsed` 훅으로 흉내 낸다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
   private let saveLimit: Int?
   private let gifticonSaveLimit: Int?
   private let gifticonError: PhotoStoreError?
-  private let modelFillError: PhotoStoreError?
+  let modelFillError: PhotoStoreError?
   private let failingOnIDRead: Set<ImageAsset.ID>
   private let assetsErrors: [Int: PhotoStoreError]
   private let onAssets: @Sendable (Int) async -> Void
   private let onSaveGifticons: @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void
-  private let onUpcomingGifticonExpiries: @Sendable (Int) async -> Void
-  private let state: Mutex<State>
+  let onUpcomingGifticonExpiries: @Sendable (Int) async -> Void
+  let gifticonsErrors: [Int: PhotoStoreError]
+  let onGifticons: @Sendable (Int) async -> Void
+  let onGifticon: @Sendable (Int) async -> Void
+  let setUsedError: PhotoStoreError?
+  let onSetGifticonUsed: @Sendable (Int) async -> Void
+  let state: Mutex<State>
 
-  private struct State {
+  struct State {
     var images: [ImageAsset.ID: IndexedImage]
     var trips: [Trip]
     var savedBatches: [[IndexedImage]] = []
@@ -34,6 +41,10 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var missingOnIDRead: Set<ImageAsset.ID> = []
     var upcomingGifticonExpiriesCount = 0
     var assetsCallCount = 0
+    var usedIDs: Set<ImageAsset.ID> = []
+    var gifticonsCallCount = 0
+    var gifticonCallCount = 0
+    var setGifticonUsedCount = 0
   }
 
   /// - Parameters:
@@ -56,6 +67,14 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///     기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려줘, 늦게 끝난 읽기를 흉내 낸다. 실패하는 호출에서는 부르지 않는다.
   ///   - onUpcomingGifticonExpiries: `upcomingGifticonExpiries(from:)` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다.
   ///     인자는 몇 번째 호출인지(0부터)다. 기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려줘, 늦게 깨어난 읽기를 흉내 낸다.
+  ///   - usedIDs: 처음 사용함인 이미지. 들어간 이미지 중 기프티콘 카테고리인 것만 남긴다.
+  ///   - gifticonsErrors: `gifticons()` 의 호출 번호(0부터)별 실패. `assetsErrors` 와 같은 방식이다.
+  ///   - onGifticons: `gifticons()` 가 오류를 확인하고 결과를 계산한 뒤, 돌려주기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
+  ///     기다리는 동안 저장소가 바뀌어도 앞서 계산한 값을 돌려준다. 실패하는 호출에서는 부르지 않는다.
+  ///   - onGifticon: `gifticon(id:)` 가 결과를 계산한 뒤 돌려주기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
+  ///   - setUsedError: 정하면 `setGifticonUsed` 만 이 실패를 던지고 사용 여부를 바꾸지 않는다. 다른 호출은 성공한다.
+  ///   - onSetGifticonUsed: `setGifticonUsed` 가 오류를 확인하고 쓰기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
+  ///     쓰는 동안 화면을 닫거나 다시 누르는 일을 흉내 낸다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -69,7 +88,13 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     onSaveGifticons: @escaping @Sendable ([ImageAsset.ID: GifticonInfo]) async -> Void = { _ in },
     assetsErrors: [Int: PhotoStoreError] = [:],
     onAssets: @escaping @Sendable (Int) async -> Void = { _ in },
-    onUpcomingGifticonExpiries: @escaping @Sendable (Int) async -> Void = { _ in }
+    onUpcomingGifticonExpiries: @escaping @Sendable (Int) async -> Void = { _ in },
+    usedIDs: Set<ImageAsset.ID> = [],
+    gifticonsErrors: [Int: PhotoStoreError] = [:],
+    onGifticons: @escaping @Sendable (Int) async -> Void = { _ in },
+    onGifticon: @escaping @Sendable (Int) async -> Void = { _ in },
+    setUsedError: PhotoStoreError? = nil,
+    onSetGifticonUsed: @escaping @Sendable (Int) async -> Void = { _ in }
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -81,10 +106,17 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.assetsErrors = assetsErrors
     self.onAssets = onAssets
     self.onUpcomingGifticonExpiries = onUpcomingGifticonExpiries
+    self.gifticonsErrors = gifticonsErrors
+    self.onGifticons = onGifticons
+    self.onGifticon = onGifticon
+    self.setUsedError = setUsedError
+    self.onSetGifticonUsed = onSetGifticonUsed
+    let byID = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.state = Mutex(State(
-      images: Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }),
+      images: byID,
       trips: trips,
-      missingOnIDRead: missingOnIDRead
+      missingOnIDRead: missingOnIDRead,
+      usedIDs: usedIDs.filter { byID[$0]?.categories.contains(.gifticon) ?? false }
     ))
   }
 
@@ -138,6 +170,10 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       state.savedBatches.append(images)
       for image in images {
         state.images[image.id] = image
+        // Impl 처럼 사용 여부는 저장된 값을 두고, 기프티콘에서 빠지면 지운다.
+        if !image.categories.contains(.gifticon) {
+          state.usedIDs.remove(image.id)
+        }
       }
       return true
     }
@@ -152,6 +188,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       state.deletedBatches.append(ids)
       for id in ids {
         state.images[id] = nil
+        state.usedIDs.remove(id)
       }
     }
   }
@@ -233,22 +270,6 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     return assets
   }
 
-  /// 프로토콜 약속대로 만료일 오름차순(같으면 식별자 순)으로 돌려준다.
-  public func upcomingGifticonExpiries(from date: LocalDate) async throws(PhotoStoreError) -> [GifticonExpiry] {
-    try self.throwIfNeeded()
-    let expiries = self.images
-      .compactMap { image in
-        image.gifticon?.expiryDate.flatMap { $0 >= date ? GifticonExpiry(imageID: image.id, expiryDate: $0) : nil }
-      }
-      .sorted { ($0.expiryDate, $0.imageID) < ($1.expiryDate, $1.imageID) }
-    let index = self.state.withLock { state in
-      defer { state.upcomingGifticonExpiriesCount += 1 }
-      return state.upcomingGifticonExpiriesCount
-    }
-    await self.onUpcomingGifticonExpiries(index)
-    return expiries
-  }
-
   public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
     try self.throwIfNeeded()
     return self.images.flatMap(\.categories).filter { $0 != .travel }.reduce(into: [:]) { $0[$1, default: 0] += 1 }
@@ -278,18 +299,21 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.images
       // Impl 처럼 `.travel` 은 이미지 카테고리로 다루지 않는다.
       .filter { category != .travel && $0.categories.contains(category) }
-      .sorted { lhs, rhs in
-        switch (lhs.asset.creationDate, rhs.asset.creationDate) {
-        case let (left?, right?) where left != right:
-          left > right
-        case (.some, nil):
-          true
-        case (nil, .some):
-          false
-        default:
-          lhs.id < rhs.id
-        }
-      }
+      .sorted(by: Self.isNewer)
+  }
+
+  /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다.
+  static func isNewer(_ lhs: IndexedImage, than rhs: IndexedImage) -> Bool {
+    switch (lhs.asset.creationDate, rhs.asset.creationDate) {
+    case let (left?, right?) where left != right:
+      left > right
+    case (.some, nil):
+      true
+    case (nil, .some):
+      false
+    default:
+      lhs.id < rhs.id
+    }
   }
 
   /// 기프티콘으로 분류돼 글자를 읽었는데 추출 값이 없다.
@@ -297,7 +321,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     image.categories.contains(.gifticon) && image.textLines != nil && image.gifticon == nil
   }
 
-  private func throwIfNeeded() throws(PhotoStoreError) {
+  func throwIfNeeded() throws(PhotoStoreError) {
     if let error = self.error {
       throw error
     }
@@ -305,73 +329,6 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
 
   private func throwGifticonErrorIfNeeded() throws(PhotoStoreError) {
     if let error = self.gifticonError {
-      throw error
-    }
-  }
-}
-
-// 소급 보강 (docs/ARCHITECTURE.md §4 저장소).
-extension PhotoStoreClientFake {
-  public func gifticonModelFillPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
-    try self.throwIfNeeded()
-    try self.throwModelFillErrorIfNeeded()
-    return self.state.withLock { Set($0.images.values.filter(Self.isModelFillPending).map(\.id)) }
-  }
-
-  public func saveGifticonModelFills(
-    _ results: [ImageAsset.ID: GifticonModelFillResult]
-  ) async throws(PhotoStoreError) {
-    try self.throwIfNeeded()
-    try self.throwModelFillErrorIfNeeded()
-    self.state.withLock { state in
-      state.savedModelFillBatches.append(results)
-      for (id, result) in results {
-        // Impl 처럼 보강 대기 행만 바꾼다(마친 행·추출 대기 행은 그대로).
-        guard let image = state.images[id], Self.isModelFillPending(image) else {
-          continue
-        }
-        let (gifticon, fill) = Self.applied(result, to: image.gifticonModelFill)
-        state.images[id] = IndexedImage(
-          asset: image.asset,
-          labels: image.labels,
-          textRecognition: image.textRecognition,
-          categories: image.categories,
-          gifticon: gifticon,
-          gifticonModelFill: fill
-        )
-      }
-    }
-  }
-
-  /// 기프티콘으로 분류돼 글자를 읽었고 추출 값이 있는데 보강을 마치지 않았다.
-  private static func isModelFillPending(_ image: IndexedImage) -> Bool {
-    image.categories.contains(.gifticon) && image.textLines != nil && image.gifticon != nil
-      && image.gifticonModelFill != .done
-  }
-
-  /// Impl `saveGifticonModelFills` 와 같은 표로 결과를 쓴 뒤의 추출 값과 보강 상태.
-  private static func applied(
-    _ result: GifticonModelFillResult,
-    to current: GifticonModelFill
-  ) -> (GifticonInfo, GifticonModelFill) {
-    let failures = if case let .pending(failures) = current {
-      failures
-    } else {
-      0
-    }
-    switch result {
-    case let .filled(gifticon):
-      return (gifticon, .done)
-    case let .failed(rules):
-      let counted = failures + 1
-      return (rules, counted >= GifticonModelFill.maximumFailures ? .done : .pending(failures: counted))
-    case let .deferred(rules):
-      return (rules, .pending(failures: failures))
-    }
-  }
-
-  private func throwModelFillErrorIfNeeded() throws(PhotoStoreError) {
-    if let error = self.modelFillError {
       throw error
     }
   }
