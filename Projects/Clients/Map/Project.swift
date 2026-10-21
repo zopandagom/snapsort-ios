@@ -1,4 +1,4 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.client(.map)
+let project = Project.client(.map, shared: [.core])
