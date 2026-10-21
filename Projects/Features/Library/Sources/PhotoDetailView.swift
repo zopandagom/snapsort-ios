@@ -4,22 +4,68 @@ import SwiftUI
 
 /// 사진 상세: 기기에 있는 가장 큰 버전으로 한 장을 크게 보인다 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// iCloud 원본은 내려받지 않는다. 작은 대체 버전이면 안내를 붙이고, 기기 버전이 없으면 볼 수 없다고 보인다.
-/// 닫히면(`.task` 취소) Model 이 이미지를 놓는다.
+/// 아래에 캡처 행동(`CaptureActionsPanel`: 주소 지도 앱 열기·번호 복사, 기프티콘 목록에서 열었으면 기프티콘 정보·사용함·바코드)을 붙인다.
+/// 읽은 이미지는 바코드 인식에 쓰도록 `captureModel` 로 넘긴다.
+/// 닫히면(`.task` 취소) 두 Model 이 이미지와 캡처 행동 상태를 놓는다.
 public struct PhotoDetailView: View {
   let model: CategoryModel
-  let asset: ImageAsset
+  let captureModel: CaptureActionsModel
+  let route: PhotoDetailRoute
 
-  public init(model: CategoryModel, asset: ImageAsset) {
+  init(model: CategoryModel, captureModel: CaptureActionsModel, route: PhotoDetailRoute) {
     self.model = model
-    self.asset = asset
+    self.captureModel = captureModel
+    self.route = route
+  }
+
+  /// - Parameter gifticon: 기프티콘 목록에서 열 때의 그 항목. nil 이면 주소·번호 행동만 보인다.
+  public init(
+    model: CategoryModel,
+    captureModel: CaptureActionsModel,
+    asset: ImageAsset,
+    gifticon: GifticonListItem? = nil
+  ) {
+    self.init(model: model, captureModel: captureModel, route: PhotoDetailRoute(asset: asset, gifticon: gifticon))
+  }
+
+  private var asset: ImageAsset {
+    self.route.asset
   }
 
   public var body: some View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .safeAreaInset(edge: .bottom) {
+        CaptureActionsPanel(model: self.captureModel, assetID: self.asset.id)
+      }
       .navigationTitle(self.title)
       .navigationBarTitleDisplayMode(.inline)
       .task { await self.model.detailAppeared(id: self.asset.id) }
+      .task { await self.captureModel.detailAppeared(id: self.asset.id, gifticon: self.route.gifticon) }
+      // 이미지를 읽었거나 볼 수 없게 되면 바코드를 찾는다. 상세를 닫으면 취소된다.
+      // 캡처 행동 상세가 열린 뒤에도 다시 돌도록 그 요청 번호를 키에 넣는다(두 `.task` 의 시작 순서에 기대지 않고,
+      // 같은 사진을 닫았다 바로 다시 열어도 새 요청에서 다시 돈다).
+      .task(id: self.imageKey) {
+        guard self.imageKey.captureRequest != nil else { return }
+        switch self.state {
+        case let .loaded(image):
+          await self.captureModel.detailImageLoaded(image, id: self.asset.id)
+        case .unavailable:
+          self.captureModel.detailImageUnavailable(id: self.asset.id)
+        case .loading:
+          break
+        }
+      }
+  }
+
+  private var imageKey: DetailImageKey {
+    let phase: DetailImageKey.Phase = switch self.state {
+    case .loading: .loading
+    case .loaded: .loaded
+    case .unavailable: .unavailable
+    }
+    let captureRequest = self.captureModel.detailID == self.asset.id ? self.captureModel.detailRequest : nil
+    return DetailImageKey(id: self.asset.id, phase: phase, captureRequest: captureRequest)
   }
 
   /// 다른 사진의 상세 상태가 남아 있으면 쓰지 않고 불러오는 중으로 그린다.
@@ -69,4 +115,18 @@ public struct PhotoDetailView: View {
       Text("날짜 없음")
     }
   }
+}
+
+/// 상세 이미지 읽기 단계. 바코드 인식 `.task(id:)` 의 키다.
+private struct DetailImageKey: Hashable {
+  enum Phase: Hashable {
+    case loading
+    case loaded
+    case unavailable
+  }
+
+  let id: ImageAsset.ID
+  let phase: Phase
+  /// 이 사진의 캡처 행동 상세 요청 번호. 열리기 전이면 nil.
+  let captureRequest: Int?
 }

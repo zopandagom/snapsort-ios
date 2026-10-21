@@ -3,12 +3,14 @@ import CoreGraphics
 import Foundation
 import PhotoLibraryInterface
 import PhotoLibraryTesting
+import PhotoStoreInterface
+import PhotoStoreTesting
 
 /// Example 의 분류 결과와 그 이미지 읽기 결과. 저장소와 보관함 대역이 같은 식별자를 쓴다.
 enum PreviewPhotos {
-  /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다.
+  /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다. 기프티콘은 데모 줄 수(`PreviewGifticons.demos`)다.
   static let counts: [(ImageCategory, Int)] = [
-    (.gifticon, 7), (.receipt, 12), (.chat, 9), (.document, 4),
+    (.gifticon, PreviewGifticons.demos.count), (.receipt, 12), (.chat, 9), (.document, 4),
     (.food, 21), (.people, 1200), (.landscape, 6), (.other, 3),
   ]
   /// 각 카테고리 마지막 이만큼은 생성일이 없다("날짜 없음" 섹션).
@@ -33,7 +35,7 @@ enum PreviewPhotos {
   }
 
   /// 칸마다 색이 다른 작은 이미지. 50장마다 iCloud 에만 있음·실패·보관함에 없음(결과 없음)·작은 대체 버전이 하나씩 섞인다.
-  /// 데모 버튼으로 더한 새 사진은 모두 읽힌다.
+  /// 기프티콘은 바코드가 그려진 이미지(`PreviewGifticons.loadImageResults`)다. 데모 버튼으로 더한 새 사진은 모두 읽힌다.
   static let loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = {
     var results: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
     let ids = PreviewPhotos.counts.flatMap { category, count in (0 ..< count).map { PreviewPhotos.id(category, $0) } }
@@ -45,6 +47,7 @@ enum PreviewPhotos {
       default: results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: index % 50 == 3))
       }
     }
+    results.merge(PreviewGifticons.loadImageResults) { _, gifticon in gifticon }
     for index in 0 ..< PreviewPhotos.newPhotoCapacity {
       results[PreviewPhotos.newPhotoID(index)] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
     }
@@ -80,5 +83,66 @@ extension CGImage {
     )
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
     return context.makeImage() ?? .stub(width: width, height: height)
+  }
+}
+
+extension PhotoStoreClientFake {
+  /// 정보형·사진형 카테고리와 여행이 섞인 분류 결과(`PreviewPhotos`). Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
+  /// 기프티콘은 `PreviewGifticons.demos` 의 상태들이고, 문서 첫 장은 주소·송장·계좌번호가 있는 캡처다.
+  /// - Parameters:
+  ///   - hasUpcomingExpiry: 거짓이면 기프티콘의 만료일을 찾지 못한 것으로 둔다(만료 알림을 예약할 수 없다).
+  ///   - includesGifticons: 거짓이면 기프티콘이 없다(빈 기프티콘 목록은 Preview 에서 본다).
+  ///   - assetsErrors: 카테고리 화면 읽기(`assets(in:)`)의 호출 번호별 실패.
+  ///   - gifticonsErrors: 기프티콘 목록 읽기(`gifticons()`)의 호출 번호별 실패.
+  static func previewClassified(
+    hasUpcomingExpiry: Bool = true,
+    includesGifticons: Bool = true,
+    assetsErrors: [Int: PhotoStoreError] = [:],
+    gifticonsErrors: [Int: PhotoStoreError] = [:]
+  ) -> PhotoStoreClientFake {
+    let now = Date()
+    let today = LocalDate(now, calendar: .current)
+    let others = PreviewPhotos.counts.filter { $0.0 != .gifticon }.flatMap { category, count in
+      (0 ..< count).map { index in
+        let isCapture = category == .document && index == 0
+        return IndexedImage(
+          asset: .stub(
+            id: PreviewPhotos.id(category, index),
+            creationDate: PreviewPhotos.creationDate(index: index, count: count)
+          ),
+          labels: [],
+          textRecognition: isCapture
+            ? .recognized(PreviewGifticons.captureLines.map {
+              RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero)
+            })
+            : .notNeeded,
+          categories: [category]
+        )
+      }
+    }
+    let gifticons = PreviewGifticons.images(today: today, now: now).map { image in
+      guard !hasUpcomingExpiry, let gifticon = image.gifticon else { return image }
+      return IndexedImage(
+        asset: image.asset,
+        labels: [],
+        textRecognition: image.textRecognition,
+        categories: image.categories,
+        gifticon: GifticonInfo(expiryDate: nil, redemptionPlace: gifticon.redemptionPlace),
+        gifticonModelFill: image.gifticonModelFill
+      )
+    }
+    let trip = Trip(
+      assetIDs: [],
+      startDate: Date(timeIntervalSince1970: 0),
+      endDate: Date(timeIntervalSince1970: 86400),
+      center: Coordinate(latitude: 33.5, longitude: 126.5)
+    )
+    return PhotoStoreClientFake(
+      images: others + (includesGifticons ? gifticons : []),
+      trips: [trip, trip],
+      assetsErrors: assetsErrors,
+      usedIDs: PreviewGifticons.usedIDs,
+      gifticonsErrors: gifticonsErrors
+    )
   }
 }

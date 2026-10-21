@@ -2,15 +2,30 @@ import Core
 import SwiftUI
 
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
-/// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`)을, 그 칸을 누르면 사진 상세(`PhotoDetailView`)를 연다.
-/// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 `categoryModel` 이벤트로 한다.
+/// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`)을, 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`)를 연다.
+/// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
+/// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
+/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·상세의 다시 읽기
+/// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·상세의 다시 읽기
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 세 Model(알림·목록·상세)
 public struct LibraryView: View {
   let model: LibraryModel
   let categoryModel: CategoryModel
+  let gifticonListModel: GifticonListModel
+  let captureActionsModel: CaptureActionsModel
 
-  public init(model: LibraryModel, categoryModel: CategoryModel) {
+  @Environment(\.scenePhase) private var scenePhase
+
+  public init(
+    model: LibraryModel,
+    categoryModel: CategoryModel,
+    gifticonListModel: GifticonListModel,
+    captureActionsModel: CaptureActionsModel
+  ) {
     self.model = model
     self.categoryModel = categoryModel
+    self.gifticonListModel = gifticonListModel
+    self.captureActionsModel = captureActionsModel
   }
 
   public var body: some View {
@@ -19,6 +34,9 @@ public struct LibraryView: View {
         self.indexingSection
         if self.model.showsExpiryReminderButton {
           self.expiryReminderSection
+        }
+        if self.model.showsNotificationSettingsButton {
+          self.notificationSettingsSection
         }
         // 덮는 overlay 로 두면 위의 진행률·다시 시도를 가리므로 목록 안에 둔다.
         if self.model.categoryCounts.isEmpty {
@@ -42,17 +60,49 @@ public struct LibraryView: View {
       }
       // 격자 안에 두지 않고 루트 한곳에 둔다.
       .navigationDestination(for: ImageCategory.self) { category in
-        CategoryView(model: self.categoryModel, category: category)
+        if category == .gifticon {
+          GifticonListView(model: self.gifticonListModel, categoryModel: self.categoryModel)
+        } else {
+          CategoryView(model: self.categoryModel, category: category)
+        }
       }
       .navigationDestination(for: PhotoDetailRoute.self) { route in
-        PhotoDetailView(model: self.categoryModel, asset: route.asset)
+        PhotoDetailView(model: self.categoryModel, captureModel: self.captureActionsModel, route: route)
       }
     }
-    // 둘 다 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 저장소 변경 신호를 넘긴다.
+    // 모두 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 신호를 넘긴다.
     .task { await self.model.onAppear() }
     .onChange(of: self.model.storeRevision) {
       self.categoryModel.libraryStoreChanged()
+      self.gifticonListModel.libraryStoreChanged()
+      self.captureActionsModel.libraryStoreChanged()
     }
+    // 상세를 닫은 뒤 끝난 쓰기도 오른다. 같은 사진을 닫았다 바로 다시 열어 경로의 옛 값을 보이는 상세도 다시 읽어 맞춘다.
+    .onChange(of: self.captureActionsModel.usageRevision) {
+      self.model.gifticonUsageChanged()
+      self.gifticonListModel.libraryStoreChanged()
+      self.captureActionsModel.libraryStoreChanged()
+    }
+    // 시작 직후의 첫 값은 부르지 않는다(화면 진입 동기화가 맡는다). 백그라운드(잠금 포함) 동안의 날짜 변경도 여기서 덮는다.
+    .onChange(of: self.scenePhase) { _, phase in
+      guard phase == .active else { return }
+      self.model.sceneBecameActive()
+      self.gifticonListModel.dayChanged()
+      self.captureActionsModel.dayChanged()
+    }
+    // 아래 두 알림 모두 백그라운드 큐에서 post 해도 `.onReceive` 의 action 은 메인에서 돈다(iOS 26.5 시뮬레이터 실험으로 확인).
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      self.dayChanged()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+      self.dayChanged()
+    }
+  }
+
+  private func dayChanged() {
+    self.model.dayChanged()
+    self.gifticonListModel.dayChanged()
+    self.captureActionsModel.dayChanged()
   }
 
   private var emptyDescription: String {
@@ -160,6 +210,22 @@ public struct LibraryView: View {
         Spacer()
         Button("만료 알림 받기") {
           Task { await self.model.notificationsTapped() }
+        }
+        .buttonStyle(.bordered)
+        .font(.subheadline)
+      }
+    }
+  }
+
+  /// 알림을 거부했고 지금 예약할 알림이 있을 때만 보인다 (docs/ARCHITECTURE.md §4 만료 알림).
+  private var notificationSettingsSection: some View {
+    Section {
+      HStack {
+        Label("만료 알림이 꺼져 있어요", systemImage: "bell.slash")
+          .font(.subheadline)
+        Spacer()
+        Button("설정에서 알림 켜기") {
+          Task { await self.model.notificationSettingsTapped() }
         }
         .buttonStyle(.bordered)
         .font(.subheadline)
