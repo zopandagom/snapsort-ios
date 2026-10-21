@@ -93,7 +93,7 @@ public struct IndexingClientImpl: IndexingClient {
 }
 
 /// `run()` 한 번의 상태. 한 Task 안에서만 쓴다. 단계별 분석은 IndexingRun+Stages.swift, 소급은 IndexingRun+Gifticon.swift·
-/// IndexingRun+ModelFill.swift 에 있다.
+/// IndexingRun+Receipt.swift·IndexingRun+ModelFill.swift 에 있다.
 struct IndexingRun {
   let photoLibrary: any PhotoLibraryClient
   let imageAnalysis: any ImageAnalysisClient
@@ -118,14 +118,17 @@ struct IndexingRun {
   /// 2단계에서 보관함에 없다고(`notFound`) 나와 대기에서 뺐지만 저장 행은 대기로 남은 이미지.
   /// 삭제 변경이 오면 빼고(행은 삭제 경로가 지운다), 삭제 없이 다시 추가되면 대기로 되돌린다. 전체 다시 비교에서 비운다(저장소에서 다시 채운다).
   var goneTextIDs: Set<ImageAsset.ID> = []
-  /// 기프티콘으로 분류돼 글자를 읽었지만 지금 규칙 버전으로 추출하지 않은 보관함 이미지. 저장된 줄로 소급 추출한다(IndexingRun+Gifticon.swift).
+  /// 기프티콘으로 분류돼 글자를 읽었지만 지금 규칙 버전으로 추출하지 않은 보관함 이미지. 저장된 줄로 기프티콘 소급 추출한다(IndexingRun+Gifticon.swift).
   /// 2단계 대기(읽기 전 행)와 겹치지 않는다. 진행률에는 넣지 않는다.
-  /// 저장소 실패로 이번 실행의 소급을 멈추면 비우고, 전체 다시 비교(`reloadAll`)가 저장소에서 다시 채운다.
+  /// 저장소 실패로 이번 실행의 기프티콘 소급을 멈추면 비우고, 전체 다시 비교(`reloadAll`)가 저장소에서 다시 채운다.
   var pendingGifticonIDs: Set<ImageAsset.ID> = []
+  /// 영수증으로 분류돼 글자를 읽었지만 지금 규칙 버전으로 추출하지 않은 보관함 이미지. 저장된 줄로 소급 추출한다(IndexingRun+Receipt.swift).
+  /// 2단계 대기와 겹치지 않는다. 진행률에는 넣지 않는다. 저장소 실패로 이번 실행의 영수증 소급을 멈추면 비우고, 전체 다시 비교가 다시 채운다.
+  var pendingReceiptIDs: Set<ImageAsset.ID> = []
   /// 추출 값의 언어 모델 보강을 마치지 않은 기프티콘(`GifticonModelFill.pending`·`.stale`·`.sourcesUnknown`) 보관함 이미지. 저장된 줄로
   /// 소급 보강한다(IndexingRun+ModelFill.swift). 모델을 쓸 수 있는지와 관계없이 채운다(`.stale` 행 되돌리기, 채울 필드가 없는 행 마치기,
   /// `.sourcesUnknown` 행 출처 판정은 모델 없이 한다).
-  /// 소급 추출 대상과 겹치지 않는다. 진행률에는 넣지 않는다. 저장소 실패로 멈추면 비우고, 전체 다시 비교가 다시 채운다.
+  /// 기프티콘 소급 추출 대상과 겹치지 않는다. 진행률에는 넣지 않는다. 저장소 실패로 멈추면 비우고, 전체 다시 비교가 다시 채운다.
   var pendingModelFillIDs: Set<ImageAsset.ID> = []
   /// 이번 실행에서 모델이 잇달아 실패한 수. 모델이 답하면 0 으로 되돌린다.
   var consecutiveModelFailures = 0
@@ -155,7 +158,7 @@ struct IndexingRun {
     self.textBatchSize = textBatchSize
   }
 
-  /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출, 2단계, 소급 보강을 번갈아 한다.
+  /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출(기프티콘 → 영수증), 2단계, 소급 보강을 번갈아 한다.
   /// Task 가 취소되거나, 저장소가 실패하거나(소급 추출·소급 보강만의 실패는 빼고), 읽기 권한이 없으면 돌아온다.
   /// 모델을 쓸 수 없거나 모델이 실패해도 멈추지 않는다(규칙 결과로 이어 간다).
   /// 변경은 자식 Task 가 받아 수신함에 쌓고, 본 루프가 소급 추출·2단계·소급 보강 배치 경계에서 꺼내 먼저 반영한다.
@@ -185,8 +188,8 @@ struct IndexingRun {
     }
   }
 
-  /// 변경이 있으면 먼저 반영하고, 없으면 소급 추출 한 배치, 그것도 없으면 2단계 한 배치, 그것도 없으면 소급 보강 한 배치를 하고,
-  /// 모두 없으면 변경을 기다린다. 소급 추출은 OCR 없이 저장된 줄로 하는 순수 계산이라 OCR 보다 훨씬 짧으므로 먼저 한다.
+  /// 변경이 있으면 먼저 반영하고, 없으면 소급 추출 한 배치(기프티콘, 없으면 영수증), 그것도 없으면 2단계 한 배치, 그것도 없으면
+  /// 소급 보강 한 배치를 하고, 모두 없으면 변경을 기다린다. 소급 추출은 OCR 없이 저장된 줄로 하는 순수 계산이라 OCR 보다 훨씬 짧으므로 먼저 한다.
   /// 소급 보강은 모델 호출이라 OCR 과 같은 단위로 느리므로, 카테고리·개수를 바꾸는 2단계를 마친 뒤에 한다.
   /// 변경 스트림이 끝났으면 남은 변경·소급 추출·2단계·소급 보강을 마친 뒤 돌아온다.
   private mutating func loop(
@@ -210,8 +213,8 @@ struct IndexingRun {
             try await self.reloadAll(report: report)
           }
         }
-      } else if !self.pendingGifticonIDs.isEmpty {
-        try await self.extractGifticonBatch(report: report)
+      } else if self.hasExtractionBackfill {
+        try await self.extractBackfillBatch(report: report)
       } else if !self.pendingTextIDs.isEmpty {
         try await self.recognizeBatch(report: report)
       } else if !self.pendingModelFillIDs.isEmpty {
@@ -242,7 +245,7 @@ struct IndexingRun {
         try await self.photoStore.gifticonExtractionPendingIDs()
       }
     } catch {
-      // 소급 대상 조회만 실패하면 이번 비교에서는 소급만 하지 않고 비교·분류는 이어 간다(`extractGifticonBatch` 와 같은 이유).
+      // 기프티콘 소급 대상 조회만 실패하면 이번 비교에서는 기프티콘 소급만 하지 않고 비교·분류는 이어 간다(`extractGifticonBatch` 와 같은 이유).
       guard error == .storeFailed else { throw error }
       pendingGifticons = []
     }
@@ -252,15 +255,17 @@ struct IndexingRun {
         try await self.photoStore.gifticonModelFillPendingIDs()
       }
     } catch {
-      // 소급 보강 대상 조회만 실패하면 소급 추출과 같이 이번 비교에서는 소급 보강만 하지 않는다(`fillGifticonBatch`).
+      // 소급 보강 대상 조회만 실패하면 기프티콘 소급 추출과 같이 이번 비교에서는 소급 보강만 하지 않는다(`fillGifticonBatch`).
       guard error == .storeFailed else { throw error }
       pendingModelFills = []
     }
+    let pendingReceipts = try await self.receiptExtractionPendingIDs()
     let libraryIDs = Set(self.assets.keys)
     // 첫 진행률부터 대기 수가 들어가도록 보고 전에 채운다. 늦게 채우면 재시작 직후 다 끝난 것처럼 보였다가 다시 진행 중이 된다.
     self.indexedIDs = stored.intersection(libraryIDs)
     self.pendingTextIDs = pending.intersection(libraryIDs)
     self.pendingGifticonIDs = pendingGifticons.intersection(libraryIDs)
+    self.pendingReceiptIDs = pendingReceipts.intersection(libraryIDs)
     self.pendingModelFillIDs = pendingModelFills.intersection(libraryIDs)
     self.consecutiveModelFailures = 0
     self.isModelSuspended = false
@@ -294,6 +299,7 @@ struct IndexingRun {
     self.skippedIDs.subtract(removedIDs)
     self.pendingTextIDs.subtract(removedIDs)
     self.pendingGifticonIDs.subtract(removedIDs)
+    self.pendingReceiptIDs.subtract(removedIDs)
     self.pendingModelFillIDs.subtract(removedIDs)
     self.textSkippedIDs.subtract(removedIDs)
     self.goneTextIDs.subtract(removedIDs)
