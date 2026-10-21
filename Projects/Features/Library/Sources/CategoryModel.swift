@@ -4,9 +4,11 @@ import Observation
 import PhotoLibraryInterface
 import PhotoStoreInterface
 
-/// 카테고리 화면(월별 썸네일 격자)과 사진 상세의 상태와 로직 (docs/ARCHITECTURE.md §4 카테고리 화면).
+/// 카테고리 화면(월별 썸네일 격자)과 사진 상세 이미지의 상태와 로직 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 카테고리 화면은 한 번에 하나만 열리므로 App 이 하나를 소유하고, 열 때마다 `onAppear(category:)` 로 다시 쓴다.
-/// 상세는 카테고리 화면 위에서만 열리므로 상세 상태도 여기서 갖는다.
+/// 기프티콘 목록(`GifticonListView`)은 격자 대신 `GifticonListModel` 이 목록을 읽고, 썸네일 칸은 `thumbnailScreenAppeared(category:)` 로
+/// 이 Model 의 보관 규칙을 그대로 쓴다. 상세는 카테고리 화면·기프티콘 목록 위에서만 열리므로 상세 이미지도 여기서 갖는다
+/// (상세의 캡처 행동은 `CaptureActionsModel`).
 /// 저장소 변경 신호는 LibraryView 가 `LibraryModel.storeRevision` 변화를 `libraryStoreChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
 @MainActor
 @Observable
@@ -93,12 +95,7 @@ public final class CategoryModel {
     self.generation += 1
     let generation = self.generation
     if self.category != category {
-      // 다른 카테고리의 지난 내용과 썸네일이 비치지 않게 비운다. 지난 칸의 Task 는 주인 번호를 찾지 못해 아무것도 하지 않는다.
-      self.category = category
-      self.content = .loading
-      self.thumbnails = [:]
-      self.thumbnailOwners = [:]
-      self.retainedThumbnailIDs = []
+      self.switchCategory(to: category)
     } else if self.content == .failed {
       self.content = .loading
     }
@@ -132,6 +129,17 @@ public final class CategoryModel {
     guard self.content == .failed, let reloadRequests = self.reloadRequests else { return }
     self.content = .loading
     reloadRequests.yield()
+  }
+
+  /// 격자가 아닌 화면(기프티콘 목록)이 이 카테고리의 썸네일 칸을 쓰는 동안(View `.task` 수명) 기다린다. 저장소를 읽지 않는다.
+  /// 다른 카테고리였으면 `onAppear(category:)` 처럼 내용·썸네일을 비운다(격자 내용은 `.loading`). 같은 카테고리면 보관한 썸네일을 둔다.
+  /// 지난 격자 Task 의 늦은 결과가 내용을 바꾸지 않게 진입 번호를 올린다. 끝나도 아무것도 하지 않는다.
+  public func thumbnailScreenAppeared(category: ImageCategory) async {
+    self.generation += 1
+    if self.category != category {
+      self.switchCategory(to: category)
+    }
+    await self.waitUntilCancelled()
   }
 
   /// 칸이 보일 때 썸네일을 읽고, 칸이 보이는 동안(Task 가 취소될 때까지) 기다린다. 끝나면 자기 요청일 때만,
@@ -221,6 +229,15 @@ public final class CategoryModel {
       case .failed: return .unavailable(.failed)
       }
     }
+  }
+
+  /// 다른 카테고리의 지난 내용과 썸네일이 비치지 않게 비운다. 지난 칸의 Task 는 주인 번호를 찾지 못해 아무것도 하지 않는다.
+  private func switchCategory(to category: ImageCategory) {
+    self.category = category
+    self.content = .loading
+    self.thumbnails = [:]
+    self.thumbnailOwners = [:]
+    self.retainedThumbnailIDs = []
   }
 
   private func clearThumbnail(id: ImageAsset.ID, request: Int) {
