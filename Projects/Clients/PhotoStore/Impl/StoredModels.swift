@@ -42,6 +42,17 @@ final class StoredImage {
   /// 사용 여부. 사용자만 바꾸고(`setGifticonUsed`), 기프티콘 카테고리 행만 참일 수 있다(`save` 가 기프티콘에서 빠진 행은 false 로).
   /// 기본값이 있어 경량 이전으로 미사용이 된다.
   var gifticonIsUsed = false
+  /// 영수증 추출 값은 다섯 속성으로 읽는다(`PhotoStore.storedReceipt`). 영수증으로 분류돼 글자를 읽은 행만 값을 갖는다.
+  /// 기프티콘 추출 값과 독립이다. 모두 기본값·옵셔널이라 이 속성이 생기기 전에 저장한 행은 경량 이전으로 추출하지 않은 행이 된다.
+  /// 추출한 규칙 버전(`ReceiptExtractor.rulesVersion`). 0 이면 추출하지 않았다. 지금 버전과 다르면 추출하지 않은 것으로 읽는다.
+  var receiptRulesVersion = 0
+  /// 가게 이름(OCR 텍스트 그대로). 못 찾음·추출 안 함이면 nil. 가게 묶음 키는 저장하지 않는다(이름에서 Core 가 계산한다).
+  var receiptStoreName: String?
+  /// 금액 최소 단위 정수와 통화 코드(ISO 4217). 둘 다 있거나 둘 다 nil 이다. 못 찾음·통화 모름·추출 안 함이면 nil.
+  var receiptAmountMinorUnits: Int?
+  var receiptCurrencyCode: String?
+  /// 취소 전표. 추출 안 함이면 false.
+  var receiptIsCancelled = false
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []

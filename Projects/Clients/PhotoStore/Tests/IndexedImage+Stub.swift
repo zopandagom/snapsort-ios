@@ -11,7 +11,8 @@ extension IndexedImage {
     textRecognition: TextRecognition = .notNeeded,
     categories: Set<ImageCategory> = [],
     gifticon: GifticonInfo? = nil,
-    gifticonModelFill: GifticonModelFill = .pending(failures: 0)
+    gifticonModelFill: GifticonModelFill = .pending(failures: 0),
+    receipt: ReceiptInfo? = nil
   ) -> IndexedImage {
     IndexedImage(
       asset: ImageAsset(
@@ -26,7 +27,8 @@ extension IndexedImage {
       textRecognition: textRecognition,
       categories: categories,
       gifticon: gifticon,
-      gifticonModelFill: gifticonModelFill
+      gifticonModelFill: gifticonModelFill,
+      receipt: receipt
     )
   }
 }

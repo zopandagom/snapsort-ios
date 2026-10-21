@@ -6,7 +6,7 @@ import Foundation
 public protocol PhotoStoreClient: Sendable {
   /// 분석한 이미지를 저장한다. 같은 식별자가 이미 있으면 새 결과로 바꾼다(OCR 대기 → 읽음도 이것으로 바꾼다).
   /// 기프티콘 추출 값(필드별 출처 `GifticonInfo.modelFilledFields` 포함)과 보강 상태(`IndexedImage.gifticonModelFill`)도
-  /// 새 결과로 바꾼다(추출 값이 nil 이면 지운다).
+  /// 새 결과로 바꾼다(추출 값이 nil 이면 지운다). 영수증 추출 값(`IndexedImage.receipt`)도 새 결과로 바꾼다(nil 이면 지운다).
   /// 사용 여부는 넘긴 값이 아니라 저장된 값을 둔다: 새 카테고리에 기프티콘이 있으면 유지, 없으면 지운다(새 행은 미사용).
   func save(_ images: [IndexedImage]) async throws(PhotoStoreError)
 
@@ -40,6 +40,15 @@ public protocol PhotoStoreClient: Sendable {
   /// 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
   func saveGifticonModelFills(_ results: [ImageAsset.ID: GifticonModelFillResult]) async throws(PhotoStoreError)
 
+  /// 영수증으로 분류돼 글자를 읽었는데 지금 규칙 버전(`ReceiptExtractor.rulesVersion`)으로 추출하지 않은 이미지 식별자.
+  /// 인덱서가 OCR 없이 저장된 줄로 소급 추출할 대상을 고른다.
+  func receiptExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID>
+
+  /// 영수증 추출 값만 바꾼다. `receiptExtractionPendingIDs` 와 같은 조건인 행만 바꾸고 없는 식별자와 그 밖의 행은 무시해,
+  /// 겹친 지난 실행이 새 값을 덮지 않는다. 기프티콘 추출 값·보강 상태·사용 여부는 건드리지 않는다.
+  /// 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
+  func saveReceipts(_ receipts: [ImageAsset.ID: ReceiptInfo]) async throws(PhotoStoreError)
+
   /// 식별자로 저장된 이미지를 읽는다. 없는 식별자는 빠지고 순서는 정하지 않는다. 인덱서 2단계가 한 배치의 라벨을 읽고
   /// 소급 추출이 저장된 줄을 읽는 데 쓰므로, 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
   func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage]
@@ -71,6 +80,12 @@ public protocol PhotoStoreClient: Sendable {
 
   /// `gifticons()` 의 한 장. 기프티콘 카테고리가 아니거나 없으면 nil. 상세가 열린 동안 다시 읽는 데 쓴다.
   func gifticon(id: ImageAsset.ID) async throws(PhotoStoreError) -> GifticonListItem?
+
+  /// 영수증 카테고리의 모든 이미지를 최신순(생성일 없으면 뒤, 같으면 식별자 순)으로 돌려준다. 영수증 목록 화면이 쓴다.
+  /// 라벨·OCR 줄을 디코딩하지 않는다.
+  /// status: 지금 규칙 버전 추출 값이 있으면 `.extracted`, OCR 대기·추출 대기면 `.checking`,
+  /// OCR 대상이 아닌 영수증(글자를 읽지 않음)은 찾을 값이 없어 `.extracted(.empty)`.
+  func receipts() async throws(PhotoStoreError) -> [ReceiptListItem]
 
   /// 사용 여부를 쓴다. 기프티콘 카테고리 행만 바꾸고 true, 없거나 기프티콘이 아니면 아무것도 바꾸지 않고 false.
   /// 추출 값·보강 상태는 건드리지 않는다. 사용자가 상세에서 바꿀 때만 부른다.

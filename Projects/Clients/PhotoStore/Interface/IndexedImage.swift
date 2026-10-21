@@ -21,6 +21,10 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// 두 값이 다 있어도 읽기에서 `.done` 으로 바꾸지 않는다: `.done` 판정은 쓰는 쪽이 `GifticonModelFill.initial(for:)` 나
   /// 보강 결과로 정한다(다른 보강 버전의 모델 값이 남은 행이 마친 것으로 읽히지 않게 한다).
   public let gifticonModelFill: GifticonModelFill
+  /// 영수증 추출 값. nil 이면 추출하지 않았다(영수증 아님·OCR 전·지금 규칙 버전으로 추출 전).
+  /// 추출했는데 못 찾은 값은 `ReceiptInfo` 의 그 필드가 nil 이다. 영수증 카테고리이고 `.recognized` 일 때만 담고, 아니면 init 이 nil 로 둔다.
+  /// 기프티콘 값과 독립이라 기프티콘이면서 영수증인 이미지는 두 값을 모두 갖는다.
+  public let receipt: ReceiptInfo?
 
   public var id: ImageAsset.ID { self.asset.id }
 
@@ -38,7 +42,8 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     textRecognition: TextRecognition,
     categories: Set<ImageCategory>,
     gifticon: GifticonInfo? = nil,
-    gifticonModelFill: GifticonModelFill = .pending(failures: 0)
+    gifticonModelFill: GifticonModelFill = .pending(failures: 0),
+    receipt: ReceiptInfo? = nil
   ) {
     self.asset = asset
     self.labels = labels
@@ -51,6 +56,11 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
       nil
     }
     self.gifticonModelFill = self.gifticon == nil ? .pending(failures: 0) : gifticonModelFill
+    self.receipt = if categories.contains(.receipt), case .recognized = textRecognition {
+      receipt
+    } else {
+      nil
+    }
   }
 }
 

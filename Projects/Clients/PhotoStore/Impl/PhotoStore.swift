@@ -53,6 +53,7 @@ actor PhotoStore {
           .map(StoredCategoryMembership.init)
         Self.setGifticon(image.gifticon, on: stored)
         Self.setModelFill(image.gifticonModelFill, on: stored)
+        Self.setReceipt(image.receipt, on: stored)
       }
     }
   }
@@ -228,7 +229,7 @@ actor PhotoStore {
   /// 출처 속성이 true 인 필드를 `modelFilledFields` 로 읽는다(nil·false 는 규칙).
   /// 버전은 맞는데 만료일 정수를 날짜로 해석하지 못하면 던지지 않고 추출하지 않은 것으로 본다. 던지면 그 행이 든
   /// `images(in: .gifticon)` 이 계속 실패해 사용자가 회복할 수 없고, 추출 값은 저장된 줄로 다시 만들 수 있다
-  /// (추출 대기에 들어 소급 추출이 다시 쓴다). 쓰는 쪽은 늘 유효한 날짜를 쓰므로 정상 흐름에서는 생기지 않는다.
+  /// (추출 대기에 들어 기프티콘 소급 추출이 다시 쓴다). 쓰는 쪽은 늘 유효한 날짜를 쓰므로 정상 흐름에서는 생기지 않는다.
   static func storedGifticon(_ stored: StoredImage) -> GifticonInfo? {
     // `!=` 라 앱을 되돌려 더 높은 버전이 남아도 다시 추출한다.
     guard stored.gifticonRulesVersion == GifticonExtractor.rulesVersion else {
@@ -291,7 +292,8 @@ actor PhotoStore {
       textRecognition: Self.textRecognition(stored, decoder: decoder),
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
       gifticon: Self.storedGifticon(stored),
-      gifticonModelFill: Self.modelFill(stored)
+      gifticonModelFill: Self.modelFill(stored),
+      receipt: Self.storedReceipt(stored)
     )
   }
 }
@@ -311,7 +313,7 @@ extension PhotoStore {
     return stored.sorted(by: Self.isNewer).map(Self.imageAsset)
   }
 
-  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()` 가 함께 쓴다.
+  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()`·`receipts()` 가 함께 쓴다.
   static func imageAsset(_ stored: StoredImage) -> ImageAsset {
     let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
       Coordinate(latitude: latitude, longitude: longitude)
