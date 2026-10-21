@@ -15,4 +15,8 @@ public protocol NotificationClient: Sendable {
 
   /// 대기 알림을 지운다. 없는 식별자는 무시한다.
   func removePendingRequests(ids: Set<String>) async
+
+  /// 이 앱의 알림 설정 화면(설정 앱)을 연다. 권한을 거부한 뒤 사용자가 "설정에서 알림 켜기"를 누를 때 부른다.
+  /// 열지 못하면 아무것도 하지 않는다.
+  func openSettings() async
 }

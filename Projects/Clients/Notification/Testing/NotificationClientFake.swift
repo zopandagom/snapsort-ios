@@ -2,7 +2,7 @@ import Core
 import NotificationInterface
 import Synchronization
 
-/// 테스트와 Example 앱용 대역. 메모리에 대기 알림을 두어 Impl 처럼 추가·삭제가 조회에 반영되고, 권한 요청·추가·삭제를 기록한다.
+/// 테스트와 Example 앱용 대역. 메모리에 대기 알림을 두어 Impl 처럼 추가·삭제가 조회에 반영되고, 권한 요청·추가·삭제·설정 열기를 기록한다.
 /// 실제 알림 센터처럼 권한 요청 뒤 상태가 바뀌고 예약이 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class NotificationClientFake: NotificationClient {
   private let authorizationAfterRequest: NotificationAuthorization?
@@ -21,6 +21,7 @@ public final class NotificationClientFake: NotificationClient {
     var addAttemptCount = 0
     var addedBatches: [[NotificationRequest]] = []
     var removedBatches: [Set<String>] = []
+    var openSettingsCount = 0
   }
 
   /// - Parameters:
@@ -83,6 +84,11 @@ public final class NotificationClientFake: NotificationClient {
     self.state.withLock { $0.removedBatches }
   }
 
+  /// `openSettings()` 를 부른 횟수.
+  public var openSettingsCount: Int {
+    self.state.withLock { $0.openSettingsCount }
+  }
+
   public func authorizationStatus() async -> NotificationAuthorization {
     let (authorization, index) = self.state.withLock { state in
       defer { state.authorizationStatusCount += 1 }
@@ -133,5 +139,9 @@ public final class NotificationClientFake: NotificationClient {
         state.pending[id] = nil
       }
     }
+  }
+
+  public func openSettings() async {
+    self.state.withLock { $0.openSettingsCount += 1 }
   }
 }

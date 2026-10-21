@@ -6,6 +6,11 @@ import UserNotifications
 @testable import NotificationImpl
 
 struct NotificationClientImplTests {
+  @Test("설정 열기는 이 앱의 알림 설정 URL 을 쓴다")
+  func usesNotificationSettingsURL() {
+    #expect(NotificationClientImpl.settingsURL?.absoluteString == "app-settings:notifications")
+  }
+
   @Test(
     "UNAuthorizationStatus 를 NotificationAuthorization 으로 변환한다",
     arguments: [
