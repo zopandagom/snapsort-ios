@@ -36,7 +36,8 @@ public final class LibraryModel {
   /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
   public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
-  /// 인덱싱이 멈출 때. 카테고리 화면이 이 변화로 다시 읽는다(LibraryView 가 CategoryModel 에 넘긴다).
+  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·상세의 기프티콘 정보가 이 변화로 다시 읽는다
+  /// (LibraryView 가 CategoryModel·GifticonListModel·CaptureActionsModel 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
   public private(set) var storeRevision = 0
 
@@ -44,6 +45,11 @@ public final class LibraryModel {
   public var showsExpiryReminderButton: Bool {
     self.notificationAuthorization == .notDetermined && self.hasPlannedReminder
       && !self.isRequestingNotificationAuthorization
+  }
+
+  /// "설정에서 알림 켜기"를 보일지: 알림을 거부했고 지금 예약할 알림이 있다.
+  public var showsNotificationSettingsButton: Bool {
+    self.notificationAuthorization == .denied && self.hasPlannedReminder
   }
 
   /// 개수가 아니라 식별자 집합으로 들고 있어, 처음 조회 결과와 겹치는 변경이 와도 두 번 세지 않는다.
@@ -138,6 +144,28 @@ public final class LibraryModel {
     self.requestReminderSync()
   }
 
+  /// 설정 앱의 이 앱 알림 설정을 연다. 알림을 거부했을 때만. 설정에서 허용하고 돌아오면 `sceneBecameActive()` 의 동기화가 예약한다.
+  public func notificationSettingsTapped() async {
+    guard let notification = self.notification, self.notificationAuthorization == .denied else { return }
+    await notification.openSettings()
+  }
+
+  /// 앱이 앞으로 돌아왔다(scenePhase `.active`). 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
+  /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
+  public func sceneBecameActive() {
+    self.requestReminderSync()
+  }
+
+  /// 기프티콘 사용 여부가 바뀌었다. 사용한 기프티콘은 알리지 않으므로 만료 알림을 다시 맞춘다.
+  public func gifticonUsageChanged() {
+    self.requestReminderSync()
+  }
+
+  /// 날짜나 시간대가 바뀌었다(앱이 앞에 있는 동안 자정을 넘김 등). 오늘이 바뀌면 원하는 알림·`hasPlannedReminder` 가 바뀌므로 다시 맞춘다.
+  public func dayChanged() {
+    self.requestReminderSync()
+  }
+
   // MARK: - Private
 
   /// 보관함 변경 구독을 먼저 시작하고 처음 불러온다. 그래야 처음 불러오는 동안 생긴 변경도 놓치지 않는다.
@@ -189,7 +217,7 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
-      // 개수를 다시 읽기 전에 올려 카테고리 화면의 다시 읽기가 함께 시작되게 한다.
+      // 개수를 다시 읽기 전에 올려 카테고리 화면·기프티콘 목록·상세의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.requestReminderSync()
