@@ -36,8 +36,8 @@ public final class LibraryModel {
   /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
   public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
-  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·상세의 기프티콘 정보가 이 변화로 다시 읽는다
-  /// (LibraryView 가 CategoryModel·GifticonListModel·CaptureActionsModel 에 넘긴다).
+  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세가 이 변화로 다시 읽는다
+  /// (LibraryView 가 CategoryModel·GifticonListModel·CaptureActionsModel·TripListModel·TripDetailModel 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
   public private(set) var storeRevision = 0
 
@@ -79,6 +79,7 @@ public final class LibraryModel {
   /// 권한 상태는 동기로 읽을 수 있으므로 init 에서 읽어 첫 프레임부터 배너가 보이게 한다.
   /// App 은 온보딩 전에 이 Model 을 만들므로, 화면 진입 때도 다시 읽는다.
   /// - Parameters:
+  ///   - photoLibrary: 사진 보관함. 권한 상태·이미지 목록과 변경을 읽고, 제한 접근이면 사진 선택 화면을 띄운다.
   ///   - indexing: 분류 인덱서.
   ///   - photoStore: 인덱서가 저장한 분류 결과를 읽는 저장소.
   ///   저장소를 열지 못하면(디스크 공간 부족 등) App 이 둘 다 nil 을 넘기고, 분류 없이 보관함만 보여 준다.

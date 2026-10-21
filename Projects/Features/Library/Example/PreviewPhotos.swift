@@ -48,6 +48,9 @@ enum PreviewPhotos {
       }
     }
     results.merge(PreviewGifticons.loadImageResults) { _, gifticon in gifticon }
+    for (index, id) in PreviewTrips.imageIDs.enumerated() {
+      results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
+    }
     for index in 0 ..< PreviewPhotos.newPhotoCapacity {
       results[PreviewPhotos.newPhotoID(index)] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
     }
@@ -89,16 +92,21 @@ extension CGImage {
 extension PhotoStoreClientFake {
   /// 정보형·사진형 카테고리와 여행이 섞인 분류 결과(`PreviewPhotos`). Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
   /// 기프티콘은 `PreviewGifticons.demos` 의 상태들이고, 문서 첫 장은 주소·송장·계좌번호가 있는 캡처다.
+  /// 여행은 `PreviewTrips` 의 세 여행과 그 사진·캡처, 제주의 장소 캐시다.
   /// - Parameters:
   ///   - hasUpcomingExpiry: 거짓이면 기프티콘의 만료일을 찾지 못한 것으로 둔다(만료 알림을 예약할 수 없다).
   ///   - includesGifticons: 거짓이면 기프티콘이 없다(빈 기프티콘 목록은 Preview 에서 본다).
   ///   - assetsErrors: 카테고리 화면 읽기(`assets(in:)`)의 호출 번호별 실패.
   ///   - gifticonsErrors: 기프티콘 목록 읽기(`gifticons()`)의 호출 번호별 실패.
+  ///   - includesTrips: 거짓이면 여행이 없다(보관함에 여행 줄이 없다. 빈 여행 목록은 Preview 에서 본다).
+  ///   - tripsErrors: 여행 읽기(`trips()`)의 호출 번호별 실패.
   static func previewClassified(
     hasUpcomingExpiry: Bool = true,
     includesGifticons: Bool = true,
     assetsErrors: [Int: PhotoStoreError] = [:],
-    gifticonsErrors: [Int: PhotoStoreError] = [:]
+    gifticonsErrors: [Int: PhotoStoreError] = [:],
+    includesTrips: Bool = true,
+    tripsErrors: [Int: PhotoStoreError] = [:]
   ) -> PhotoStoreClientFake {
     let now = Date()
     let today = LocalDate(now, calendar: .current)
@@ -131,18 +139,15 @@ extension PhotoStoreClientFake {
         gifticonModelFill: image.gifticonModelFill
       )
     }
-    let trip = Trip(
-      assetIDs: [],
-      startDate: Date(timeIntervalSince1970: 0),
-      endDate: Date(timeIntervalSince1970: 86400),
-      center: Coordinate(latitude: 33.5, longitude: 126.5)
-    )
     return PhotoStoreClientFake(
-      images: others + (includesGifticons ? gifticons : []),
-      trips: [trip, trip],
+      images: others + (includesGifticons ? gifticons : []) + (includesTrips ? PreviewTrips.images : []),
+      trips: includesTrips ? PreviewTrips.trips : [],
       assetsErrors: assetsErrors,
       usedIDs: PreviewGifticons.usedIDs,
-      gifticonsErrors: gifticonsErrors
+      gifticonsErrors: gifticonsErrors,
+      places: includesTrips ? PreviewTrips.places : [:],
+      placesLocaleIdentifier: PreviewTrips.placesLocaleIdentifier,
+      tripsErrors: tripsErrors
     )
   }
 }

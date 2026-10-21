@@ -22,13 +22,21 @@ enum ExampleScenario: String {
   case notificationDenied
   /// 지도 앱을 열지 못한다. 주소를 누르면 실패 안내가 뜬다.
   case mapsUnavailable
+  /// 여행이 없다. 보관함에 여행 줄이 없어 빈 여행 목록은 Preview "여행 - 빈 목록"에서 본다.
+  case tripEmpty
+  /// 장소 이름 요청이 모두 실패한다. 캐시가 없는 여행(도쿄·태평양) 상세는 1.5초 뒤 기간을 제목으로 쓴다.
+  case tripGeocodingFailing
+  /// 여행 목록 처음 읽기만 실패한다. 다시 시도하면 목록이 보인다.
+  case tripStoreFailing
+  /// 제한 접근이다. 보관함 배너와 여행 목록 안내가 보인다.
+  case limited
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard
   }
 }
 
-/// Fake 가 받은 마지막 주소·복사 값을 보인다(Example 전용 디버그 줄). Fake 는 관찰할 수 없어 0.5초마다 다시 읽는다.
+/// Fake 가 받은 마지막 주소·복사 값과 장소 이름 요청 수를 보인다(Example 전용 디버그 줄). Fake 는 관찰할 수 없어 0.5초마다 다시 읽는다.
 struct FakeRecordView: View {
   let map: MapClientFake
   let pasteboard: PasteboardClientFake
@@ -38,6 +46,7 @@ struct FakeRecordView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("지도로 넘긴 주소: \(self.map.openedAddresses.last ?? "없음")")
         Text("복사한 값: \(self.pasteboard.copiedTexts.last ?? "없음")")
+        Text("장소 이름 요청 \(self.map.placeNameRequests.count)번")
       }
       .padding(8)
       .frame(maxWidth: .infinity, alignment: .leading)
