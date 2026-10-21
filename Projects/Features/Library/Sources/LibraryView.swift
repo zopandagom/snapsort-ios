@@ -2,17 +2,18 @@ import Core
 import SwiftUI
 
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
-/// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 여행은 `TripListView`)을,
+/// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView`)을,
 /// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`. 여행 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
 /// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
-/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·여행 폴더 목록·여행 폴더 상세·사진 상세의 다시 읽기
+/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세의 다시 읽기
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·상세의 다시 읽기
-/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 다섯 Model(알림·기프티콘 목록·사진 상세·여행 폴더 목록·여행 폴더 상세)
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 여섯 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세)
 public struct LibraryView: View {
   let model: LibraryModel
   let categoryModel: CategoryModel
   let gifticonListModel: GifticonListModel
+  let receiptListModel: ReceiptListModel
   let captureActionsModel: CaptureActionsModel
   let tripListModel: TripListModel
   let tripDetailModel: TripDetailModel
@@ -23,6 +24,7 @@ public struct LibraryView: View {
     model: LibraryModel,
     categoryModel: CategoryModel,
     gifticonListModel: GifticonListModel,
+    receiptListModel: ReceiptListModel,
     captureActionsModel: CaptureActionsModel,
     tripListModel: TripListModel,
     tripDetailModel: TripDetailModel
@@ -30,6 +32,7 @@ public struct LibraryView: View {
     self.model = model
     self.categoryModel = categoryModel
     self.gifticonListModel = gifticonListModel
+    self.receiptListModel = receiptListModel
     self.captureActionsModel = captureActionsModel
     self.tripListModel = tripListModel
     self.tripDetailModel = tripDetailModel
@@ -70,6 +73,8 @@ public struct LibraryView: View {
         switch category {
         case .gifticon:
           GifticonListView(model: self.gifticonListModel, categoryModel: self.categoryModel)
+        case .receipt:
+          ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
         case .travel:
           TripListView(model: self.tripListModel, categoryModel: self.categoryModel)
         default:
@@ -88,6 +93,7 @@ public struct LibraryView: View {
     .onChange(of: self.model.storeRevision) {
       self.categoryModel.libraryStoreChanged()
       self.gifticonListModel.libraryStoreChanged()
+      self.receiptListModel.libraryStoreChanged()
       self.captureActionsModel.libraryStoreChanged()
       self.tripListModel.libraryStoreChanged()
       self.tripDetailModel.libraryStoreChanged()
@@ -103,6 +109,7 @@ public struct LibraryView: View {
       guard phase == .active else { return }
       self.model.sceneBecameActive()
       self.gifticonListModel.dayChanged()
+      self.receiptListModel.dayChanged()
       self.captureActionsModel.dayChanged()
       self.tripListModel.dayChanged()
       self.tripDetailModel.dayChanged()
@@ -119,6 +126,7 @@ public struct LibraryView: View {
   private func dayChanged() {
     self.model.dayChanged()
     self.gifticonListModel.dayChanged()
+    self.receiptListModel.dayChanged()
     self.captureActionsModel.dayChanged()
     self.tripListModel.dayChanged()
     self.tripDetailModel.dayChanged()

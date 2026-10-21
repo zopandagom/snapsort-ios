@@ -17,19 +17,25 @@ import SwiftUI
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 /// 카테고리를 연 채 아래 버튼으로 저장소를 바꾸면, 인덱서가 진행률을 보낸 것처럼 카테고리 화면이 다시 읽는다.
 /// 기프티콘 줄에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
-/// 여행 줄에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를 본다.
+/// 여행 줄에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를, 영수증 줄에서 영수증 목록(`PreviewReceipts` 와 여행 영수증)을 본다.
+/// "영수증 추출" 버튼은 인덱서의 영수증 소급 추출처럼 추출 대기 영수증에 값을 쓰고 진행률을 보낸다.
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
   private static let scenario = ExampleScenario.current
-  private static let photoStore = PhotoStoreClientFake.previewClassified(
-    includesGifticons: Self.scenario != .gifticonEmpty,
-    gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:],
-    includesTrips: Self.scenario != .tripEmpty,
-    tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:]
-  )
+  /// `receiptEmpty` 는 빈 저장소다(앱 루트가 빈 영수증 목록).
+  private static let photoStore = Self.scenario == .receiptEmpty
+    ? PhotoStoreClientFake()
+    : PhotoStoreClientFake.previewClassified(
+      includesGifticons: Self.scenario != .gifticonEmpty,
+      gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:],
+      includesTrips: Self.scenario != .tripEmpty,
+      tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:],
+      receiptsErrors: Self.scenario == .receiptFailing ? [0: .failed] : [:],
+      allReceiptsChecking: Self.scenario == .receiptChecking
+    )
   private static let photoLibrary = Self.scenario == .limited
     ? PhotoLibraryClientFake.previewLimitedClassified
     : PhotoLibraryClientFake.previewAuthorized
@@ -55,6 +61,7 @@ struct LibraryFeatureExampleApp: App {
   )
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
+  @State private var receiptListModel = ReceiptListModel(photoStore: Self.photoStore)
   @State private var captureActionsModel = CaptureActionsModel(
     photoStore: Self.photoStore,
     imageAnalysis: ImageAnalysisClientFake.previewGifticons(),
@@ -68,30 +75,45 @@ struct LibraryFeatureExampleApp: App {
 
   var body: some Scene {
     WindowGroup {
-      LibraryView(
-        model: self.model,
-        categoryModel: self.categoryModel,
-        gifticonListModel: self.gifticonListModel,
-        captureActionsModel: self.captureActionsModel,
-        tripListModel: self.tripListModel,
-        tripDetailModel: self.tripDetailModel
-      )
-      .overlay(alignment: .bottom) {
-        VStack(spacing: 4) {
-          HStack {
-            Button("새 사진 추가") {
-              Task { await self.addNewestPhoto() }
-            }
-            Button("최신 사진 지우기") {
-              Task { await self.deleteNewestPhoto() }
-            }
-          }
-          .buttonStyle(.borderedProminent)
-          FakeRecordView(map: Self.map, pasteboard: Self.pasteboard)
+      if Self.scenario == .receiptEmpty {
+        // 보관함은 영수증이 없으면 영수증 줄을 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
+        NavigationStack {
+          ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
         }
-        .font(.caption)
-        .padding()
+      } else {
+        self.library
       }
+    }
+  }
+
+  private var library: some View {
+    LibraryView(
+      model: self.model,
+      categoryModel: self.categoryModel,
+      gifticonListModel: self.gifticonListModel,
+      receiptListModel: self.receiptListModel,
+      captureActionsModel: self.captureActionsModel,
+      tripListModel: self.tripListModel,
+      tripDetailModel: self.tripDetailModel
+    )
+    .overlay(alignment: .bottom) {
+      VStack(spacing: 4) {
+        HStack {
+          Button("새 사진 추가") {
+            Task { await self.addNewestPhoto() }
+          }
+          Button("최신 사진 지우기") {
+            Task { await self.deleteNewestPhoto() }
+          }
+          Button("영수증 추출") {
+            Task { await self.extractReceipts() }
+          }
+        }
+        .buttonStyle(.borderedProminent)
+        FakeRecordView(map: Self.map, pasteboard: Self.pasteboard)
+      }
+      .font(.caption)
+      .padding()
     }
   }
 
@@ -113,6 +135,12 @@ struct LibraryFeatureExampleApp: App {
   private func deleteNewestPhoto() async {
     guard let newest = try? await Self.photoStore.assets(in: .people).first else { return }
     try? await Self.photoStore.delete(ids: [newest.id])
+    Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
+  }
+
+  /// 인덱서가 영수증을 소급 추출해 저장하고 같은 값의 진행률을 보낸 것처럼 흉내 낸다. 추출 대기 행만 바뀐다.
+  private func extractReceipts() async {
+    try? await Self.photoStore.saveReceipts(PreviewReceipts.extractedValues)
     Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
   }
 }
@@ -160,71 +188,6 @@ extension PhotoLibraryClientFake {
   )
 }
 
-extension IndexingClientFake {
-  /// 128장 중 40장을 분석하고 2장을 미룬 상태로 계속 분석 중이다.
-  static let previewInProgress = IndexingClientFake(
-    progress: [IndexingProgress(totalCount: 128, indexedCount: 40, skippedCount: 2)],
-    finishesAfterProgress: false
-  )
-
-  /// 128장 중 40장에서 멈춘 상태. "다시 시도"를 누르면 다시 시작했다가 또 멈춘다.
-  static let previewStopped = IndexingClientFake(
-    progress: [IndexingProgress(totalCount: 128, indexedCount: 40, skippedCount: 0)]
-  )
-
-  /// 모두 분류하고 캡처 34장 중 12장의 글자를 읽었고 1장은 읽지 못해 미룬 상태로 계속 읽는 중이다.
-  static let previewRecognizingText = IndexingClientFake(
-    progress: [IndexingProgress(
-      totalCount: 128,
-      indexedCount: 126,
-      skippedCount: 2,
-      pendingTextCount: 21,
-      recognizedTextCount: 12,
-      skippedTextCount: 1
-    )],
-    finishesAfterProgress: false
-  )
-
-  /// 글자를 읽다가 21장을 남기고 멈춘 상태.
-  static let previewTextStopped = IndexingClientFake(
-    progress: [IndexingProgress(
-      totalCount: 128,
-      indexedCount: 128,
-      skippedCount: 0,
-      pendingTextCount: 21,
-      recognizedTextCount: 12
-    )]
-  )
-
-  /// 모두 분석해 진행률을 숨기고, 읽지 못해 미룬 8장(1단계 5장 + 글자 3장)만 안내하는 상태.
-  static let previewFinished = IndexingClientFake(
-    progress: [IndexingProgress(
-      totalCount: 128,
-      indexedCount: 123,
-      skippedCount: 5,
-      recognizedTextCount: 30,
-      skippedTextCount: 3
-    )],
-    finishesAfterProgress: false
-  )
-}
-
-extension NotificationClientFake {
-  /// 알림을 거부했다. "설정에서 알림 켜기"를 누르면 설정 열기 횟수만 센다.
-  static func previewDenied() -> NotificationClientFake {
-    NotificationClientFake(authorization: .denied)
-  }
-
-  /// 권한을 정하기 전. 요청하면 허용된다. Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
-  static func previewNotDetermined() -> NotificationClientFake {
-    NotificationClientFake(authorization: .notDetermined, authorizationAfterRequest: .authorized)
-  }
-
-  static func previewAuthorized() -> NotificationClientFake {
-    NotificationClientFake(authorization: .authorized)
-  }
-}
-
 /// 같은 저장소를 읽는 Model 들로 보관함 화면을 만든다. 카테고리 줄을 누르면 그 저장소로 카테고리 화면이 열린다.
 @MainActor
 private func libraryPreview(
@@ -242,6 +205,7 @@ private func libraryPreview(
     ),
     categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
     gifticonListModel: GifticonListModel(photoStore: photoStore),
+    receiptListModel: ReceiptListModel(photoStore: photoStore),
     captureActionsModel: captureActionsPreviewModel(photoStore: photoStore),
     tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
     tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map())
