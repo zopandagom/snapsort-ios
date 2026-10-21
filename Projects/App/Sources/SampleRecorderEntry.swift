@@ -9,6 +9,7 @@
     let libraryModel: LibraryModel
     let categoryModel: CategoryModel
     let gifticonListModel: GifticonListModel
+    let receiptListModel: ReceiptListModel
     let captureActionsModel: CaptureActionsModel
     let tripListModel: TripListModel
     let tripDetailModel: TripDetailModel
@@ -27,6 +28,7 @@
           model: self.libraryModel,
           categoryModel: self.categoryModel,
           gifticonListModel: self.gifticonListModel,
+          receiptListModel: self.receiptListModel,
           captureActionsModel: self.captureActionsModel,
           tripListModel: self.tripListModel,
           tripDetailModel: self.tripDetailModel

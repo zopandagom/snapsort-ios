@@ -21,6 +21,7 @@ struct SnapSortApp: App {
   @State private var libraryModel: LibraryModel
   @State private var categoryModel: CategoryModel
   @State private var gifticonListModel: GifticonListModel
+  @State private var receiptListModel: ReceiptListModel
   @State private var captureActionsModel: CaptureActionsModel
   @State private var tripListModel: TripListModel
   @State private var tripDetailModel: TripDetailModel
@@ -61,6 +62,7 @@ struct SnapSortApp: App {
     // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._gifticonListModel = State(initialValue: GifticonListModel(photoStore: photoStore))
+    self._receiptListModel = State(initialValue: ReceiptListModel(photoStore: photoStore))
     let map = MapClientImpl()
     // 사진 상세의 캡처 행동. 지도 앱 열기·복사는 사용자가 누를 때만 한다.
     self._captureActionsModel = State(initialValue: CaptureActionsModel(
@@ -89,6 +91,7 @@ struct SnapSortApp: App {
             libraryModel: self.libraryModel,
             categoryModel: self.categoryModel,
             gifticonListModel: self.gifticonListModel,
+            receiptListModel: self.receiptListModel,
             captureActionsModel: self.captureActionsModel,
             tripListModel: self.tripListModel,
             tripDetailModel: self.tripDetailModel,
@@ -99,6 +102,7 @@ struct SnapSortApp: App {
             model: self.libraryModel,
             categoryModel: self.categoryModel,
             gifticonListModel: self.gifticonListModel,
+            receiptListModel: self.receiptListModel,
             captureActionsModel: self.captureActionsModel,
             tripListModel: self.tripListModel,
             tripDetailModel: self.tripDetailModel
