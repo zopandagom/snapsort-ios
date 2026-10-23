@@ -7,13 +7,14 @@ import Synchronization
 /// 그래서 만료 예정 조회(`upcomingGifticonExpiries`)는 추출 값의 만료일만 보고, 보강 상태는 `IndexedImage.gifticonModelFill`
 /// 로만 다룬다(`.stale`·`.sourcesUnknown` 은 테스트가 그 상태의 이미지를 넣어 만든다. 출처를 모르는 옛 행을 `.sourcesUnknown` 으로
 /// 읽는 판정은 Impl 만 한다). 사용 여부는 `usedIDs` 로 따로 두고 Impl 처럼 `save`·`delete` 가 기프티콘에서 빠진 행을 지운다.
-/// 모든 호출의 실패와 따로, 소급 추출 호출만의 실패(`gifticonError`), 소급 보강 호출만의 실패(`modelFillError`),
+/// 모든 호출의 실패와 따로, 기프티콘 소급 추출 호출만의 실패(`gifticonError`), 소급 보강 호출만의 실패(`modelFillError`),
 /// 특정 식별자를 읽는 `images(ids:)` 만의 실패(`failingOnIDRead`), `assets(in:)` 의 호출 번호별 실패(`assetsErrors`)도 정할 수 있다.
 /// 기프티콘 목록 읽기의 호출 번호별 실패(`gifticonsErrors`)와 사용 여부 쓰기만의 실패(`setUsedError`)도 정할 수 있다.
 /// 늦게 끝나는 읽기·쓰기는 `onAssets`·`onUpcomingGifticonExpiries`·`onGifticons`·`onGifticon`·`onSetGifticonUsed` 훅으로 흉내 낸다.
 /// 여행 폴더용으로 장소 캐시(`places`)를 두고 Impl 처럼 `savePlace` 가 여행 키를 확인하고 `replaceTrips` 가 캐시를 정리한다.
 /// `trips()`·`assets(ids:)`·`assets(in:createdIn:)` 의 호출 번호별 실패(`tripsErrors`·`tripAssetsErrors`·`periodAssetsErrors`)와
 /// 늦은 결과 훅(`onTrips`·`onTripAssets`·`onPeriodAssets`), 장소 캐시 읽기·쓰기만의 실패(`placeError`)도 정할 수 있다.
+/// 영수증 추출 값 소급·목록 읽기의 실패와 훅은 `ReceiptOptions`(PhotoStoreClientFake+Receipt.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -32,6 +33,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let setUsedError: PhotoStoreError?
   let onSetGifticonUsed: @Sendable (Int) async -> Void
   let tripFolderOptions: TripFolderOptions
+  let receiptOptions: ReceiptOptions
   let state: Mutex<State>
 
   struct State {
@@ -50,21 +52,22 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var gifticonCallCount = 0
     var setGifticonUsedCount = 0
     var tripFolder = TripFolderState()
+    var receipt = ReceiptState()
   }
 
   /// - Parameters:
   ///   - error: 정하면 모든 호출이 이 실패를 던지고 아무것도 바꾸지 않는다.
   ///   - saveLimit: 정하면 `save` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 작업 도중의 저장 실패를 흉내 낸다.
-  ///   - gifticonSaveLimit: 정하면 `saveGifticons` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 소급 추출 도중의 저장 실패를 흉내 낸다.
+  ///   - gifticonSaveLimit: 정하면 `saveGifticons` 가 이 횟수만큼 성공한 뒤부터 `.failed` 를 던진다. 기프티콘 소급 추출 도중의 저장 실패를 흉내 낸다.
   ///   - gifticonError: 정하면 `gifticonExtractionPendingIDs`·`saveGifticons` 만 이 실패를 던지고 추출 값을 바꾸지 않는다.
-  ///     다른 호출은 성공한다. 소급 추출 대상 조회·저장만의 실패를 흉내 낸다(`error` 는 그 앞의 다른 호출에서 먼저 멈춘다).
+  ///     다른 호출은 성공한다. 기프티콘 소급 추출 대상 조회·저장만의 실패를 흉내 낸다(`error` 는 그 앞의 다른 호출에서 먼저 멈춘다).
   ///   - modelFillError: 정하면 `gifticonModelFillPendingIDs`·`saveGifticonModelFills` 만 이 실패를 던지고 보강 결과를 바꾸지 않는다.
   ///     다른 호출은 성공한다. 소급 보강 대상 조회·저장만의 실패를 흉내 낸다.
   ///   - missingOnIDRead: `images(ids:)` 가 빼고 돌려줄 식별자. 다른 조회에는 있는데 읽을 때 행이 없는 어긋남을 흉내 낸다.
   ///     `restoreIDReads()` 로 푼다.
   ///   - failingOnIDRead: `images(ids:)` 가 이 식별자를 하나라도 요청받으면 `.failed` 를 던진다. 다른 호출과 겹치지 않는 읽기는
   ///     성공한다. 소급 배치처럼 그 식별자를 읽는 호출만 실패하는 경우를 흉내 낸다(2단계 배치와는 대상 식별자가 겹치지 않아 구분된다).
-  ///   - onSaveGifticons: `saveGifticons` 가 오류·한도 확인과 쓰기 전에 기다려 부른다. 소급 추출 배치 도중(저장 직전)에
+  ///   - onSaveGifticons: `saveGifticons` 가 오류·한도 확인과 쓰기 전에 기다려 부른다. 기프티콘 소급 추출 배치 도중(저장 직전)에
   ///     보관함이 바뀌는 일을 흉내 낸다. 소급은 이미지 로드·OCR 을 하지 않아 그쪽 대역의 훅이 걸리지 않는다.
   ///   - assetsErrors: `assets(in:)` 의 호출 번호(0부터)별 실패. 그 번째 호출만 이 실패를 던지고 다른 호출은 성공한다.
   ///     `error`(모든 호출)가 정해져 있으면 그것이 먼저다. 화면 재조회 도중의 실패와 회복을 흉내 낸다.
@@ -91,6 +94,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - periodAssetsErrors: `assets(in:createdIn:)` 의 호출 번호(0부터)별 실패.
   ///   - onPeriodAssets: `assets(in:createdIn:)` 가 결과를 계산한 뒤 돌려주기 전에 기다려 부른다. `onTrips` 와 같은 방식이다.
   ///   - placeError: 정하면 `places(for:localeIdentifier:)`·`savePlace` 만 이 실패를 던지고 캐시를 바꾸지 않는다. 다른 호출은 성공한다.
+  ///   - receiptError·receiptSaveLimit·onSaveReceipts·receiptsErrors·onReceipts: 영수증용 실패·훅. `ReceiptOptions` 문서 참고.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -119,7 +123,12 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     onTripAssets: @escaping @Sendable (Int) async -> Void = { _ in },
     periodAssetsErrors: [Int: PhotoStoreError] = [:],
     onPeriodAssets: @escaping @Sendable (Int) async -> Void = { _ in },
-    placeError: PhotoStoreError? = nil
+    placeError: PhotoStoreError? = nil,
+    receiptError: PhotoStoreError? = nil,
+    receiptSaveLimit: Int? = nil,
+    onSaveReceipts: @escaping @Sendable ([ImageAsset.ID: ReceiptInfo]) async -> Void = { _ in },
+    receiptsErrors: [Int: PhotoStoreError] = [:],
+    onReceipts: @escaping @Sendable (Int) async -> Void = { _ in }
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -144,6 +153,13 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       periodAssetsErrors: periodAssetsErrors,
       onPeriodAssets: onPeriodAssets,
       placeError: placeError
+    )
+    self.receiptOptions = ReceiptOptions(
+      error: receiptError,
+      saveLimit: receiptSaveLimit,
+      onSave: onSaveReceipts,
+      receiptsErrors: receiptsErrors,
+      onReceipts: onReceipts
     )
     let byID = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.state = Mutex(State(
@@ -195,8 +211,11 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public var assetsCallCount: Int {
     self.state.withLock { $0.assetsCallCount }
   }
+}
 
-  public func save(_ images: [IndexedImage]) async throws(PhotoStoreError) {
+// 저장·삭제·조회와 기프티콘 소급 추출. 저장 속성은 위 본문에 둔다.
+public extension PhotoStoreClientFake {
+  func save(_ images: [IndexedImage]) async throws(PhotoStoreError) {
     try self.throwIfNeeded()
     let saved = self.state.withLock { state in
       if let limit = self.saveLimit, state.savedBatches.count >= limit {
@@ -217,7 +236,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     }
   }
 
-  public func delete(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) {
+  func delete(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) {
     try self.throwIfNeeded()
     self.state.withLock { state in
       state.deletedBatches.append(ids)
@@ -228,23 +247,23 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     }
   }
 
-  public func indexedIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+  func indexedIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
     try self.throwIfNeeded()
     return self.state.withLock { Set($0.images.keys) }
   }
 
-  public func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+  func pendingTextRecognitionIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
     try self.throwIfNeeded()
     return self.state.withLock { Set($0.images.values.filter { $0.textRecognition == .pending }.map(\.id)) }
   }
 
-  public func gifticonExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+  func gifticonExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
     try self.throwIfNeeded()
     try self.throwGifticonErrorIfNeeded()
     return self.state.withLock { Set($0.images.values.filter(Self.isGifticonExtractionPending).map(\.id)) }
   }
 
-  public func saveGifticons(_ gifticons: [ImageAsset.ID: GifticonInfo]) async throws(PhotoStoreError) {
+  func saveGifticons(_ gifticons: [ImageAsset.ID: GifticonInfo]) async throws(PhotoStoreError) {
     await self.onSaveGifticons(gifticons)
     try self.throwIfNeeded()
     try self.throwGifticonErrorIfNeeded()
@@ -265,7 +284,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
           categories: image.categories,
           gifticon: gifticon,
           // Impl 처럼 규칙으로 다시 추출하면 보강도 다시 한다.
-          gifticonModelFill: .initial(for: gifticon)
+          gifticonModelFill: .initial(for: gifticon),
+          receipt: image.receipt
         )
       }
       return true
@@ -275,7 +295,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     }
   }
 
-  public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
+  func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try self.throwIfNeeded()
     if !ids.isDisjoint(with: self.failingOnIDRead) {
       throw .failed
@@ -285,13 +305,13 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   }
 
   /// 프로토콜 약속대로 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로 돌려준다.
-  public func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage] {
+  func images(in category: ImageCategory) async throws(PhotoStoreError) -> [IndexedImage] {
     try self.throwIfNeeded()
     return self.images(inCategory: category)
   }
 
   /// `images(in:)` 와 같은 이미지의 메타데이터를 같은 순서로 돌려준다.
-  public func assets(in category: ImageCategory) async throws(PhotoStoreError) -> [ImageAsset] {
+  func assets(in category: ImageCategory) async throws(PhotoStoreError) -> [ImageAsset] {
     try self.throwIfNeeded()
     let index = self.state.withLock { state in
       defer { state.assetsCallCount += 1 }
@@ -305,7 +325,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     return assets
   }
 
-  public func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
+  func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int] {
     try self.throwIfNeeded()
     return self.images.flatMap(\.categories).filter { $0 != .travel }.reduce(into: [:]) { $0[$1, default: 0] += 1 }
   }
@@ -319,7 +339,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   }
 
   /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다.
-  static func isNewer(_ lhs: IndexedImage, than rhs: IndexedImage) -> Bool {
+  internal static func isNewer(_ lhs: IndexedImage, than rhs: IndexedImage) -> Bool {
     switch (lhs.asset.creationDate, rhs.asset.creationDate) {
     case let (left?, right?) where left != right:
       left > right
@@ -337,7 +357,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     image.categories.contains(.gifticon) && image.textLines != nil && image.gifticon == nil
   }
 
-  func throwIfNeeded() throws(PhotoStoreError) {
+  internal func throwIfNeeded() throws(PhotoStoreError) {
     if let error = self.error {
       throw error
     }

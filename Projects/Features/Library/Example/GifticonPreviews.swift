@@ -30,6 +30,12 @@ enum ExampleScenario: String {
   case tripStoreFailing
   /// 제한 접근이다. 보관함 배너와 여행 목록 안내가 보인다.
   case limited
+  /// 영수증 목록 처음 읽기만 실패한다. 다시 시도하면 목록이 보인다.
+  case receiptFailing
+  /// 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
+  case receiptChecking
+  /// 앱 루트가 빈 영수증 목록이다. 보관함은 영수증이 없으면 줄을 숨겨 빈 목록에 갈 수 없어 루트를 바꾼다.
+  case receiptEmpty
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard

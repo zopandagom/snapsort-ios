@@ -49,6 +49,7 @@ struct Fixture {
   ///   - failingOnIDRead: 저장소의 식별자 읽기가 이 식별자를 하나라도 요청받으면 실패한다. 소급 배치 읽기만의 실패를 흉내 낸다
   ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
   ///   - usedIDs: 저장소에서 처음 사용함인 기프티콘.
+  ///   - receipt: 저장소의 영수증 소급 호출 실패·한도·훅(`ReceiptStoreOptions`).
   ///   - accessState: 사진 접근 권한.
   ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
@@ -77,6 +78,7 @@ struct Fixture {
     missingOnIDRead: Set<ImageAsset.ID> = [],
     failingOnIDRead: Set<ImageAsset.ID> = [],
     usedIDs: Set<ImageAsset.ID> = [],
+    receipt: ReceiptStoreOptions = ReceiptStoreOptions(),
     accessState: PhotoAccessState = .authorized,
     classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
@@ -97,14 +99,15 @@ struct Fixture {
       missingOnIDRead: missingOnIDRead,
       failingOnIDRead: failingOnIDRead,
       onSaveGifticons: onSaveGifticons,
-      usedIDs: usedIDs
+      usedIDs: usedIDs,
+      receiptError: receipt.error,
+      receiptSaveLimit: receipt.saveLimit,
+      onSaveReceipts: receipt.onSave
     )
     let failing = FailingIDs(classifyFailures)
     self.classifyFailures = failing
-    let failingText = FailingIDs(recognizeFailures)
-    self.recognizeFailures = failingText
-    let loadFailures = LoadFailures(largest: largestErrors)
-    self.loadFailures = loadFailures
+    self.recognizeFailures = FailingIDs(recognizeFailures)
+    self.loadFailures = LoadFailures(largest: largestErrors)
     self.classifier = classifier
     self.analysis = ImageAnalysisClientFake(
       classify: { image in
@@ -115,14 +118,14 @@ struct Fixture {
       recognizeText: Self.recognizer(
         idsByWidth: idsByWidth,
         text: text,
-        failures: failingText,
+        failures: self.recognizeFailures,
         onRecognize: onRecognize
       )
     )
     self.indexing = IndexingClientImpl(
       photoLibrary: LargestFailingPhotoLibrary(
         base: self.photoLibrary,
-        loadFailures: loadFailures,
+        loadFailures: self.loadFailures,
         changeRequests: changeRequests
       ),
       imageAnalysis: self.analysis,

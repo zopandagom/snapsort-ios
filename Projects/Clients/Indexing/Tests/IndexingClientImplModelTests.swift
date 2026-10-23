@@ -116,6 +116,8 @@ struct IndexingClientImplModelTests {
     await fixture.runToEnd()
 
     #expect(fixture.store.images.only?.categories == [.receipt])
+    // 모델이 더한 영수증 카테고리에도 같은 저장에서 영수증 값을 추출한다(분류 보강 뒤에 추출).
+    #expect(fixture.store.images.only?.receipt == ReceiptExtractor.extract(from: ocrLines(otherOnlyText)))
     #expect(classifier.requests == [.classify(ocrLines(otherOnlyText))])
   }
 

@@ -36,8 +36,9 @@ public final class LibraryModel {
   /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
   public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
-  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세가 이 변화로 다시 읽는다
-  /// (LibraryView 가 CategoryModel·GifticonListModel·CaptureActionsModel·TripListModel·TripDetailModel 에 넘긴다).
+  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세가 이 변화로 다시 읽는다
+  /// (LibraryView 가 CategoryModel·GifticonListModel·ReceiptListModel·CaptureActionsModel·TripListModel·TripDetailModel
+  /// 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
   public private(set) var storeRevision = 0
 
@@ -218,7 +219,7 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
-      // 개수를 다시 읽기 전에 올려 카테고리 화면·기프티콘 목록·상세의 다시 읽기가 함께 시작되게 한다.
+      // 개수를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.requestReminderSync()

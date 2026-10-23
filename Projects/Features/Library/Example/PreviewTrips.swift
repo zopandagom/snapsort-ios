@@ -13,6 +13,7 @@ import SwiftUI
 /// - 도쿄: 캐시가 없어 상세를 열면 "장소 확인 중"을 거쳐 1.5초 뒤 이름이 보인다.
 /// - 태평양: 응답에 쓸 이름이 없어 기간을 제목으로 쓴다(시간대만 받는다).
 /// 제주는 사진 두 장이 저장소에 없어(보관함에서 지워진 것처럼) 상세에 안내 줄이 보이고, 각 여행 기간에 영수증·지도·문서 캡처가 있다.
+/// 여행 영수증 여섯 장은 영수증 목록에도 보인다(`receiptValues`).
 enum PreviewTrips {
   static let jejuCenter = Coordinate(latitude: 33.4996, longitude: 126.5312)
   static let tokyoCenter = Coordinate(latitude: 35.6812, longitude: 139.7614)
@@ -58,8 +59,18 @@ enum PreviewTrips {
     "trip-\(trip)-\(index)"
   }
 
-  /// 여행 사진(저장소에 없는 것 제외)과 여행 기간의 캡처.
-  static var images: [IndexedImage] {
+  /// 여행 영수증의 가게·금액(지어낸 값). 여행마다 가운데 시각과 30분 뒤의 두 장이다.
+  static let receiptValues: [ImageAsset.ID: ReceiptInfo] = [
+    PreviewTrips.captureID(0, 0): .preview("제주 흑돼지", krw: 48000),
+    PreviewTrips.captureID(0, 1): .preview("제주 카페", krw: 6500),
+    PreviewTrips.captureID(1, 0): .preview("ローソン 新宿店", minorUnits: 980, currency: .jpy),
+    PreviewTrips.captureID(1, 1): .preview("ファミリーマート", minorUnits: 1520, currency: .jpy),
+    PreviewTrips.captureID(2, 0): .preview("ALOHA MART", minorUnits: 2340, currency: .usd),
+    PreviewTrips.captureID(2, 1): .preview("ALOHA MART", minorUnits: 1200, currency: .usd),
+  ]
+
+  /// 여행 사진(저장소에 없는 것 제외)과 여행 기간의 캡처. `receiptsChecking` 이면 여행 영수증이 추출 대기다.
+  static func images(receiptsChecking: Bool = false) -> [IndexedImage] {
     let photos = self.trips.flatMap { trip in
       let span = trip.endDate.timeIntervalSince(trip.startDate)
       return trip.assetIDs.enumerated().compactMap { index, id -> IndexedImage? in
@@ -73,18 +84,19 @@ enum PreviewTrips {
         )
       }
     }
-    return photos + self.captures
+    return photos + self.captures(receiptsChecking: receiptsChecking)
   }
 
   /// 각 여행 기간 가운데쯤의 영수증 둘·지도·문서 캡처.
-  private static var captures: [IndexedImage] {
+  private static func captures(receiptsChecking: Bool) -> [IndexedImage] {
     self.trips.enumerated().flatMap { tripIndex, trip in
       let middle = trip.startDate.addingTimeInterval(trip.endDate.timeIntervalSince(trip.startDate) / 2)
       let categories: [ImageCategory] = [.receipt, .receipt, .map, .document]
       return categories.enumerated().map { index, category in
-        IndexedImage(
+        let id = self.captureID(tripIndex, index)
+        return IndexedImage(
           asset: .stub(
-            id: self.captureID(tripIndex, index),
+            id: id,
             creationDate: middle.addingTimeInterval(Double(index) * 1800),
             pixelWidth: 1179,
             pixelHeight: 2556,
@@ -92,7 +104,8 @@ enum PreviewTrips {
           ),
           labels: [],
           textRecognition: .recognized([]),
-          categories: [category]
+          categories: [category],
+          receipt: receiptsChecking ? nil : self.receiptValues[id]
         )
       }
     }

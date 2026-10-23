@@ -30,7 +30,8 @@ extension PhotoStoreClientFake {
           textRecognition: image.textRecognition,
           categories: image.categories,
           gifticon: gifticon,
-          gifticonModelFill: fill
+          gifticonModelFill: fill,
+          receipt: image.receipt
         )
       }
     }

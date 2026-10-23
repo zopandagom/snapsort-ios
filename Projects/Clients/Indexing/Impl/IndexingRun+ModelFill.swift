@@ -102,7 +102,7 @@ extension IndexingRun {
       }
       self.pendingModelFillIDs.subtract(batchIDs)
     } catch {
-      // 소급 추출과 같은 이유로 이번 실행에서는 소급 보강만 멈추고 분류·2단계는 이어 간다(IndexingRun+Gifticon.swift).
+      // 기프티콘 소급 추출과 같은 이유로 이번 실행에서는 소급 보강만 멈추고 분류·2단계는 이어 간다(IndexingRun+Gifticon.swift).
       // 같은 실패를 되풀이하지 않게 대상을 모두 비우고, 다음 실행이나 전체 다시 비교가 다시 채운다. 취소는 삼키지 않는다.
       guard error == .storeFailed else { throw error }
       self.pendingModelFillIDs = []
