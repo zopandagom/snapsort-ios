@@ -92,6 +92,18 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.receipts() }
   }
 
+  public func captureGroupExtractionPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try await Self.perform { try await self.store.value.captureGroupExtractionPendingIDs() }
+  }
+
+  public func saveCaptureGroups(_ groups: [ImageAsset.ID: CaptureGroups]) async throws(PhotoStoreError) {
+    try await Self.perform { try await self.store.value.saveCaptureGroups(groups) }
+  }
+
+  public func captureGroupItems(in category: ImageCategory) async throws(PhotoStoreError) -> [CaptureGroupItem] {
+    try await Self.perform { try await self.store.value.captureGroupItems(in: category) }
+  }
+
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(ids: ids) }
   }

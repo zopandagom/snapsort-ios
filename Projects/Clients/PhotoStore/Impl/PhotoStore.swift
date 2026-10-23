@@ -54,6 +54,7 @@ actor PhotoStore {
         Self.setGifticon(image.gifticon, on: stored)
         Self.setModelFill(image.gifticonModelFill, on: stored)
         Self.setReceipt(image.receipt, on: stored)
+        Self.setCaptureGroups(image.captureGroups, on: stored)
       }
     }
   }
@@ -255,7 +256,8 @@ actor PhotoStore {
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
       gifticon: Self.storedGifticon(stored),
       gifticonModelFill: Self.modelFill(stored),
-      receipt: Self.storedReceipt(stored)
+      receipt: Self.storedReceipt(stored),
+      captureGroups: Self.storedCaptureGroups(stored)
     )
   }
 }
@@ -275,7 +277,7 @@ extension PhotoStore {
     return stored.sorted(by: Self.isNewer).map(Self.imageAsset)
   }
 
-  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()`·`receipts()` 가 함께 쓴다.
+  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()`·`receipts()`·`captureGroupItems(in:)` 가 함께 쓴다.
   static func imageAsset(_ stored: StoredImage) -> ImageAsset {
     let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
       Coordinate(latitude: latitude, longitude: longitude)

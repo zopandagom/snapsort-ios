@@ -40,7 +40,8 @@ public extension PhotoStoreClientFake {
           categories: image.categories,
           gifticon: image.gifticon,
           gifticonModelFill: image.gifticonModelFill,
-          receipt: receipt
+          receipt: receipt,
+          captureGroups: image.captureGroups
         )
       }
       return true

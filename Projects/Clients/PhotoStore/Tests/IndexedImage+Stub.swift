@@ -12,7 +12,8 @@ extension IndexedImage {
     categories: Set<ImageCategory> = [],
     gifticon: GifticonInfo? = nil,
     gifticonModelFill: GifticonModelFill = .pending(failures: 0),
-    receipt: ReceiptInfo? = nil
+    receipt: ReceiptInfo? = nil,
+    captureGroups: CaptureGroups? = nil
   ) -> IndexedImage {
     IndexedImage(
       asset: ImageAsset(
@@ -28,7 +29,8 @@ extension IndexedImage {
       categories: categories,
       gifticon: gifticon,
       gifticonModelFill: gifticonModelFill,
-      receipt: receipt
+      receipt: receipt,
+      captureGroups: captureGroups
     )
   }
 }

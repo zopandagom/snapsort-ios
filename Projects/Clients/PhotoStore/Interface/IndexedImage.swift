@@ -25,6 +25,10 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// 추출했는데 못 찾은 값은 `ReceiptInfo` 의 그 필드가 nil 이다. 영수증 카테고리이고 `.recognized` 일 때만 담고, 아니면 init 이 nil 로 둔다.
   /// 기프티콘 값과 독립이라 기프티콘이면서 영수증인 이미지는 두 값을 모두 갖는다.
   public let receipt: ReceiptInfo?
+  /// 캡처 묶음 값(쇼핑몰·브랜드·대화 앱·지역). nil 이면 추출하지 않았다(쇼핑·대화·지도 아님·OCR 전·지금 규칙 버전으로 추출 전).
+  /// 추출했는데 못 찾은 값은 그 필드가 nil·빈 집합이다. 쇼핑·대화·지도 중 하나에 들고 `.recognized` 일 때만 담고(아니면 init 이 nil),
+  /// 카테고리에 없는 필드는 init 이 비운다(`CaptureGroups.restricted(to:)`). 기프티콘·영수증 값과 독립이다.
+  public let captureGroups: CaptureGroups?
 
   public var id: ImageAsset.ID { self.asset.id }
 
@@ -43,7 +47,8 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     categories: Set<ImageCategory>,
     gifticon: GifticonInfo? = nil,
     gifticonModelFill: GifticonModelFill = .pending(failures: 0),
-    receipt: ReceiptInfo? = nil
+    receipt: ReceiptInfo? = nil,
+    captureGroups: CaptureGroups? = nil
   ) {
     self.asset = asset
     self.labels = labels
@@ -58,6 +63,13 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     self.gifticonModelFill = self.gifticon == nil ? .pending(failures: 0) : gifticonModelFill
     self.receipt = if categories.contains(.receipt), case .recognized = textRecognition {
       receipt
+    } else {
+      nil
+    }
+    self.captureGroups = if !categories.isDisjoint(with: CaptureGroupExtractor.categories),
+                            case .recognized = textRecognition
+    {
+      captureGroups?.restricted(to: categories)
     } else {
       nil
     }

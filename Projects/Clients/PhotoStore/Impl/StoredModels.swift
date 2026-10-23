@@ -53,6 +53,20 @@ final class StoredImage {
   var receiptCurrencyCode: String?
   /// 취소 전표. 추출 안 함이면 false.
   var receiptIsCancelled = false
+  /// 캡처 묶음 값은 다섯 속성으로 읽는다(`PhotoStore.storedCaptureGroups`). 쇼핑·대화·지도로 분류돼 글자를 읽은 행만 값을 갖는다.
+  /// 기프티콘·영수증 추출 값과 독립이다. 모두 기본값·옵셔널이라 이 속성이 생기기 전에 저장한 행은 경량 이전으로 추출하지 않은 행이 된다.
+  /// 저장하는 값은 OCR 텍스트가 아니라 닫힌 목록의 식별자다.
+  /// 추출한 규칙 버전(`CaptureGroupExtractor.rulesVersion`). 0 이면 추출하지 않았다. 지금 버전과 다르면 추출하지 않은 것으로 읽는다.
+  var captureGroupRulesVersion = 0
+  /// `ShoppingMall.id`. 못 찾음·추출 안 함이면 nil.
+  var shoppingMallID: String?
+  /// `ShoppingBrand.id`. 못 찾음·추출 안 함이면 nil.
+  var shoppingBrandID: String?
+  /// `ChatApp.rawValue`. 못 찾음·추출 안 함이면 nil.
+  var chatAppID: String?
+  /// `KoreanRegion.id` 를 정렬해 ","로 이은 값. 지역이 없거나 추출 안 함이면 nil.
+  /// 배열 속성 대신 문자열로 둔 것은 기존 엔티티에 배열 속성을 더할 때의 경량 이전을 확인하지 않았고, 기본값·옵셔널 스칼라는 확인한 방식이어서다.
+  var mapRegionIDs: String?
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []
