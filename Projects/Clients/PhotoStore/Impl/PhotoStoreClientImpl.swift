@@ -104,6 +104,11 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.captureGroupItems(in: category) }
   }
 
+  public func searchEntries() async throws(PhotoStoreError) -> SearchEntries {
+    let (rows, pendingTextCount) = try await Self.perform { try await self.store.value.searchRows() }
+    return await SearchEntries(entries: Self.searchEntries(from: rows), pendingTextCount: pendingTextCount)
+  }
+
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(ids: ids) }
   }
@@ -180,6 +185,21 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
         localeIdentifier: localeIdentifier
       )
     }
+  }
+
+  /// 줄 텍스트만 디코딩한다(신뢰도·사각형을 만들지 않아 전체 디코딩의 약 1/4). 메인과 저장소 actor 밖에서 돈다.
+  @concurrent
+  private static func searchEntries(from rows: [PhotoStore.SearchRow]) async -> [SearchEntry] {
+    let decoder = PropertyListDecoder()
+    return rows.map { row in
+      let lines = (try? decoder.decode([StoredLineText].self, from: row.textLinesData))?.map(\.text) ?? []
+      return SearchEntry(asset: row.asset, lines: lines, captureGroups: row.captureGroups)
+    }
+  }
+
+  /// `RecognizedTextLine` 의 `text` 키만 읽는다.
+  private struct StoredLineText: Decodable {
+    let text: String
   }
 
   /// SwiftData·인코딩 실패를 `.failed` 로 바꾼다. 원인 오류에는 OCR 텍스트가 섞일 수 있어 남기지 않는다.
