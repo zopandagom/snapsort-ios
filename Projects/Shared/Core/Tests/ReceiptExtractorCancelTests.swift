@@ -109,4 +109,33 @@ struct ReceiptExtractorCancelTests {
     #expect(!info.isCancelled)
     #expect(info.amount == receiptAmount(900, .usd))
   }
+
+  @Test(
+    "한글·한자·가나 3자 이상 상태 라벨과 취소 머리말은 붙은 값도 받고, 일본어·중국어 전표 이름도 취소다",
+    arguments: [
+      ReceiptPath("C20", ["거래구분신용취소", "합계 9,000"]),
+      ReceiptPath("C21", ["ローソン", "取引区分 取消", "合計 ¥1,100"]),
+      ReceiptPath("C22", ["取消レシート", "合計 ¥1,100"]),
+      ReceiptPath("C26", ["취소일시2026-10-21 12:30", "합계 9,000"]),
+      ReceiptPath("C29", ["ローソン", "取引区分取消", "合計 ¥1,100"]),
+    ]
+  )
+  func attachedCJKStatusLabels(_ path: ReceiptPath) {
+    #expect(path.extracted.isCancelled)
+  }
+
+  @Test(
+    "2자 상태 라벨은 뒤 경계가 필요하고, 대기·조건 낱말이나 10자를 넘는 값, 단독 取消 버튼, 라틴 붙은 글자는 근거가 아니다",
+    arguments: [
+      ReceiptPath("C23", ["状態 取消可能", "合計 ¥1,100"]),
+      ReceiptPath("C24", ["取消", "合計 ¥1,100"]),
+      ReceiptPath("C25", ["Typewriter refund desk", "TOTAL 9.00"]),
+      ReceiptPath("C27", ["상태불량시 환불", "합계 9,000"]),
+      ReceiptPath("C28", ["상태 불량시 환불", "합계 9,000"]),
+      ReceiptPath("C30", ["거래구분 취소(고객 요청으로 처리된 거래입니다)", "합계 9,000"]),
+    ]
+  )
+  func boundedOrPendingStatusIsNotCancellation(_ path: ReceiptPath) {
+    #expect(!path.extracted.isCancelled)
+  }
 }

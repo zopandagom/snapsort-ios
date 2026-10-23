@@ -3,7 +3,8 @@ import Foundation
 
 /// 영수증 이미지의 OCR 줄에서 가게·금액·통화·취소를 찾는 규칙 (docs/ARCHITECTURE.md §4 영수증 추출).
 /// 원칙은 "틀린 값보다 빈 값"이다: 고를 근거가 둘 이상으로 갈리거나 줄의 뜻이 불분명하면 금액 모름·가게 모름으로 둔다.
-/// 표의 낱말은 앞부분·부분 문자열로 대조하지 않고 네 방식(줄 라벨·낱말 같음·줄 같음·줄 머리 낱말) 중 하나로 대조한다.
+/// 표의 낱말은 네 방식(줄 라벨·낱말 같음·줄 같음·줄 머리 낱말) 중 하나로 대조하고, 띄어 쓰지 않는 표기(한글·한자·가나)는
+/// 표마다 정한 곳(값 범위의 끊는 말, 3자 이상 상태 라벨·머리말)에서만 부분 문자열·붙은 값으로 맞춘다. 표는 +Tables.swift.
 /// 금액(라벨 줄 → 이웃 줄 → 단계별 고르기) → 취소 → 가게 순서로 찾는다. 언어 모델 보강은 없다.
 /// 라벨은 `ClassificationRules` 키워드 표·기프티콘 라벨 표와 따로 둔다(`scripts/mask-samples.py` 는 키워드 표만 읽는다).
 /// 결과에 사진에서 읽은 텍스트(가게·금액)가 들어 있으므로 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
@@ -18,12 +19,12 @@ public enum ReceiptExtractor {
     let context = CurrencyContext(texts: lines.map(\.text))
     let labeled = lines.indices.compactMap { self.labeledAmount(at: $0, in: lines, context: context) }
     let chosen = self.chosenAmount(from: labeled)
-    let isCancelled = chosen?.token.isNegative == true
-      || labeled.contains { $0.stage == 3 && $0.token.isPositive }
+    let isCancelled = chosen.isNegative
+      || labeled.contains { $0.stage == 3 && $0.value?.token.isPositive == true }
       || self.hasCancelTitleOrStatus(in: lines, context: context)
     return ReceiptInfo(
       storeName: self.storeName(in: lines, context: context),
-      amount: chosen.flatMap { value in value.currency.flatMap { value.token.amount(in: $0) } },
+      amount: chosen.amount,
       isCancelled: isCancelled
     )
   }
@@ -60,55 +61,6 @@ public enum ReceiptExtractor {
 
 // 표·대조 방식·금액·취소. 진입점과 줄은 위 본문에 둔다.
 extension ReceiptExtractor {
-  // MARK: - 표
-
-  /// 금액 라벨. 단계 1(최종 결제) → 2(합계) → 3(취소 전표, 취소 판정에 쓰고 1·2 값이 없을 때만 금액). 공백 없이 소문자로 적는다.
-  static let amountLabels: [Int: [String]] = [
-    1: [
-      "결제금액", "총결제금액", "최종결제금액", "실결제금액", "결제하실금액", "승인금액", "받을금액", "청구금액", "grandtotal", "totaldue",
-      "amountdue", "totalamountdue", "totalamount", "totalpaid", "お会計", "ご請求額", "お支払金額", "お支払い金額", "お支払合計",
-      "ご利用金額", "ご利用額",
-    ],
-    2: [
-      "합계금액", "합계액", "총합계금액", "총합계", "총금액", "총액", "합계", "total", "合計金額", "税込合計", "合計", "合计", "総合計",
-      "総合計金額", "総額",
-    ],
-    3: ["취소금액", "환불금액", "반품금액"],
-  ]
-  static let allAmountLabels = amountLabels.values.flatMap(\.self)
-  /// 라벨 바로 뒤에서 건너뛰는 꼬리 말(낱말 같음): "合計 金額 ¥1,234", "TOTAL AMOUNT DUE 45.20".
-  static let labelTailWords: Set<String> = ["금액", "액", "金額", "額", "amount", "due", "payable", "paid", "sale"]
-  /// 통화 표시 낱말(낱말 같음).
-  static let currencyWords: Set<String> = ["krw", "usd", "eur", "jpy", "cny", "rmb", "원", "円", "元", "won"]
-  /// 금액 값 범위를 끊는 말(낱말 같음, 또는 바로 뒤가 숫자·`:`·`：`·`=`·통화 기호).
-  static let cutWords = [
-    "부가세", "부가가치세", "공급가액", "공급가", "과세", "면세", "비과세", "할인", "받은금액", "받은돈", "거스름", "잔돈", "승인번호", "카드번호",
-    "포인트", "적립", "잔액", "수량", "subtotal", "tax", "vat", "change", "cash", "tip", "qty", "savings", "discount", "お預り",
-    "お釣り", "小計", "税",
-  ]
-  /// 취소 전표 이름(줄 같음, 위치 무관).
-  static let cancelTitles: Set<String> = [
-    "승인취소", "취소승인", "신용취소", "신용승인취소", "카드승인취소", "승인취소전표", "취소전표", "취소영수증", "취소매출전표", "매출전표취소",
-    "매출취소", "매출취소전표", "거래취소", "거래취소전표", "현금영수증취소", "현금취소", "취소거래", "반품영수증", "환불영수증", "refundreceipt",
-  ]
-  /// 취소 상태 문구(줄 같음, 첫 금액 줄보다 위에서만).
-  static let cancelStatusPhrases: Set<String> = [
-    "취소완료", "결제취소완료", "주문취소완료", "환불완료", "반품완료", "결제가취소되었습니다", "취소되었습니다", "환불되었습니다",
-    "결제취소되었습니다", "void", "voided", "refunded", "cancelled", "canceled", "cancellation",
-  ]
-  /// 취소 상태 라벨(줄 라벨). 값에 `cancelValueWords` 가 있고 `pendingCancelWords` 가 없으면 취소다.
-  static let cancelStatusLabels = [
-    "거래종류", "거래구분", "거래유형", "결제구분", "결제상태", "거래상태", "주문상태", "처리상태", "구분", "상태", "transactiontype", "type",
-    "status",
-  ]
-  static let cancelValueWords = ["취소", "환불", "반품", "void", "refund", "cancel"]
-  static let pendingCancelWords = [
-    "가능", "불가", "신청", "요청", "접수", "안내", "정책", "방법", "기한", "수수료", "possible", "available", "eligible", "request",
-    "policy",
-  ]
-  /// 값과 무관하게 취소 근거인 머리말(줄 라벨).
-  static let cancelHeaderLabels = ["취소일시", "취소일자", "취소승인번호", "원거래일자", "원승인번호", "원거래승인번호"]
-
   // MARK: - 대조 방식
 
   /// 줄 라벨 바로 뒤 경계로 받는 글자(공백·숫자 밖).
@@ -124,7 +76,7 @@ extension ReceiptExtractor {
     acceptsAttached: Bool = false
   ) -> (label: String, rest: Substring)? {
     for label in labels.sorted(by: { $0.count > $1.count }) {
-      guard let rest = GifticonExtractor.text(after: label, in: text) else { continue }
+      guard let rest = self.receiptText(after: label, in: text) else { continue }
       if acceptsAttached || rest.first
         .map({ $0.isWhitespace || $0.isNumber || self.labelBoundaries.contains($0) }) ?? true
       {
@@ -134,23 +86,47 @@ extension ReceiptExtractor {
     return nil
   }
 
-  /// 낱말 같음에 쓰는 낱말: 소문자, 앞뒤 기호(`[]()<>【】（）*#`)와 끝 문장 부호(`.`·`:`·`,`)를 뺀다.
+  /// 영수증 전용 줄 라벨 대조: 줄 맨 앞(앞쪽 기호는 건너뛴다)에 `label` 이 있으면 그 뒤의 원래 텍스트. 라벨 안의 공백과 마침표는
+  /// 건너뛰어("Orig. Trans" = origtrans) 맞춘다. 라벨 바로 뒤에 조사가 붙고 띄어 쓰면 안내문이라 라벨이 아니다
+  /// (기프티콘 `GifticonExtractor.text(after:in:)` 와 같은 규칙에 마침표 건너뛰기만 더했다).
+  static func receiptText(after label: String, in text: String) -> Substring? {
+    guard var index = text.firstIndex(where: { $0.isLetter || $0.isNumber }) else { return nil }
+    for expected in label {
+      while index < text.endIndex, text[index].isWhitespace || text[index] == "." && expected != "." {
+        index = text.index(after: index)
+      }
+      guard index < text.endIndex, text[index].lowercased() == String(expected) else { return nil }
+      index = text.index(after: index)
+    }
+    if index < text.endIndex, GifticonExtractor.labelParticles.contains(text[index]),
+       text[text.index(after: index)...].first?.isWhitespace ?? true
+    {
+      return nil
+    }
+    return text[index...]
+  }
+
+  /// 낱말 같음에 쓰는 낱말: 소문자, 앞뒤 기호(`[]()<>【】（）*#`)와 끝 문장 부호(`.`·`:`·`,`)를 빼고 Unicode NFC 로 맞춘다
+  /// (OCR 이 "é" 를 분해형으로 줘도 표의 말과 같다).
   static func normalizedWord(_ word: some StringProtocol) -> String {
     let symbols = CharacterSet(charactersIn: "[]()<>【】（）*#")
     return word.lowercased().trimmingCharacters(in: symbols)
       .trimmingCharacters(in: CharacterSet(charactersIn: ".:,"))
       .trimmingCharacters(in: symbols)
+      .precomposedStringWithCanonicalMapping
   }
 
   static func words(_ text: some StringProtocol) -> [Substring] {
     text.split(whereSeparator: \.isWhitespace).map { Substring($0) }
   }
 
-  /// 줄 같음에 쓰는 키: 공백 없이 소문자로, 기호(`[]()<>【】（）*#=-`)는 어디 있든 빼고 끝 문장 부호를 뺀다.
+  /// 줄 같음에 쓰는 키: 공백 없이 소문자로, 기호(`[]()<>【】（）*#=-`)와 아포스트로피는 어디 있든 빼고 끝 문장 부호를 뺀 뒤 NFC 로
+  /// 맞춘다("TICKET D'ANNULATION" = ticketdannulation).
   static func lineKey(_ text: some StringProtocol) -> String {
-    let removed = Set("[]()<>【】（）*#=-")
+    let removed = Set("[]()<>【】（）*#=-'’")
     return String(text.lowercased().filter { !$0.isWhitespace && !removed.contains($0) })
       .trimmingCharacters(in: CharacterSet(charactersIn: ".:,!"))
+      .precomposedStringWithCanonicalMapping
   }
 
   /// 줄 같음: 키가 `words`·`fragments` 의 낱말을 이어 붙인 것과 같고, `words` 의 낱말이 하나 이상 들었거나 조각 낱말이 둘 이상이다.
@@ -177,11 +153,11 @@ extension ReceiptExtractor {
 
   // MARK: - 금액
 
-  /// 값을 찾은 금액 라벨 줄(또는 이웃 줄 값). 통화는 고른 뒤 쓴다.
+  /// 값을 찾은 금액 라벨 줄(또는 이웃 줄 값).
   struct LabeledAmount {
     let stage: Int
-    let token: AmountToken
-    let currency: ReceiptCurrency?
+    /// 그 줄의 값과 통화. nil 이면 값이 갈렸다(할인 뒤 금액·첫 묶음의 다른 금액). 그 단계의 갈린 후보로 센다.
+    let value: (token: AmountToken, currency: ReceiptCurrency?)?
   }
 
   /// 줄 맨 앞이 금액 라벨이고 라벨 줄 판정을 통과하면 그 값. 범위에 토큰이 없으면 이웃 줄을 본다.
@@ -191,64 +167,25 @@ extension ReceiptExtractor {
           let stage = self.amountLabels.first(where: { $0.value.contains(label) })?.key,
           self.isAmountLabelLine(rest, context: context)
     else { return nil }
-    let range = self.valueRange(rest)
-    if let token = self.amountTokens(in: self.masked(range), hasHangul: context.hasHangul).last {
-      return LabeledAmount(stage: stage, token: token, currency: context.currency(of: token, lineText: String(rest)))
+    switch self.lineValue(rest, context: context) {
+    case let .token(token):
+      // 환불 금액 뒤에 대기·부정 말이나("Refund amount 12.00 pending") 환불을 되돌린 취소 말이 있으면("환불금액 9,000 취소")
+      // 취소 근거도 금액 후보도 아니다.
+      if stage == 3, self.hasPendingTail(rest, context: context)
+        || self.refundAmountLabels.contains(label) && self.hasCancelTail(rest, context: context)
+      {
+        return nil
+      }
+      return LabeledAmount(stage: stage, value: (token, context.currency(of: token, lineText: String(rest))))
+    case .split:
+      return LabeledAmount(stage: stage, value: nil)
+    case .empty(hasLetters: true):
+      return nil
+    case .empty(hasLetters: false):
+      guard let (neighbor, token) = self.neighborAmount(of: index, in: lines, context: context) else { return nil }
+      let lineText = String(rest) + " " + lines[neighbor].text
+      return LabeledAmount(stage: stage, value: (token, context.currency(of: token, lineText: lineText)))
     }
-    let leftover = self.words(range).filter { !self.currencyWords.contains(self.normalizedWord($0)) }
-    guard !leftover.joined().contains(where: \.isLetter),
-          let (neighbor, token) = self.neighborAmount(of: index, in: lines, context: context)
-    else { return nil }
-    return LabeledAmount(
-      stage: stage,
-      token: token,
-      currency: context.currency(of: token, lineText: String(rest) + " " + lines[neighbor].text)
-    )
-  }
-
-  /// 라벨 줄 판정: 앞 구분 기호와 숫자 없는 괄호 덧말을 뺀 사본에서 꼬리 말을 건너뛴 첫 낱말이 없거나, 금액 토큰으로 시작하거나,
-  /// 통화 표시 낱말이어야 한다. "TOTAL SAVINGS 5.00"·"합계 수량 3"·"결제금액 안내" 는 라벨 줄이 아니다.
-  private static func isAmountLabelLine(_ rest: Substring, context: CurrencyContext) -> Bool {
-    var judged = self.removingParentheticals(rest).drop(while: \.isWhitespace)
-    if let first = judged.first,
-       ":：|".contains(first) || first == "-" && judged.dropFirst().first?.isWhitespace != false
-    {
-      judged = judged.dropFirst()
-    }
-    guard let next = self.words(judged).first(where: { !self.labelTailWords.contains(self.normalizedWord($0)) }) else {
-      return true
-    }
-    if let first = next.first, first.isNumber || "-−(₩￦$€¥￥\\".contains(first) {
-      return true
-    }
-    return self.currencyWords.contains(self.normalizedWord(next))
-      || !self.amountTokens(in: Array(next), hasHangul: context.hasHangul).isEmpty
-  }
-
-  /// 값 범위: 숫자 없는 괄호 덧말을 지우고, 처음 나오는 끊는 말 앞까지.
-  private static func valueRange(_ rest: Substring) -> String {
-    let text = self.removingParentheticals(rest)
-    var end = text.endIndex
-    for word in self.words(text) where self.isCutWord(word) {
-      end = word.startIndex
-      break
-    }
-    return String(text[..<end])
-  }
-
-  /// 끊는 말: 낱말이 같거나, 끊는 말 바로 뒤가 숫자·`:`·`：`·`=`·통화 기호다("부가세818", "VAT:818", "TAX=3.20").
-  private static func isCutWord(_ word: Substring) -> Bool {
-    let normalized = self.normalizedWord(word)
-    let lowercased = String(word.lowercased().drop { "[(【（*#".contains($0) })
-    return self.cutWords.contains { cut in
-      normalized == cut || lowercased.hasPrefix(cut) && lowercased.dropFirst(cut.count).first
-        .map { $0.isNumber || ":：=₩￦$€¥￥".contains($0) } == true
-    }
-  }
-
-  /// 숫자가 없는 괄호 덧말("(VAT포함)"·"(원)"·"(税込)")을 공백으로 바꾼다. 숫자가 든 괄호("(9,000)")는 남긴다.
-  static func removingParentheticals(_ text: some StringProtocol) -> String {
-    String(text).replacing(#/[(（\[【][^()（）\[\]【】0-9]*[)）\]】]/#, with: " ")
   }
 
   /// 범위에 토큰이 없을 때 이웃 줄의 금액: 같은 높이 오른쪽 줄 중 줄 전체가 금액 토큰 하나인 가장 오른쪽 줄(그보다 오른쪽에 다른
@@ -260,7 +197,7 @@ extension ReceiptExtractor {
   ) -> (Int, AmountToken)? {
     let box = lines[index].box
     let others = lines.indices.filter { $0 != index && !self.startsWithReceiptLabel(lines[$0].text) }
-    let single = { (other: Int) in self.singleToken(in: lines[other].text, context: context) }
+    let single = { (other: Int) in self.singleToken(in: lines[other].text, hasHangul: context.hasHangul) }
     let sameRow = others.filter {
       abs(lines[$0].box.midY - box.midY) < box.height / 2 && lines[$0].box.minX >= box.midX
     }
@@ -286,9 +223,9 @@ extension ReceiptExtractor {
   }
 
   /// 줄 전체가 금액 토큰 하나(앞뒤 공백·통화 표시 낱말만)면 그 토큰.
-  private static func singleToken(in text: String, context: CurrencyContext) -> AmountToken? {
+  static func singleToken(in text: String, hasHangul: Bool) -> AmountToken? {
     var characters = self.masked(text)
-    let tokens = self.amountTokens(in: characters, hasHangul: context.hasHangul)
+    let tokens = self.amountTokens(in: characters, hasHangul: hasHangul)
     guard tokens.count == 1, let token = tokens.first else { return nil }
     characters.replaceSubrange(token.range, with: [" "])
     let rest = self.words(String(characters))
@@ -299,21 +236,35 @@ extension ReceiptExtractor {
   static func startsWithReceiptLabel(_ text: String) -> Bool {
     self.lineLabel(
       self.allAmountLabels + self.storeLabels + self.shortStoreLabels + self.cancelStatusLabels + self
-        .cancelHeaderLabels,
+        .cancelHeaderLabels + self.latinCancelHeaderLabels,
       in: text
     ) != nil
   }
 
-  /// 값이 있는 라벨 줄 중 가장 높은 단계(1·2, 없으면 3)의 값. 그 단계의 값(수·통화)이 모두 같으면 그 값, 다르면 금액 모름(nil).
-  private static func chosenAmount(from labeled: [LabeledAmount]) -> (token: AmountToken, currency: ReceiptCurrency?)? {
+  /// 고른 금액과 취소 근거(같은 값 후보 중 음수가 있음).
+  struct ChosenAmount {
+    var amount: ReceiptAmount?
+    var isNegative = false
+  }
+
+  /// 라벨 줄 중 가장 높은 단계(1·2, 없으면 3)의 값. 그 단계의 값(수·통화)이 모두 같으면 그 값, 다르거나 값이 갈린 줄이 있으면
+  /// 금액 모름. 같은 값 후보 중 그 통화로 최소 단위를 만들 수 있는 토큰을 쓰고("합계 9.000"·"합계 9,000원" 은 ₩9,000),
+  /// 음수 후보가 하나라도 있으면 취소 근거다.
+  private static func chosenAmount(from labeled: [LabeledAmount]) -> ChosenAmount {
     guard let stage = labeled.filter({ $0.stage < 3 }).map(\.stage).min() ?? labeled.map(\.stage).min() else {
-      return nil
+      return ChosenAmount()
     }
     let candidates = labeled.filter { $0.stage == stage }
-    let distinct = Set(candidates.map { "\($0.token.numberKey)|\($0.currency?.rawValue ?? "?")" })
-    guard distinct.count == 1, let first = candidates.first else { return nil }
-    // 같은 값 중 하나라도 음수면 그것을 고른다(취소 근거).
-    return (candidates.first { $0.token.isNegative }?.token ?? first.token, first.currency)
+    let values = candidates.compactMap(\.value)
+    let distinct = Set(values.map { "\($0.token.numberKey)|\($0.currency?.rawValue ?? "?")" })
+    guard values.count == candidates.count, distinct.count == 1, let first = values.first else {
+      return ChosenAmount()
+    }
+    var chosen = ChosenAmount(isNegative: values.contains { $0.token.isNegative })
+    guard let currency = first.currency else { return chosen }
+    let usable = values.filter { $0.token.amount(in: currency) != nil }
+    chosen.amount = (usable.first { $0.token.isNegative } ?? usable.first)?.token.amount(in: currency)
+    return chosen
   }
 
   // MARK: - 취소
@@ -328,18 +279,29 @@ extension ReceiptExtractor {
       let key = self.lineKey(line.text)
       if self.isLine(key, joinedFrom: self.cancelTitles)
         || position < firstAmount && self.isLine(key, joinedFrom: self.cancelStatusPhrases)
-        || self.lineLabel(self.cancelHeaderLabels, in: line.text) != nil
+        || self.lineLabel(self.cancelHeaderLabels, in: line.text, acceptsAttached: true) != nil
+        || self.lineLabel(self.latinCancelHeaderLabels, in: line.text).map({ self.isNumberValue($0.rest) }) == true
       {
         return true
       }
-      if let (_, rest) = self.lineLabel(self.cancelStatusLabels, in: line.text),
-         let value = self.cleanedValue(rest).map(self.lineKey),
-         self.cancelValueWords.contains(where: value.contains),
-         !self.pendingCancelWords.contains(where: value.contains)
+      // 3자 이상 한글·한자·가나 상태 라벨은 붙은 값도 받고("거래구분신용취소"), 2자·라틴 라벨은 뒤 경계가 필요하다("상태불량시").
+      if let (_, rest) = self.lineLabel(self.attachedCancelStatusLabels, in: line.text, acceptsAttached: true)
+        ?? self.lineLabel(self.boundedCancelStatusLabels, in: line.text),
+        let value = self.cleanedValue(rest), self.isCancelStatusValue(value)
       {
         return true
       }
     }
     return false
+  }
+
+  /// 라틴 취소 머리말 뒤 값이 번호·날짜인지: 구분 기호(`:`·`#`)와 번호 표시 낱말 하나(No.·Nr.·Date 등)를 건너뛴 첫 낱말이 숫자로
+  /// 시작한다("Original Receipt No. 1234", "Orig Trans Date: 10/01/2026"). 안내문("… REQUIRED FOR RETURNS")은 아니다.
+  private static func isNumberValue(_ rest: Substring) -> Bool {
+    var words = self.words(rest).filter { !$0.allSatisfy { ":：#".contains($0) } }[...]
+    if let first = words.first, self.numberMarkerWords.contains(self.normalizedWord(first)) {
+      words = words.dropFirst()
+    }
+    return words.first?.drop { ":：#".contains($0) }.first?.isNumber == true
   }
 }

@@ -2,54 +2,6 @@ import Foundation
 
 // 영수증 가게 이름: 가게 라벨(긴 라벨 → 짧은 라벨) → 라벨이 없으면 상태 막대를 뺀 첫 본문 줄 위의 줄 (docs/ARCHITECTURE.md §4 영수증 추출).
 extension ReceiptExtractor {
-  /// 1차 가게 라벨(긴 라벨). 줄 라벨이되 공백 없이 붙은 값도 받는다("가맹점명스타벅스").
-  static let storeLabels = [
-    "가맹점명", "상호명", "매장명", "점포명", "가게명", "판매자명", "판매처명", "가맹점이름", "merchantname", "storename",
-  ]
-  /// 2차 가게 라벨(짧은 라벨). 1차에서 못 찾았을 때만, 라벨 뒤 경계가 있을 때만("상호저축은행" 은 아니다).
-  static let shortStoreLabels = ["가맹점", "상호", "판매자", "판매처"]
-  /// 라벨 뒤 값의 첫 낱말이 이것과 같으면(낱말 같음) 가게 라벨 줄이 아니다("[가맹점 정보]", "상호 및 대표자").
-  static let notStoreValueWords: Set<String> = [
-    "번호", "주소", "전화", "전화번호", "코드", "정보", "안내", "내역", "사본", "용", "고객용", "가맹점용", "고객", "문의", "대표", "대표자",
-    "사업자", "사업자번호", "등록번호", "및", "copy", "receipt", "info", "information", "address",
-  ]
-  /// 가게 값을 끊는 다른 항목 머리말(낱말 같음, 또는 바로 뒤가 숫자·`:`·`-`). 둘째 낱말부터 본다.
-  static let storeCutWords = [
-    "tel", "fax", "phone", "전화", "전화번호", "대표", "대표자", "사업자", "사업자번호", "등록번호", "주소", "승인", "승인번호", "카드", "카드번호", "일시",
-  ]
-  /// 머리글 낱말(줄 같음, 이어 붙인 것도 같음).
-  static let headerWords: Set<String> = [
-    "영수증", "신용카드매출전표", "카드매출전표", "매출전표", "카드전표", "신용카드", "체크카드", "현금영수증", "신용승인", "승인", "고객용", "가맹점용",
-    "카드사용", "재발행", "거래명세서", "거래명세", "결제상세", "결제내역", "결제완료", "주문상세", "주문내역", "이용내역", "승인내역", "구매내역", "거래내역",
-    "영수증보기", "상세내역", "고객님", "회원님", "안녕하세요", "어서오세요", "감사합니다", "또오세요", "receipt", "salesreceipt", "customercopy",
-    "merchantcopy", "copy", "welcome", "thankyou", "thanks", "レシート", "領収書", "领收",
-  ]
-  /// 머리글을 이어 붙일 때만 쓰는 조각 낱말. 조각 하나뿐인 줄("상세")은 머리글이 아니다.
-  static let headerFragments: Set<String> = [
-    "상세", "내역", "정보", "고객", "보관용", "소득공제", "지출증빙", "확인", "customer", "merchant", "sales", "transaction", "order",
-    "details",
-    "detail", "summary", "record",
-  ]
-  /// 화면 버튼·탐색 낱말(줄 같음).
-  static let buttonWords: Set<String> = ["닫기", "공유", "뒤로", "확인", "홈", "메뉴", "저장", "다운로드", "취소", "더보기"]
-  /// 상태 막대의 통신·상태 낱말(줄 같음).
-  static let statusBarWords: Set<String> = ["lte", "5g", "4g", "3g", "wifi", "sos"]
-  /// 위쪽 줄 머리말(줄 머리 낱말, 한글: 첫 낱말이 같거나 바로 뒤가 숫자·`:`·`-`·`#`).
-  static let koreanHeadWords = [
-    "대표", "대표자", "사업자", "사업자번호", "등록번호", "전화", "전화번호", "승인", "승인번호", "승인일시", "카드", "카드종류", "카드번호", "카드사",
-    "할부", "할부개월", "일시불", "유효기간", "거래일시", "거래일자", "단말기", "단말기번호", "주문번호", "테이블", "담당", "담당자", "직원", "판매원",
-    "캐셔",
-  ]
-  /// 영문 머리말. 첫 낱말이 같고 그 끝에 `:`·`#`·`.` 가 붙었거나 다음 낱말이 숫자·`(`·`#` 로 시작할 때만("TEL AVIV GRILL" 은 아니다).
-  static let englishHeadWords = ["tel", "fax", "phone", "pos", "table", "order", "cashier", "server", "clerk"]
-  /// 품목 머리 줄 낱말(낱말 같음, 둘 이상).
-  static let itemHeaderWords: Set<String> = ["품명", "상품명", "메뉴", "수량", "단가", "금액", "item", "qty", "price", "description"]
-  /// 미국 주소의 거리 낱말(낱말 같음).
-  static let streetWords: Set<String> = [
-    "st", "street", "ave", "avenue", "rd", "road", "blvd", "dr", "drive", "way", "ln", "lane", "hwy", "pkwy", "pl",
-    "ct",
-    "suite", "ste",
-  ]
   /// 라벨 바로 뒤 괄호 덧말로 지우지 않는 법인 표기.
   private static let corporateParentheticals: Set<String> = ["주", "유", "株", "사", "재"]
   /// 머리 영역의 최대 줄 수.
@@ -136,7 +88,7 @@ extension ReceiptExtractor {
   private static func isHeaderSentenceOrButton(_ text: String) -> Bool {
     let key = self.lineKey(text)
     let compact = String(text.filter { !$0.isWhitespace }).trimmingCharacters(in: CharacterSet(charactersIn: "!"))
-    let isSentence = ["니다", "니다.", "세요", "세요.", "십시오", "십시오.", "요."].contains { compact.hasSuffix($0) }
+    let isSentence = self.sentenceEndings.contains { compact.hasSuffix($0) }
     // 취소 전표 이름·상태 문구("*** 취소 매출전표 ***", "VOID")도 머리글과 같이 가게가 아니다.
     return isSentence || self.isLine(key, joinedFrom: self.headerWords, fragments: self.headerFragments)
       || self.isLine(key, joinedFrom: self.buttonWords) || self.isLine(key, joinedFrom: self.cancelTitles)
@@ -190,17 +142,20 @@ extension ReceiptExtractor {
     }
     return hasTrailingAmount || self.containsDateOrTime(line.text)
       || self.lineLabel(
-        self.allAmountLabels + self.cutWords + self.cancelStatusLabels + self.cancelHeaderLabels,
+        self.allAmountLabels + self.cutWords + self.cancelStatusLabels + self.cancelHeaderLabels
+          + self.latinCancelHeaderLabels,
         in: line.text
       ) != nil
       || self.words(line.text).count { self.itemHeaderWords.contains(self.normalizedWord($0)) } >= 2
+      || self.isLine(self.lineKey(line.text), joinedFrom: [], fragments: self.itemHeaderWords)
   }
 
-  /// 위쪽 줄에서 가게가 아닌 줄: 머리글·문장·버튼, 번호 줄, 주소, 웹·메일, 머리말 줄.
+  /// 위쪽 줄에서 가게가 아닌 줄: 머리글·문장·버튼, 인사 줄(첫 낱말 Thank·Merci 등), 번호 줄, 주소, 웹·메일, 머리말 줄.
   private static func isSkippedUpperLine(_ text: String) -> Bool {
     let lowercased = text.lowercased()
     let isWeb = ["www.", "http", ".com", ".co.kr", ".kr", "@"].contains { lowercased.contains($0) }
-    return self.isHeaderSentenceOrButton(text) || self.isNumberLine(text) || self.isAddress(text) || isWeb
+    let isGreeting = self.words(text).first.map { self.greetingWords.contains(self.normalizedWord($0)) } ?? false
+    return self.isHeaderSentenceOrButton(text) || isGreeting || self.isNumberLine(text) || self.isAddress(text) || isWeb
       || self.isHeadWordLine(text)
   }
 
@@ -208,15 +163,20 @@ extension ReceiptExtractor {
   private static func isHeadWordLine(_ text: String) -> Bool {
     let labels = self.allAmountLabels + self.cutWords + self.storeLabels + self.shortStoreLabels + self
       .cancelStatusLabels
-      + self.cancelHeaderLabels
-    if self.lineLabel(labels, in: text) != nil {
+      + self.cancelHeaderLabels + self.latinCancelHeaderLabels
+    // 취소 상태 라벨·머리말 줄은 취소 판정과 같이 붙은 값도 머리말로 본다("거래구분신용취소", "取引区分取消").
+    if self.lineLabel(labels, in: text) != nil
+      || self
+      .lineLabel(self.attachedCancelStatusLabels + self.cancelHeaderLabels, in: text, acceptsAttached: true) != nil
+    {
       return true
     }
     let words = self.words(text)
     guard let first = words.first.map({ String($0.lowercased().drop { "*[(【#".contains($0) }) }) else {
       return false
     }
-    let isKorean = self.koreanHeadWords.contains { word in
+    // 3자 이상 한글·한자·가나 머리말은 시작만으로("대표자홍길동"), 2자 등은 같거나 바로 뒤가 숫자·기호일 때만("대표떡볶이"·"レジャー" 는 아니다).
+    let isKorean = self.prefixHeadWords.contains { first.hasPrefix($0) } || self.boundedHeadWords.contains { word in
       first == word || first.hasPrefix(word) && first.dropFirst(word.count).first
         .map { $0.isNumber || ":：-#".contains($0) } == true
     }
@@ -225,7 +185,10 @@ extension ReceiptExtractor {
       first == word && next.map { $0.isNumber || "(#".contains($0) } == true
         || first.hasPrefix(word) && first.dropFirst(word.count).first.map { ":#.".contains($0) } == true
     }
-    return isKorean || isEnglish
+    // 카드 전표 항목("Card Type: VISA", "Auth Code 123456")은 줄에 `:`·`*` 나 숫자 3자 이상이 있을 때만 머리말이다.
+    let isCardSlip = self.cardSlipHeadWords.contains(self.normalizedWord(first))
+      && (text.contains(where: { ":*".contains($0) }) || text.count(where: \.isNumber) >= 3)
+    return isKorean || isEnglish || isCardSlip
   }
 
   /// 주소: 한국 주소(시·도), "주소" 머리말, 숫자 뒤가 경계인 도로명·동·리·가 번지, 구·군 낱말과 로·길·동 낱말이 함께 있음,
@@ -256,6 +219,28 @@ extension ReceiptExtractor {
     let isStreet = text.prefixMatch(of: #/\d+\s/#) != nil
       && words.contains { self.streetWords.contains(self.normalizedWord($0)) }
     return isStreet || text.contains(#/\b[A-Z]{2}\s\d{5}(?:-\d{4})?\b/#) || text.contains("〒")
+      || self.isJapaneseOrChineseAddress(text) || self.isEuropeanAddress(text)
+  }
+
+  /// 유럽 주소: 숫자가 있는 줄의 거리 낱말(독일어·네덜란드어 합성어는 낱말 끝 "Hauptstraße 12", 그 밖은 낱말 같음 "12 rue de Rivoli"),
+  /// 또는 우편번호 줄(라틴 글자 지명 "10115 Berlin"·"75002 Paris", 네덜란드 "1012 AB"). "Via Roma Pizza"(숫자 없음)·
+  /// "2580 ローソン渋谷"(라틴 지명 아님)는 주소가 아니다.
+  private static func isEuropeanAddress(_ text: String) -> Bool {
+    let words = self.words(text).map { $0.lowercased().precomposedStringWithCanonicalMapping }
+    let hasStreet = words.contains { word in
+      self.europeanStreetSuffixes.contains(where: word.hasSuffix)
+        || self.europeanStreetWords.contains(self.normalizedWord(word))
+    }
+    return hasStreet && text.contains(where: \.isNumber)
+      || text.prefixMatch(of: #/\d{4,5}\s[A-Za-zÀ-ÿ]/#) != nil || text.prefixMatch(of: #/\d{4}\s?[A-Z]{2}\b/#) != nil
+  }
+
+  /// 한자 주소: 都道府県省·市 뒤로 区町村郡县 가 오고 숫자·丁目·番地·号 가 있다("東京都渋谷区道玄坂1-2-3", "北京市朝阳区建国路88号"),
+  /// 또는 区町村郡 바로 뒤(같은 낱말)에 번지("1-2"·丁目·番地)가 온다("渋谷区道玄坂1-2-3"). "渋谷区役所前店"·"札幌市中央区店" 은 가게다.
+  private static func isJapaneseOrChineseAddress(_ text: String) -> Bool {
+    let hasAreas = text.contains(#/[都道府県省市].*[区町村郡县]/#)
+      && (text.contains(where: \.isNumber) || ["丁目", "番地", "号"].contains(where: text.contains))
+    return hasAreas || text.contains(#/[区町村郡]\S*?(?:\d+-\d+|丁目|番地)/#)
   }
 
   /// 앞뒤 공백·구분 기호(`:：-|`)와 짝이 맞지 않는 끝 괄호를 뺀 값. 줄 전체를 감싼 괄호("(고객용)")는 양쪽을 뺀다.

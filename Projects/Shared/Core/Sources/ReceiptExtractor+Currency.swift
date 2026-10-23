@@ -35,6 +35,7 @@ extension ReceiptExtractor {
     case "₩", "￦": return .currency(.krw)
     case "€": return .currency(.eur)
     case "¥", "￥": return .yen
+    case let symbol where self.unsupportedCurrencySymbols.contains(symbol): return .unsupported
     case "$": return letters.isEmpty || letters.uppercased() == "US" ? .currency(.usd) : .unsupported
     case "원", "円", "元":
       let previous = index > 0 && characters[index - 1] == " " ? index - 2 : index - 1
@@ -47,7 +48,7 @@ extension ReceiptExtractor {
   private static let codeMarks: [String: CurrencyMark] = [
     "krw": .currency(.krw), "won": .currency(.krw), "usd": .currency(.usd), "eur": .currency(.eur),
     "jpy": .currency(.jpy), "cny": .currency(.cny), "rmb": .currency(.cny),
-  ]
+  ].merging(unsupportedCurrencyCodes.map { ($0.lowercased(), .unsupported) }, uniquingKeysWith: { first, _ in first })
 
   /// 통화 판정에 쓰는 영수증 전체의 표시.
   struct CurrencyContext {

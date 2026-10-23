@@ -201,4 +201,55 @@ struct ReceiptExtractorStoreTests {
     #expect(extractReceipt(["*** 취소 매출전표 ***", "예시마트", "합계 9,000"]).storeName == "예시마트")
     #expect(extractReceipt(["VOID", "EXAMPLE FOODS", "TOTAL $3.49"]).storeName == "EXAMPLE FOODS")
   }
+
+  @Test(
+    "일본어·중국어 인사·머리글·문장·주소·품목 머리 줄은 가게가 아니고 가게 라벨은 붙은 값도 받는다",
+    arguments: [
+      ReceiptPath("S39", ["いらっしゃいませ", "ローソン 渋谷店", "合計 ¥1,100"], storeName: "ローソン 渋谷店"),
+      ReceiptPath("S40", ["東京都渋谷区道玄坂1-2-3", "TEL 03-1234-5678", "合計 ¥1,100"]),
+      ReceiptPath("S41", ["北京市朝阳区建国路88号", "欢迎光临", "合计 ¥88.00", "元"]),
+      ReceiptPath("S42 붙음", ["品名数量金額", "合計 ¥1,100"]),
+      ReceiptPath("S42 띄움", ["品名 数量 金額", "合計 ¥1,100"]),
+      ReceiptPath("S44 띄움", ["店舗名 ローソン渋谷店"], storeName: "ローソン渋谷店"),
+      ReceiptPath("S44 붙음", ["店名ローソン"], storeName: "ローソン"),
+      ReceiptPath("S45", ["ありがとうございました", "合計 ¥1,100"]),
+      ReceiptPath("S49", ["渋谷区道玄坂1-2-3", "合計 ¥1,100"]),
+    ]
+  )
+  func japaneseAndChineseLines(_ path: ReceiptPath) {
+    #expect(path.extracted.storeName == path.storeName)
+  }
+
+  @Test(
+    "3자 이상 머리말은 시작만으로, 2자 머리말은 같거나 바로 뒤가 숫자일 때만 거르고, 주소 규칙은 지점 이름을 거르지 않는다",
+    arguments: [
+      ReceiptPath("S43", ["대표자홍길동", "합계 9,000"]),
+      ReceiptPath("S46 役所", ["渋谷区役所前店", "合計 ¥1,100"], storeName: "渋谷区役所前店"),
+      ReceiptPath("S46 市", ["札幌市中央区店", "合計 ¥1,100"], storeName: "札幌市中央区店"),
+      ReceiptPath("S48 레저", ["レジャーランド", "合計 ¥1,100"], storeName: "レジャーランド"),
+      ReceiptPath("S48 레지", ["レジ0001", "ローソン", "合計 ¥1,100"], storeName: "ローソン"),
+      ReceiptPath("S51", ["거래구분신용취소", "예시마트", "합계 9,000"], storeName: "예시마트"),
+      ReceiptPath("S52", ["取消", "ローソン", "合計 ¥1,100"], storeName: "ローソン"),
+    ]
+  )
+  func headWordLengthsAndAddresses(_ path: ReceiptPath) {
+    #expect(path.extracted.storeName == path.storeName)
+  }
+
+  @Test(
+    "끊는 말의 부분 문자열 대조는 값 범위에서만이라 할인·포인트로 시작하는 가게 이름은 그대로다(S50)과 r3.1 회귀(S47)",
+    arguments: [
+      ReceiptPath("S50 할인", ["할인마트", "합계 9,000"], storeName: "할인마트"),
+      ReceiptPath("S50 포인트", ["포인트카페", "합계 9,000"], storeName: "포인트카페"),
+      ReceiptPath("S47 S19", ["가맹점명 용인휴게소"], storeName: "용인휴게소"),
+      ReceiptPath("S47 S20", ["STORE NAME: NORDSTROM RACK"], storeName: "NORDSTROM RACK"),
+      ReceiptPath("S47 S22", ["상호 대표떡볶이"], storeName: "대표떡볶이"),
+      ReceiptPath("S47 S24", ["상호저축은행 강남지점", "결제금액 9,000원"], storeName: "상호저축은행 강남지점"),
+      ReceiptPath("S47 S26", ["가맹점명 스타벅스 카드몰점 TEL 02-123-4567"], storeName: "스타벅스 카드몰점"),
+      ReceiptPath("S47 S37", ["STORE NAME: TEL AVIV GRILL"], storeName: "TEL AVIV GRILL"),
+    ]
+  )
+  func substringCutsOnlyInValueRange(_ path: ReceiptPath) {
+    #expect(path.extracted.storeName == path.storeName)
+  }
 }

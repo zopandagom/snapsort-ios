@@ -132,22 +132,25 @@ extension ReceiptExtractor {
   }
 
   /// 토큰 앞에 오면 토큰이 아닌 글자(숫자·글자는 따로 본다).
-  private static let forbiddenBefore: Set<Character> = [".", ",", "/", "#", "@", "$", "₩", "￦", "€", "¥", "￥"]
+  private static let forbiddenBefore = Set<Character>([".", ",", "/", "#", "@", "$", "₩", "￦", "€", "¥", "￥"])
+    .union(unsupportedCurrencySymbols)
   /// 토큰 바로 뒤에 오면 토큰이 아닌 글자(숫자·글자는 따로 본다).
   private static let forbiddenAfter: Set<Character> = ["%", "*", "×", "@", "/", "#"]
   private static let minusSigns: Set<Character> = ["-", "−"]
-  /// 수 앞 통화 표시. 긴 것부터 대조한다.
+  /// 수 앞 통화 표시. 긴 것부터 대조한다. 지원하지 않는 통화 코드·기호는 통화 모름(`.unsupported`)이다.
   private static let leadingMarks: [(String, CurrencyMark)] = [
     ("US$", .currency(.usd)), ("KRW", .currency(.krw)), ("USD", .currency(.usd)), ("EUR", .currency(.eur)),
     ("JPY", .currency(.jpy)), ("CNY", .currency(.cny)), ("RMB", .currency(.cny)), ("₩", .currency(.krw)),
     ("￦", .currency(.krw)), ("$", .currency(.usd)), ("€", .currency(.eur)), ("¥", .yen), ("￥", .yen),
-  ]
+  ] + unsupportedMarks
   /// 수 뒤 통화 표시.
   private static let trailingMarks: [(String, CurrencyMark)] = [
     ("KRW", .currency(.krw)), ("USD", .currency(.usd)), ("EUR", .currency(.eur)), ("JPY", .currency(.jpy)),
     ("CNY", .currency(.cny)), ("won", .currency(.krw)), ("원", .currency(.krw)), ("円", .currency(.jpy)),
     ("元", .currency(.cny)), ("€", .currency(.eur)),
-  ]
+  ] + unsupportedMarks
+  private static let unsupportedMarks: [(String, CurrencyMark)] = unsupportedCurrencyCodes.map { ($0, .unsupported) }
+    + unsupportedCurrencySymbols.map { (String($0), .unsupported) }
 
   /// `[부호][앞 통화] 수 [뒤 통화][뒤 부호]` 를 `start` 에서 읽는다. 앞뒤 경계가 맞지 않으면 nil.
   private static func token(startingAt start: Int, in characters: [Character], hasHangul: Bool) -> AmountToken? {
