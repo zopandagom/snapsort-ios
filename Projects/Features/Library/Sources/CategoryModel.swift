@@ -4,7 +4,9 @@ import Observation
 import PhotoLibraryInterface
 import PhotoStoreInterface
 
-/// 카테고리 화면(월별 썸네일 격자)과 사진 상세 이미지의 상태와 로직 (docs/ARCHITECTURE.md §4 카테고리 화면).
+/// 카테고리 화면(월별 썸네일 격자, 쇼핑·대화·지도는 쇼핑몰·브랜드·앱·지역별 묶기 포함)과 사진 상세 이미지의 상태와 로직
+/// (docs/ARCHITECTURE.md §4 카테고리 화면). 쇼핑·대화·지도는 `captureGroupItems(in:)` 로 읽어 월별과 묶기별 섹션을 함께 만들고,
+/// 어느 묶기를 보일지는 View 의 화면 일시 상태다.
 /// 카테고리 화면은 한 번에 하나만 열리므로 App 이 하나를 소유하고, 열 때마다 `onAppear(category:)` 로 다시 쓴다.
 /// 기프티콘·영수증 목록(`GifticonListView`·`ReceiptListView`)은 격자 대신 `GifticonListModel`·`ReceiptListModel` 이,
 /// 여행 폴더 목록·상세(`TripListView`·`TripDetailView`)는 `TripListModel`·`TripDetailModel` 이 내용을 읽고,
@@ -35,8 +37,9 @@ public final class CategoryModel {
   /// 다시 읽으라는 신호. 화면이 열려 있는 동안(`onAppear(category:)` 가 구독하는 동안)만 있다.
   /// 상세가 열려 있는 동안은 카테고리 화면의 `.task` 도 끝나 없다. 그동안 온 신호는 버리고, 돌아오면 한 번 다시 읽는다.
   @ObservationIgnored private var reloadRequests: AsyncStream<Void>.Continuation?
-  /// 칸마다 지금 주인인 요청 번호. 사라졌다 다시 보인 칸에서 지난 Task 의 늦은 결과·정리가 지금 상태를 바꾸지 않게 한다.
-  @ObservationIgnored private var thumbnailOwners: [ImageAsset.ID: Int] = [:]
+  /// 이미지마다 지금 주인인 칸들의 요청 번호. 사라졌다 다시 보인 칸에서 지난 Task 의 늦은 결과·정리가 지금 상태를 바꾸지 않게 한다.
+  /// 지역별 묶기에서는 같은 이미지가 두 섹션에 보일 수 있어 칸이 여럿일 수 있다.
+  @ObservationIgnored private var thumbnailOwners: [ImageAsset.ID: Set<Int>] = [:]
   @ObservationIgnored private var thumbnailRequestCount = 0
   /// 칸의 Task 가 끝났지만 아직 놓지 않은 썸네일 식별자. 오래된 것부터. `thumbnails` 에 `.loaded` 로 있고 주인(`thumbnailOwners`)이 없다.
   @ObservationIgnored private var retainedThumbnailIDs: [ImageAsset.ID] = []
@@ -56,8 +59,8 @@ public final class CategoryModel {
   static let retainedThumbnailLimit = 64
 
   /// 다시 읽은 목록을 섹션으로 만들고 지금 섹션과 비교하는 단계. 테스트가 이 단계에서 멈출 수 있게 주입한다.
-  typealias Sectioning = @Sendable ([ImageAsset], Calendar, [ImageMonthSection]?) async
-    -> (sections: [ImageMonthSection], isUnchanged: Bool)
+  typealias Sectioning = @Sendable (CategoryItems, Calendar, CategorySections?) async
+    -> (sections: CategorySections, isUnchanged: Bool)
 
   /// - Parameters:
   ///   - photoLibrary: 사진 보관함. 썸네일과 상세 이미지를 읽는다.
@@ -153,18 +156,21 @@ public final class CategoryModel {
     guard category == self.category else { return }
     self.thumbnailRequestCount += 1
     let request = self.thumbnailRequestCount
-    self.thumbnailOwners[id] = request
+    self.thumbnailOwners[id, default: []].insert(request)
     // 다시 보였다. 보관 목록에서 빼고 주인이 된다.
     self.retainedThumbnailIDs.removeAll { $0 == id }
     if self.thumbnails[id]?.isLoading ?? true {
       self.thumbnails[id] = .loading
       guard let state = await self.loadState(id: id, size: .thumbnail) else {
         // 읽는 중에 칸이 사라졌다.
-        self.clearThumbnail(id: id, request: request)
+        self.releaseThumbnail(id: id, request: request)
         return
       }
-      guard self.thumbnailOwners[id] == request else { return }
-      self.thumbnails[id] = state
+      guard self.thumbnailOwners[id]?.contains(request) == true else { return }
+      // 같은 이미지의 다른 칸이 먼저 읽어 둔 썸네일은 덮지 않는다.
+      if case .loaded = self.thumbnails[id] {} else {
+        self.thumbnails[id] = state
+      }
     }
     await self.waitUntilCancelled()
     self.releaseThumbnail(id: id, request: request)
@@ -191,9 +197,14 @@ public final class CategoryModel {
   /// 저장소 호출은 취소되지 않으므로, 돌아온 뒤 화면이 닫혔거나 다른 진입이 시작됐으면 결과를 버린다.
   /// 다시 읽기에 실패하면 지난 섹션을 둔다(저장소 문제는 보관함 화면의 인덱싱 멈춤 안내가 알린다).
   private func reload(_ category: ImageCategory, photoStore: any PhotoStoreClient, generation: Int) async {
-    let assets: [ImageAsset]
+    let items: CategoryItems
+    let groupings = CaptureGrouping.groupings(for: category)
     do throws(PhotoStoreError) {
-      assets = try await photoStore.assets(in: category)
+      if groupings.isEmpty {
+        items = try await .assets(photoStore.assets(in: category))
+      } else {
+        items = try await .captureGroups(photoStore.captureGroupItems(in: category), groupings)
+      }
     } catch {
       guard self.isCurrent(generation), !Task.isCancelled else { return }
       if case .loaded = self.content {
@@ -204,13 +215,13 @@ public final class CategoryModel {
     }
     guard self.isCurrent(generation), !Task.isCancelled else { return }
     let revision = self.contentRevision
-    let current: [ImageMonthSection]? = if case let .loaded(sections) = self.content {
+    let current: CategorySections? = if case let .loaded(sections) = self.content {
       sections
     } else {
       nil
     }
     // 1만 장이면 정렬·달력 계산·비교가 진행률마다 되풀이되므로 메인 밖에서 한다. 계산은 취소되지 않아, 돌아온 뒤 같은 규칙으로 버린다.
-    let result = await self.sectioning(assets, self.calendar, current)
+    let result = await self.sectioning(items, self.calendar, current)
     guard self.isCurrent(generation), !Task.isCancelled else { return }
     // 진행률 대부분은 다른 카테고리만 바꾸므로, 같으면 대입하지 않아 다시 그리지 않는다.
     // 계산하는 동안 내용이 바뀌었으면 비교 결과를 쓰지 않고 대입한다.
@@ -243,16 +254,13 @@ public final class CategoryModel {
     self.retainedThumbnailIDs = []
   }
 
-  private func clearThumbnail(id: ImageAsset.ID, request: Int) {
-    guard self.thumbnailOwners[id] == request else { return }
-    self.thumbnailOwners[id] = nil
-    self.thumbnails[id] = nil
-  }
-
-  /// 칸의 Task 가 끝났다. 읽은 썸네일은 보관 목록 끝에 넣고, 상한을 넘으면 오래된 것부터 놓는다.
+  /// 칸의 Task 가 끝났거나 읽는 중 사라졌다. 같은 이미지의 다른 칸이 남아 있으면 그 칸이 쓰도록 둔다(읽는 중이면 그 칸이 이어 쓴다).
+  /// 마지막 칸이면 읽은 썸네일은 보관 목록 끝에 넣고 상한을 넘으면 오래된 것부터 놓고, 읽지 못했거나 읽는 중이던 칸은 지운다.
   /// 보관 목록에는 주인 있는 칸이 없으므로 보이는 칸은 지우지 않는다.
   private func releaseThumbnail(id: ImageAsset.ID, request: Int) {
-    guard self.thumbnailOwners[id] == request else { return }
+    guard self.thumbnailOwners[id]?.contains(request) == true else { return }
+    self.thumbnailOwners[id]?.remove(request)
+    guard self.thumbnailOwners[id]?.isEmpty == true else { return }
     self.thumbnailOwners[id] = nil
     guard case .loaded = self.thumbnails[id] else {
       self.thumbnails[id] = nil
@@ -283,25 +291,53 @@ public final class CategoryModel {
   }
 }
 
+/// 카테고리 한 번 읽은 목록. 쇼핑·대화·지도는 묶음 값까지(`CaptureGroupItem`) 읽는다.
+enum CategoryItems: Sendable {
+  case assets([ImageAsset])
+  case captureGroups([CaptureGroupItem], [CaptureGrouping])
+}
+
 /// 다시 읽은 목록을 메인 밖에서 섹션으로 만들고 지금 내용과 비교한다. 1만 장이면 정렬·달력 계산·비교가 진행률마다 되풀이되기 때문이다.
 enum CategorySectioning {
   /// `current` 와 같으면 `isUnchanged` 가 참이다.
   @concurrent
   static func sections(
-    of assets: [ImageAsset],
+    of items: CategoryItems,
     calendar: Calendar,
-    comparingTo current: [ImageMonthSection]?
-  ) async -> (sections: [ImageMonthSection], isUnchanged: Bool) {
-    let sections = ImageMonthSection.sections(of: assets, calendar: calendar)
+    comparingTo current: CategorySections?
+  ) async -> (sections: CategorySections, isUnchanged: Bool) {
+    let sections = switch items {
+    case let .assets(assets):
+      CategorySections(months: ImageMonthSection.sections(of: assets, calendar: calendar), groups: [:])
+    case let .captureGroups(items, groupings):
+      CategorySections(
+        months: ImageMonthSection.sections(of: items.map(\.asset), calendar: calendar),
+        groups: Dictionary(uniqueKeysWithValues: groupings.map { grouping in
+          (grouping, CaptureGroupSections.sections(of: items, grouping: grouping))
+        })
+      )
+    }
     return (sections, sections == current)
+  }
+}
+
+/// 한 번 읽은 목록으로 만든 섹션 전부. 월별과 묶기별이 같은 읽기에서 나온다.
+public struct CategorySections: Equatable, Sendable {
+  /// 월별 섹션. 비어 있으면 빈 카테고리.
+  public let months: [ImageMonthSection]
+  /// `CaptureGrouping.groupings(for:)` 의 묶기마다. 그 밖의 카테고리는 빈 사전.
+  public let groups: [CaptureGrouping: [CaptureGroupSection]]
+
+  public var isEmpty: Bool {
+    self.months.isEmpty
   }
 }
 
 /// 카테고리 화면의 격자 내용.
 public enum CategoryContent: Equatable {
   case loading
-  /// 빈 배열이면 빈 카테고리.
-  case loaded([ImageMonthSection])
+  /// 섹션이 비어 있으면 빈 카테고리.
+  case loaded(CategorySections)
   /// 처음 읽기(또는 실패 뒤 다시 읽기)에 실패했다. 이미 섹션이 있을 때 실패하면 지난 섹션을 둔다.
   case failed
 }

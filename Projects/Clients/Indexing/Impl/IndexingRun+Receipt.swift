@@ -7,17 +7,19 @@ import PhotoStoreInterface
 /// 영수증 추출 값이 생기기 전에 저장된 영수증(저장소 경량 이전 뒤)이나 규칙 버전을 올리기 전에 추출한 영수증을, OCR 없이 저장된 줄로 다시 추출한다.
 /// 기프티콘 소급(IndexingRun+Gifticon.swift)과 대상 집합이 따로라 서로의 실패가 다른 쪽을 멈추지 않는다.
 extension IndexingRun {
-  /// 소급 추출 대상(기프티콘·영수증)이 남았는지.
+  /// 소급 추출 대상(기프티콘·영수증·캡처 묶음)이 남았는지.
   var hasExtractionBackfill: Bool {
-    !self.pendingGifticonIDs.isEmpty || !self.pendingReceiptIDs.isEmpty
+    !self.pendingGifticonIDs.isEmpty || !self.pendingReceiptIDs.isEmpty || !self.pendingCaptureGroupIDs.isEmpty
   }
 
-  /// 소급 추출 한 배치: 기프티콘 대상이 남았으면 기프티콘, 없으면 영수증.
+  /// 소급 추출 한 배치: 기프티콘 대상이 남았으면 기프티콘, 없으면 영수증, 그것도 없으면 캡처 묶음.
   mutating func extractBackfillBatch(report: (IndexingProgress) -> Void) async throws(IndexingStop) {
     if !self.pendingGifticonIDs.isEmpty {
       try await self.extractGifticonBatch(report: report)
-    } else {
+    } else if !self.pendingReceiptIDs.isEmpty {
       try await self.extractReceiptBatch(report: report)
+    } else {
+      try await self.extractCaptureGroupBatch(report: report)
     }
   }
 

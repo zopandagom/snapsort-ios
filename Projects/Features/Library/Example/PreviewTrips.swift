@@ -87,7 +87,7 @@ enum PreviewTrips {
     return photos + self.captures(receiptsChecking: receiptsChecking)
   }
 
-  /// 각 여행 기간 가운데쯤의 영수증 둘·지도·문서 캡처.
+  /// 각 여행 기간 가운데쯤의 영수증 둘·지도·문서 캡처. 지도 캡처는 캡처 묶음을 추출했고 지역이 없다(지역 모름).
   private static func captures(receiptsChecking: Bool) -> [IndexedImage] {
     self.trips.enumerated().flatMap { tripIndex, trip in
       let middle = trip.startDate.addingTimeInterval(trip.endDate.timeIntervalSince(trip.startDate) / 2)
@@ -105,7 +105,8 @@ enum PreviewTrips {
           labels: [],
           textRecognition: .recognized([]),
           categories: [category],
-          receipt: receiptsChecking ? nil : self.receiptValues[id]
+          receipt: receiptsChecking ? nil : self.receiptValues[id],
+          captureGroups: category == .map ? .empty : nil
         )
       }
     }

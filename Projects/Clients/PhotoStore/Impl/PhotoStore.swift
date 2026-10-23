@@ -54,6 +54,7 @@ actor PhotoStore {
         Self.setGifticon(image.gifticon, on: stored)
         Self.setModelFill(image.gifticonModelFill, on: stored)
         Self.setReceipt(image.receipt, on: stored)
+        Self.setCaptureGroups(image.captureGroups, on: stored)
       }
     }
   }
@@ -162,44 +163,6 @@ actor PhotoStore {
     return counts
   }
 
-  func replaceTrips(_ trips: [Trip]) throws {
-    try self.write {
-      for stored in try self.modelContext.fetch(FetchDescriptor<StoredTrip>()) {
-        self.modelContext.delete(stored)
-      }
-      try self.deletePlaces(notIn: trips)
-      for trip in trips {
-        self.modelContext.insert(
-          StoredTrip(
-            assetIDs: trip.assetIDs,
-            startDate: trip.startDate,
-            endDate: trip.endDate,
-            centerLatitude: trip.center.latitude,
-            centerLongitude: trip.center.longitude
-          )
-        )
-      }
-    }
-  }
-
-  /// 행을 읽지 않고 세므로 여행마다 든 사진 식별자 배열을 디코딩하지 않는다.
-  func tripCount() throws -> Int {
-    try self.modelContext.fetchCount(FetchDescriptor<StoredTrip>())
-  }
-
-  func trips() throws -> [Trip] {
-    try self.modelContext
-      .fetch(FetchDescriptor<StoredTrip>(sortBy: [SortDescriptor(\.startDate), SortDescriptor(\.endDate)]))
-      .map { stored in
-        Trip(
-          assetIDs: stored.assetIDs,
-          startDate: stored.startDate,
-          endDate: stored.endDate,
-          center: Coordinate(latitude: stored.centerLatitude, longitude: stored.centerLongitude)
-        )
-      }
-  }
-
   /// 변경을 저장한다. 도중에 실패하면 저장하지 않은 변경을 되돌려, 다음 조회·저장에 반쯤 끝난 상태가 남지 않게 한다.
   func write(_ changes: () throws -> Void) throws {
     do {
@@ -293,7 +256,8 @@ actor PhotoStore {
       categories: Set(stored.memberships.compactMap { ImageCategory(rawValue: $0.category) }),
       gifticon: Self.storedGifticon(stored),
       gifticonModelFill: Self.modelFill(stored),
-      receipt: Self.storedReceipt(stored)
+      receipt: Self.storedReceipt(stored),
+      captureGroups: Self.storedCaptureGroups(stored)
     )
   }
 }
@@ -313,7 +277,7 @@ extension PhotoStore {
     return stored.sorted(by: Self.isNewer).map(Self.imageAsset)
   }
 
-  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()`·`receipts()` 가 함께 쓴다.
+  /// 행의 메타데이터. `images(in:)`·`images(ids:)`·`assets(in:)`·`gifticons()`·`receipts()`·`captureGroupItems(in:)` 가 함께 쓴다.
   static func imageAsset(_ stored: StoredImage) -> ImageAsset {
     let coordinate: Coordinate? = if let latitude = stored.latitude, let longitude = stored.longitude {
       Coordinate(latitude: latitude, longitude: longitude)

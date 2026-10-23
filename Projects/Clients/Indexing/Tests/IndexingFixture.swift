@@ -50,6 +50,7 @@ struct Fixture {
   ///     (소급 대상과 2단계 대상은 겹치지 않으므로 소급 대상만 넣는다).
   ///   - usedIDs: 저장소에서 처음 사용함인 기프티콘.
   ///   - receipt: 저장소의 영수증 소급 호출 실패·한도·훅(`ReceiptStoreOptions`).
+  ///   - captureGroup: 저장소의 캡처 묶음 소급 호출 실패·한도·훅(`CaptureGroupStoreOptions`).
   ///   - accessState: 사진 접근 권한.
   ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
@@ -79,6 +80,7 @@ struct Fixture {
     failingOnIDRead: Set<ImageAsset.ID> = [],
     usedIDs: Set<ImageAsset.ID> = [],
     receipt: ReceiptStoreOptions = ReceiptStoreOptions(),
+    captureGroup: CaptureGroupStoreOptions = CaptureGroupStoreOptions(),
     accessState: PhotoAccessState = .authorized,
     classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
@@ -102,7 +104,10 @@ struct Fixture {
       usedIDs: usedIDs,
       receiptError: receipt.error,
       receiptSaveLimit: receipt.saveLimit,
-      onSaveReceipts: receipt.onSave
+      onSaveReceipts: receipt.onSave,
+      captureGroupError: captureGroup.error,
+      captureGroupSaveLimit: captureGroup.saveLimit,
+      onSaveCaptureGroups: captureGroup.onSave
     )
     let failing = FailingIDs(classifyFailures)
     self.classifyFailures = failing
@@ -110,11 +115,7 @@ struct Fixture {
     self.loadFailures = LoadFailures(largest: largestErrors)
     self.classifier = classifier
     self.analysis = ImageAnalysisClientFake(
-      classify: { image in
-        let id = idsByWidth[image.cgImage.width] ?? ""
-        onClassify(id)
-        return failing.contains(id) ? .failure(.failed) : .success(labels[id] ?? defaultLabels)
-      },
+      classify: Self.classifier(idsByWidth: idsByWidth, labels: labels, failures: failing, onClassify: onClassify),
       recognizeText: Self.recognizer(
         idsByWidth: idsByWidth,
         text: text,
@@ -135,50 +136,6 @@ struct Fixture {
       batchSize: batchSize,
       textBatchSize: textBatchSize
     )
-  }
-}
-
-extension Fixture {
-  /// 보관함 Fake. 이미지마다 `widths` 폭의 썸네일을 돌려주고, `loadErrors` 가 있으면 그 실패를 던진다.
-  static func photoLibrary(
-    _ library: [ImageAsset],
-    widths: [ImageAsset.ID: Int],
-    loadErrors: [ImageAsset.ID: ImageLoadError],
-    accessState: PhotoAccessState
-  ) -> PhotoLibraryClientFake {
-    PhotoLibraryClientFake(
-      currentState: accessState,
-      imageAssets: library,
-      loadImageResults: widths.reduce(into: [:]) { results, entry in
-        results[entry.key] = loadErrors[entry.key].map { .failure($0) } ?? .success(.stub(
-          width: entry.value,
-          height: 1
-        ))
-      }
-    )
-  }
-
-  /// OCR Fake 의 결과. 폭으로 이미지를 찾아 `onRecognize` 를 부른 뒤 `failures`·`text` 로 고른다.
-  static func recognizer(
-    idsByWidth: [Int: ImageAsset.ID],
-    text: [ImageAsset.ID: [String]],
-    failures: FailingIDs,
-    onRecognize: @escaping @Sendable (ImageAsset.ID) async -> Void
-  ) -> @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError> {
-    { image in
-      let id = idsByWidth[image.cgImage.width] ?? ""
-      await onRecognize(id)
-      if failures.contains(id) {
-        return .failure(.failed)
-      }
-      return .success(ocrLines(text[id] ?? []))
-    }
-  }
-
-  static var seoulCalendar: Calendar {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .gmt
-    return calendar
   }
 }
 

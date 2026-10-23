@@ -3,8 +3,46 @@ import Foundation
 import PhotoStoreInterface
 import SwiftData
 
-// 여행 폴더: 식별자·기간 조회와 장소 캐시 (docs/ARCHITECTURE.md §4 저장소).
+// 여행 폴더: 여행 저장·조회, 식별자·기간 조회와 장소 캐시 (docs/ARCHITECTURE.md §4 저장소).
 extension PhotoStore {
+  func replaceTrips(_ trips: [Trip]) throws {
+    try self.write {
+      for stored in try self.modelContext.fetch(FetchDescriptor<StoredTrip>()) {
+        self.modelContext.delete(stored)
+      }
+      try self.deletePlaces(notIn: trips)
+      for trip in trips {
+        self.modelContext.insert(
+          StoredTrip(
+            assetIDs: trip.assetIDs,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            centerLatitude: trip.center.latitude,
+            centerLongitude: trip.center.longitude
+          )
+        )
+      }
+    }
+  }
+
+  /// 행을 읽지 않고 세므로 여행마다 든 사진 식별자 배열을 디코딩하지 않는다.
+  func tripCount() throws -> Int {
+    try self.modelContext.fetchCount(FetchDescriptor<StoredTrip>())
+  }
+
+  func trips() throws -> [Trip] {
+    try self.modelContext
+      .fetch(FetchDescriptor<StoredTrip>(sortBy: [SortDescriptor(\.startDate), SortDescriptor(\.endDate)]))
+      .map { stored in
+        Trip(
+          assetIDs: stored.assetIDs,
+          startDate: stored.startDate,
+          endDate: stored.endDate,
+          center: Coordinate(latitude: stored.centerLatitude, longitude: stored.centerLongitude)
+        )
+      }
+  }
+
   /// 한 번의 `ids.contains` 조회에 넣는 식별자 수. 여행 사진은 수천 개일 수 있어 나눠 조회한다.
   static let idBatchSize = 1000
 
