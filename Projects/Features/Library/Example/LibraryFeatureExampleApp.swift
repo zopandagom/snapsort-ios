@@ -19,6 +19,8 @@ import SwiftUI
 /// 기프티콘 줄에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
 /// 여행 줄에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를, 영수증 줄에서 영수증 목록(`PreviewReceipts` 와 여행 영수증)을 본다.
 /// "영수증 추출" 버튼은 인덱서의 영수증 소급 추출처럼 추출 대기 영수증에 값을 쓰고 진행률을 보낸다.
+/// 쇼핑·대화·지도 줄에서 툴바 묶기 메뉴(쇼핑몰·브랜드·앱·지역별, `PreviewCaptureGroups`)를 보고, "캡처 묶음 추출" 버튼이
+/// 추출 대기 캡처에 값을 쓴다(OCR 대기 캡처는 확인 중으로 남는다).
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
@@ -34,6 +36,7 @@ struct LibraryFeatureExampleApp: App {
       includesTrips: Self.scenario != .tripEmpty,
       tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:],
       receiptsErrors: Self.scenario == .receiptFailing ? [0: .failed] : [:],
+      captureGroupItemsErrors: Self.scenario == .captureGroupFailing ? [0: .failed] : [:],
       allReceiptsChecking: Self.scenario == .receiptChecking
     )
   private static let photoLibrary = Self.scenario == .limited
@@ -108,6 +111,9 @@ struct LibraryFeatureExampleApp: App {
           Button("영수증 추출") {
             Task { await self.extractReceipts() }
           }
+          Button("캡처 묶음 추출") {
+            Task { await self.extractCaptureGroups() }
+          }
         }
         .buttonStyle(.borderedProminent)
         FakeRecordView(map: Self.map, pasteboard: Self.pasteboard)
@@ -141,6 +147,12 @@ struct LibraryFeatureExampleApp: App {
   /// 인덱서가 영수증을 소급 추출해 저장하고 같은 값의 진행률을 보낸 것처럼 흉내 낸다. 추출 대기 행만 바뀐다.
   private func extractReceipts() async {
     try? await Self.photoStore.saveReceipts(PreviewReceipts.extractedValues)
+    Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
+  }
+
+  /// 인덱서가 쇼핑·대화·지도 캡처를 소급 추출해 저장하고 같은 값의 진행률을 보낸 것처럼 흉내 낸다. 추출 대기 행만 바뀐다.
+  private func extractCaptureGroups() async {
+    try? await Self.photoStore.saveCaptureGroups(PreviewCaptureGroups.extractedValues)
     Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
   }
 }

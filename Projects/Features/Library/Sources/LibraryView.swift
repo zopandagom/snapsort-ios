@@ -228,7 +228,7 @@ public struct LibraryView: View {
     }
   }
 
-  /// 이미지가 있는 카테고리만 보여 주고, 하나도 없으면 섹션째 숨긴다. 여행 줄은 여행 폴더 목록을 연다.
+  /// 이미지가 있는 카테고리만 보여 주고, 하나도 없으면 섹션째 숨긴다. 기프티콘 줄은 기프티콘 목록, 영수증 줄은 영수증 목록, 여행 줄은 여행 폴더 목록을 연다.
   @ViewBuilder
   private func categorySection(_ title: String, group: ImageCategoryGroup) -> some View {
     let rows = ImageCategory.allCases.compactMap { category in

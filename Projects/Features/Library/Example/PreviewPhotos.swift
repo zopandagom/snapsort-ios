@@ -9,10 +9,11 @@ import PhotoStoreTesting
 /// Example 의 분류 결과와 그 이미지 읽기 결과. 저장소와 보관함 대역이 같은 식별자를 쓴다.
 enum PreviewPhotos {
   /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다. 기프티콘·영수증은 데모 줄 수(`PreviewGifticons.demos`·
-  /// `PreviewReceipts.demos`)다.
+  /// `PreviewReceipts.demos`)이고, 쇼핑·대화·지도는 묶기 데모 수(`PreviewCaptureGroups`)다.
   static let counts: [(ImageCategory, Int)] = [
-    (.gifticon, PreviewGifticons.demos.count), (.receipt, PreviewReceipts.demos.count), (.chat, 9), (.document, 4),
-    (.food, 21), (.people, 1200), (.landscape, 6), (.other, 3),
+    (.gifticon, PreviewGifticons.demos.count), (.receipt, PreviewReceipts.demos.count),
+  ] + PreviewCaptureGroups.counts + [
+    (.document, 4), (.food, 21), (.people, 1200), (.landscape, 6), (.other, 3),
   ]
   /// 각 카테고리 마지막 이만큼은 생성일이 없다("날짜 없음" 섹션).
   static let undatedCount = 5
@@ -92,7 +93,8 @@ extension CGImage {
 
 extension PhotoStoreClientFake {
   /// 정보형·사진형 카테고리와 여행이 섞인 분류 결과(`PreviewPhotos`). Preview 마다 새로 만들어 서로 상태를 나누지 않는다.
-  /// 기프티콘은 `PreviewGifticons.demos`, 영수증은 `PreviewReceipts.demos` 의 상태들이고, 문서 첫 장은 주소·송장·계좌번호가 있는 캡처다.
+  /// 기프티콘은 `PreviewGifticons.demos`, 영수증은 `PreviewReceipts.demos`, 쇼핑·대화·지도는 `PreviewCaptureGroups` 의 상태들이고,
+  /// 문서 첫 장은 주소·송장·계좌번호가 있는 캡처다.
   /// 여행은 `PreviewTrips` 의 세 여행과 그 사진·캡처, 제주의 장소 캐시다.
   /// - Parameters:
   ///   - hasUpcomingExpiry: 거짓이면 기프티콘의 만료일을 찾지 못한 것으로 둔다(만료 알림을 예약할 수 없다).
@@ -102,6 +104,7 @@ extension PhotoStoreClientFake {
   ///   - includesTrips: 거짓이면 여행이 없다(보관함에 여행 줄이 없다. 빈 여행 목록은 Preview 에서 본다).
   ///   - tripsErrors: 여행 읽기(`trips()`)의 호출 번호별 실패.
   ///   - receiptsErrors: 영수증 목록 읽기(`receipts()`)의 호출 번호별 실패.
+  ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.
   ///   - allReceiptsChecking: 참이면 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
   static func previewClassified(
     hasUpcomingExpiry: Bool = true,
@@ -111,11 +114,14 @@ extension PhotoStoreClientFake {
     includesTrips: Bool = true,
     tripsErrors: [Int: PhotoStoreError] = [:],
     receiptsErrors: [Int: PhotoStoreError] = [:],
+    captureGroupItemsErrors: [Int: PhotoStoreError] = [:],
     allReceiptsChecking: Bool = false
   ) -> PhotoStoreClientFake {
     let now = Date()
     let today = LocalDate(now, calendar: .current)
-    let others = PreviewPhotos.counts.filter { $0.0 != .gifticon && $0.0 != .receipt }.flatMap { category, count in
+    let others = PreviewPhotos.counts.filter {
+      $0.0 != .gifticon && $0.0 != .receipt && !PreviewCaptureGroups.categories.contains($0.0)
+    }.flatMap { category, count in
       (0 ..< count).map { index in
         let isCapture = category == .document && index == 0
         return IndexedImage(
@@ -146,7 +152,8 @@ extension PhotoStoreClientFake {
     }
     return PhotoStoreClientFake(
       images: others + (includesGifticons ? gifticons : []) + PreviewReceipts.images(allChecking: allReceiptsChecking)
-        + (includesTrips ? PreviewTrips.images(receiptsChecking: allReceiptsChecking) : []),
+        + PreviewCaptureGroups
+        .images() + (includesTrips ? PreviewTrips.images(receiptsChecking: allReceiptsChecking) : []),
       trips: includesTrips ? PreviewTrips.trips : [],
       assetsErrors: assetsErrors,
       usedIDs: PreviewGifticons.usedIDs,
@@ -154,7 +161,8 @@ extension PhotoStoreClientFake {
       places: includesTrips ? PreviewTrips.places : [:],
       placesLocaleIdentifier: PreviewTrips.placesLocaleIdentifier,
       tripsErrors: tripsErrors,
-      receiptsErrors: receiptsErrors
+      receiptsErrors: receiptsErrors,
+      captureGroupItemsErrors: captureGroupItemsErrors
     )
   }
 }

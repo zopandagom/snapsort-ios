@@ -47,7 +47,7 @@ struct CategoryModelTests {
 
     let appear = Task { await model.onAppear(category: .people) }
     await waitUntil { model.content != .loading }
-    #expect(model.content == .loaded([]))
+    #expect(model.content == .loaded(.empty))
 
     await cancelAndWait(appear)
   }

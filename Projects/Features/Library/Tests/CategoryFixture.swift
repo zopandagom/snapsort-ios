@@ -20,9 +20,9 @@ extension CategoryModel {
       photoLibrary: PhotoLibraryClientFake(),
       photoStore: photoStore,
       calendar: .seoul,
-      sectioning: { assets, calendar, current in
+      sectioning: { items, calendar, current in
         await gates.pass(counter.next())
-        return await CategorySectioning.sections(of: assets, calendar: calendar, comparingTo: current)
+        return await CategorySectioning.sections(of: items, calendar: calendar, comparingTo: current)
       }
     )
   }
@@ -40,13 +40,17 @@ extension CategoryContent {
   /// 섹션마다 식별자. 읽기 전이나 실패면 nil.
   var sectionIDs: [[ImageAsset.ID]]? {
     guard case let .loaded(sections) = self else { return nil }
-    return sections.map { $0.assets.map(\.id) }
+    return sections.months.map { $0.assets.map(\.id) }
   }
 
   var sectionMonths: [ImageMonth?]? {
     guard case let .loaded(sections) = self else { return nil }
-    return sections.map(\.month)
+    return sections.months.map(\.month)
   }
+}
+
+extension CategorySections {
+  static let empty = CategorySections(months: [], groups: [:])
 }
 
 extension IndexedImage {
