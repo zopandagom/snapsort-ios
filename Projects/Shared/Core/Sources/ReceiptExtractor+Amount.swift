@@ -11,6 +11,18 @@ extension ReceiptExtractor {
     case unsupported
   }
 
+  /// 음수 표시의 종류. 나라마다 관례가 달라 통화를 정한 뒤 음수인지 정한다.
+  enum AmountSign: Hashable {
+    /// 앞 마이너스("-9,000"·"¥-1,100")와 괄호("(9,000)"). 통화와 무관하게 음수다.
+    case explicit
+    /// 끝 줄표("9,000-"·"¥1,100-"·"1,100ー"). 원·달러·유로는 음수, 엔·위안·통화 모름이면 금액 끝 표시다.
+    case trailingDash
+    /// 일본식 앞 △·▲. 엔일 때만 음수다(한국 앱의 "▲ 1,000" 증가 표시와 섞이지 않게).
+    case triangle
+    /// 중국식 앞 负. 위안일 때만 음수다.
+    case chineseMinus
+  }
+
   /// 금액 토큰 하나. 수는 자릿수 문자열로 두어 통화를 정한 뒤 정확하게 최소 단위로 바꾼다.
   struct AmountToken: Hashable {
     /// 천 단위 구분을 뺀 정수부 숫자.
@@ -18,12 +30,27 @@ extension ReceiptExtractor {
     /// 소수부 숫자(없으면 빈 문자열).
     let fractionDigits: String
     let mark: CurrencyMark?
-    /// 붙은 부호("-9,000"), 괄호("(9,000)"), 뒤 부호("9,000-").
-    let isNegative: Bool
+    /// 음수 표시. 통화를 정한 뒤 음수인지 정한다(`isNegative(in:)`).
+    let sign: AmountSign?
     /// 검사용 문자 배열에서의 위치.
     let range: Range<Int>
     /// 점 천 단위("1.234,56")로 읽었다. 유로에서만 유효하다(다른 통화면 "$45.205" 같은 오독을 큰 금액으로 읽게 된다).
     var usesDotGrouping = false
+    /// 천 단위 구분(쉼표·점·좁은 공백·아포스트로피)이 있다.
+    var hasSeparator = false
+    /// 통화 표시가 수 앞에 있다("¥450"). 일반 공백 천 단위 꼴 판정에서 앞 수를 수량으로 본다.
+    var hasLeadingMark = false
+
+    /// 정한 통화에서 음수인지.
+    func isNegative(in currency: ReceiptCurrency?) -> Bool {
+      switch self.sign {
+      case .explicit: true
+      case .trailingDash: currency.map { [.krw, .usd, .eur].contains($0) } ?? false
+      case .triangle: currency == .jpy
+      case .chineseMinus: currency == .cny
+      case nil: false
+      }
+    }
 
     /// 0 보다 큰지(숫자 중 0 이 아닌 것이 있는지).
     var isPositive: Bool {
@@ -132,11 +159,19 @@ extension ReceiptExtractor {
   }
 
   /// 토큰 앞에 오면 토큰이 아닌 글자(숫자·글자는 따로 본다).
-  private static let forbiddenBefore = Set<Character>([".", ",", "/", "#", "@", "$", "₩", "￦", "€", "¥", "￥"])
+  static let forbiddenBefore = Set<Character>([".", ",", "/", "#", "@", "$", "₩", "￦", "€", "¥", "￥", "'", "’"])
     .union(unsupportedCurrencySymbols)
   /// 토큰 바로 뒤에 오면 토큰이 아닌 글자(숫자·글자는 따로 본다).
-  private static let forbiddenAfter: Set<Character> = ["%", "*", "×", "@", "/", "#"]
-  private static let minusSigns: Set<Character> = ["-", "−"]
+  static let forbiddenAfter: Set<Character> = ["%", "*", "×", "@", "/", "#", "'", "’"]
+  static let minusSigns: Set<Character> = ["-", "−"]
+  /// 끝 줄표(장음 ー·― 도 같게 본다).
+  static let trailingDashes: Set<Character> = ["-", "−", "ー", "―"]
+  /// 뒤 통화 바로 뒤의 금액 끝 표시("円也"·"元整"·"원정").
+  static let endMarks: Set<Character> = ["也", "整", "정"]
+  /// 수 바로 앞의 금액 앞 표시("金1,100円"·"금9,000원정").
+  static let amountPrefixes: Set<Character> = ["金", "금"]
+  /// 좁은 공백(NBSP·좁은 NBSP·얇은 공백). 천 단위 구분으로만 쓴다.
+  static let narrowSpaces: Set<Character> = ["\u{00A0}", "\u{202F}", "\u{2009}"]
   /// 수 앞 통화 표시. 긴 것부터 대조한다. 지원하지 않는 통화 코드·기호는 통화 모름(`.unsupported`)이다.
   private static let leadingMarks: [(String, CurrencyMark)] = [
     ("US$", .currency(.usd)), ("KRW", .currency(.krw)), ("USD", .currency(.usd)), ("EUR", .currency(.eur)),
@@ -151,93 +186,6 @@ extension ReceiptExtractor {
   ] + unsupportedMarks
   private static let unsupportedMarks: [(String, CurrencyMark)] = unsupportedCurrencyCodes.map { ($0, .unsupported) }
     + unsupportedCurrencySymbols.map { (String($0), .unsupported) }
-
-  /// `[부호][앞 통화] 수 [뒤 통화][뒤 부호]` 를 `start` 에서 읽는다. 앞뒤 경계가 맞지 않으면 nil.
-  private static func token(startingAt start: Int, in characters: [Character], hasHangul: Bool) -> AmountToken? {
-    guard var parts = self.tokenHead(startingAt: start, in: characters, hasHangul: hasHangul) else { return nil }
-    if parts.mark != nil, parts.position < characters.count, characters[parts.position] == " " {
-      parts.position += 1
-    }
-    guard parts.position < characters.count, characters[parts.position].isNumber,
-          let number = self.number(at: parts.position, in: characters)
-    else { return nil }
-    parts.position = number.end
-    guard self.readTokenTail(in: characters, into: &parts) else { return nil }
-    // 통화 표시 없는 두 자리 이하 정수는 수량·번호다("합계 3", "TOTAL 2").
-    if parts.mark == nil, !number.hasSeparator, number.fraction.isEmpty, (Int(number.integer) ?? 100) < 100 {
-      return nil
-    }
-    return AmountToken(
-      integerDigits: number.integer,
-      fractionDigits: number.fraction,
-      mark: parts.mark,
-      isNegative: parts.isNegative,
-      range: start ..< parts.position,
-      usesDotGrouping: number.usesDotGrouping
-    )
-  }
-
-  /// 읽는 중인 토큰의 위치와 부호·괄호·통화 표시.
-  private struct TokenParts {
-    var position: Int
-    var mark: CurrencyMark?
-    var isNegative = false
-    var isParenthesized = false
-  }
-
-  /// 토큰 앞부분: 앞 경계, 붙은 부호나 여는 괄호, 앞 통화 표시.
-  private static func tokenHead(startingAt start: Int, in characters: [Character], hasHangul: Bool) -> TokenParts? {
-    if start > 0 {
-      let previous = characters[start - 1]
-      if characters[start] == "$", previous.isASCII, previous.isLetter {
-        // "CA$12.00" 처럼 영문자가 붙은 달러는 지원하지 않는 통화 표시다("US$" 는 'U' 에서 시작해 읽는다).
-        return TokenParts(position: start + 1, mark: .unsupported)
-      }
-      if previous.isLetter || previous.isNumber || self.forbiddenBefore.contains(previous) {
-        return nil
-      }
-    }
-    var parts = TokenParts(position: start)
-    if characters[start] == "(" {
-      parts.isParenthesized = true
-      parts.position += 1
-    } else if self.minusSigns.contains(characters[start]) {
-      // 부호는 붙어 있을 때만이다. "합계 - 9,000" 의 떨어진 줄표는 구분자다.
-      guard start + 1 < characters.count, !characters[start + 1].isWhitespace else { return nil }
-      parts.isNegative = true
-      parts.position += 1
-    }
-    if let (length, mark) = self.leadingMark(at: parts.position, in: characters, hasHangul: hasHangul) {
-      parts.mark = mark
-      parts.position += length
-    }
-    return parts
-  }
-
-  /// 수 뒤: 뒤 통화 표시, 뒤 부호("9,000-"), 닫는 괄호, 뒤 경계. 경계가 맞지 않으면 false.
-  private static func readTokenTail(in characters: [Character], into parts: inout TokenParts) -> Bool {
-    if parts.mark == nil, let (length, mark) = self.trailingMark(at: parts.position, in: characters) {
-      parts.mark = mark
-      parts.position += length
-    }
-    let position = parts.position
-    if position < characters.count, self.minusSigns.contains(characters[position]),
-       !(position + 1 < characters.count && characters[position + 1].isNumber)
-    {
-      parts.isNegative = true
-      parts.position += 1
-    }
-    if parts.isParenthesized {
-      guard parts.position < characters.count, characters[parts.position] == ")" else { return false }
-      parts.isNegative = true
-      parts.position += 1
-    }
-    guard parts.position < characters.count else { return true }
-    let next = characters[parts.position]
-    let continuesNumber = (next == "." || next == ",") && parts.position + 1 < characters.count
-      && characters[parts.position + 1].isNumber
-    return !(next.isLetter || next.isNumber || self.forbiddenAfter.contains(next) || continuesNumber)
-  }
 
   /// 수 앞 통화 표시와 그 길이. 영문 코드는 낱말 경계(뒤가 영문자가 아님)일 때만.
   static func leadingMark(
@@ -264,7 +212,7 @@ extension ReceiptExtractor {
   }
 
   /// 수 뒤(바로 뒤 또는 공백 하나 뒤)의 통화 표시와 공백을 포함한 길이.
-  private static func trailingMark(at position: Int, in characters: [Character]) -> (Int, CurrencyMark)? {
+  static func trailingMark(at position: Int, in characters: [Character]) -> (Int, CurrencyMark)? {
     for offset in [0, 1] {
       if offset == 1, !(position < characters.count && characters[position] == " ") {
         continue
@@ -276,53 +224,6 @@ extension ReceiptExtractor {
         }
         return (offset + text.count, mark)
       }
-    }
-    return nil
-  }
-
-  /// 대소문자를 무시하고 `text` 가 `position` 에서 시작하는지.
-  private static func matches(_ text: String, at position: Int, in characters: [Character]) -> Bool {
-    guard position >= 0, position + text.count <= characters.count else { return false }
-    return zip(text, characters[position...]).allSatisfy { $0.lowercased() == $1.lowercased() }
-  }
-
-  /// 읽은 수. 정수부는 천 단위 구분을 뺀 숫자다.
-  private struct ParsedNumber {
-    let integer: String
-    let fraction: String
-    let hasSeparator: Bool
-    var usesDotGrouping = false
-    let end: Int
-  }
-
-  /// 수: (a) 쉼표 천 단위, (b) 점 천 단위, (c) 구분 없음(정수부 7자리까지) 순서로 처음 맞는 것.
-  /// (b) 는 통화를 정한 뒤 유로일 때만 금액이 된다(`AmountToken.usesDotGrouping`).
-  private static func number(at position: Int, in characters: [Character]) -> ParsedNumber? {
-    let rest = String(characters[position...])
-    if let match = rest.prefixMatch(of: #/(\d{1,3}(?:,\d{3})+)(?:\.(\d{1,2}))?/#) {
-      return ParsedNumber(
-        integer: match.1.filter(\.isNumber),
-        fraction: String(match.2 ?? ""),
-        hasSeparator: true,
-        end: position + match.0.count
-      )
-    }
-    if let match = rest.prefixMatch(of: #/(\d{1,3}(?:\.\d{3})+)(?:,(\d{1,2}))?/#) {
-      return ParsedNumber(
-        integer: match.1.filter(\.isNumber),
-        fraction: String(match.2 ?? ""),
-        hasSeparator: true,
-        usesDotGrouping: true,
-        end: position + match.0.count
-      )
-    }
-    if let match = rest.prefixMatch(of: #/(\d{1,7})(?:[.,](\d{1,2}))?/#) {
-      return ParsedNumber(
-        integer: String(match.1),
-        fraction: String(match.2 ?? ""),
-        hasSeparator: false,
-        end: position + match.0.count
-      )
     }
     return nil
   }

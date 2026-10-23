@@ -36,7 +36,7 @@ extension ReceiptExtractor {
     if self.isTaxExcluded(words.prefix(2).joined(separator: " "), firstWordOnly: true) {
       return false
     }
-    if let first = next.first, first.isNumber || "-−(₩￦$€¥￥\\".contains(first) {
+    if let first = next.first, first.isNumber || "-−(₩￦$€¥￥\\△▲".contains(first) {
       return true
     }
     return self.currencyWords.contains(normalized)
@@ -83,8 +83,26 @@ extension ReceiptExtractor {
     let end = letterWord?.lowerBound ?? rangeEnd
     let kept = tokens.filter { $0.range.upperBound <= end }
     let distinct = Set(kept.map { "\($0.numberKey)|\(String(describing: $0.mark))" })
-    guard distinct.count == 1, let last = kept.last else { return .split }
-    return .token(kept.first { $0.isNegative } ?? last)
+    guard distinct.count == 1, let last = kept.last,
+          !kept.contains(where: { self.followsSmallNumber($0, in: characters) })
+    else { return .split }
+    return .token(kept.first { $0.sign != nil } ?? last)
+  }
+
+  /// 일반 공백 하나를 사이에 두고 1~3자리 정수 뒤에 온, 천 단위 구분 없는 3자리 정수부 토큰인지("1 234,56"·"합계 2 900").
+  /// 천 단위("€1,234.56")와 수량 뒤 금액(2개, 900원)을 글자만으로 가를 수 없어 그 줄은 값이 갈린 것으로 본다.
+  /// 토큰에 앞 통화 표시가 있으면("2 ¥450") 앞 수를 수량으로 보아 해당하지 않는다.
+  private static func followsSmallNumber(_ token: AmountToken, in characters: [Character]) -> Bool {
+    let start = token.range.lowerBound
+    guard token.integerDigits.count == 3, !token.hasSeparator, !token.hasLeadingMark, token.sign == nil, start >= 2,
+          characters[start - 1] == " ", characters[start - 2].isNumber
+    else { return false }
+    var digitStart = start - 2
+    while digitStart > 0, characters[digitStart - 1].isNumber {
+      digitStart -= 1
+    }
+    let digitCount = start - 1 - digitStart
+    return digitCount <= 3 && (digitStart == 0 || characters[digitStart - 1].isWhitespace)
   }
 
   /// 끊는 말이 처음 나오는 자리. 한글·한자·가나 끊는 말은 어디서나 부분 문자열로("(카드할인", "포함부가세"),

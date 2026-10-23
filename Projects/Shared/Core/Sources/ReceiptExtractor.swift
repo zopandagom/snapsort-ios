@@ -45,7 +45,8 @@ public enum ReceiptExtractor {
     "co.,ltd.", "co.,ltd", "주식회사", "유한회사", "株式会社", "(주)", "(유)", "(株)", "ltd.", "inc.", "corp.", "㈜", "㈱",
   ]
 
-  /// 검사에 쓰는 줄. 원문은 그대로 두고 연속 점·말줄임·가운뎃점(점 리더 "TOTAL.......45.20")을 공백 하나로 바꾼 사본을 쓴다.
+  /// 검사에 쓰는 줄. 원문은 그대로 두고 전각 ASCII 를 반각으로("￥１，１００" → "￥1,100"), 연속 점·말줄임·가운뎃점(점 리더
+  /// "TOTAL.......45.20")을 공백 하나로 바꾼 사본을 쓴다.
   struct Line {
     let text: String
     let original: String
@@ -53,7 +54,10 @@ public enum ReceiptExtractor {
 
     init(_ line: RecognizedTextLine) {
       self.original = line.text
-      self.text = line.text.replacing(#/[.…·]{2,}/#, with: " ")
+      let halfWidth = String(String.UnicodeScalarView(line.text.unicodeScalars.map { scalar in
+        (0xFF01 ... 0xFF5E).contains(scalar.value) ? Unicode.Scalar(scalar.value - 0xFEE0) ?? scalar : scalar
+      }))
+      self.text = halfWidth.replacing(#/[.…·]{2,}/#, with: " ")
       self.box = line.boundingBox
     }
   }
@@ -260,10 +264,10 @@ extension ReceiptExtractor {
     guard values.count == candidates.count, distinct.count == 1, let first = values.first else {
       return ChosenAmount()
     }
-    var chosen = ChosenAmount(isNegative: values.contains { $0.token.isNegative })
+    var chosen = ChosenAmount(isNegative: values.contains { $0.token.isNegative(in: $0.currency) })
     guard let currency = first.currency else { return chosen }
     let usable = values.filter { $0.token.amount(in: currency) != nil }
-    chosen.amount = (usable.first { $0.token.isNegative } ?? usable.first)?.token.amount(in: currency)
+    chosen.amount = (usable.first { $0.token.isNegative(in: currency) } ?? usable.first)?.token.amount(in: currency)
     return chosen
   }
 
