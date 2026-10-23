@@ -16,10 +16,10 @@ extension ReceiptExtractor {
         letters.append(characters[index])
         continue
       }
-      self.codeMarks[letters.lowercased()].map { _ = marks.insert($0) }
+      self.codeMark(letters, endingAt: index, in: characters).map { _ = marks.insert($0) }
       letters = ""
     }
-    self.codeMarks[letters.lowercased()].map { _ = marks.insert($0) }
+    self.codeMark(letters, endingAt: characters.count, in: characters).map { _ = marks.insert($0) }
     // 한글 영수증에서만 수 앞의 홀로 선 W·\ 를 ₩ 로 본다(토큰의 앞 통화와 같은 규칙).
     let misreadWon = hasHangul && characters.indices.contains { index in
       (characters[index] == "W" || characters[index] == "\\") && (index == 0 || !characters[index - 1].isLetter)
@@ -45,6 +45,17 @@ extension ReceiptExtractor {
     }
   }
 
+  /// 낱말 경계의 영문 코드 표시. "won" 은 영어 낱말이기도 해("WON TON HOUSE"·"You won 50 points") 숫자 바로 뒤(공백 0~1,
+  /// "9,000 won")일 때만 원으로 센다. ISO 코드(USD·EUR 등)는 따로 쓰여도("Currency: USD") 통화 표시다.
+  private static func codeMark(_ letters: String, endingAt end: Int, in characters: [Character]) -> CurrencyMark? {
+    let code = letters.lowercased()
+    guard let mark = self.codeMarks[code] else { return nil }
+    guard code == "won" else { return mark }
+    let start = end - letters.count
+    let before = start > 0 && characters[start - 1] == " " ? start - 2 : start - 1
+    return before >= 0 && characters[before].isNumber ? mark : nil
+  }
+
   private static let codeMarks: [String: CurrencyMark] = [
     "krw": .currency(.krw), "won": .currency(.krw), "usd": .currency(.usd), "eur": .currency(.eur),
     "jpy": .currency(.jpy), "cny": .currency(.cny), "rmb": .currency(.cny),
@@ -53,7 +64,8 @@ extension ReceiptExtractor {
   /// 통화 판정에 쓰는 영수증 전체의 표시.
   struct CurrencyContext {
     let hasHangul: Bool
-    /// `¥` 가 뜻하는 통화. 가나·円·JPY 만 있으면 엔, 元·CNY·RMB·人民币 만 있으면 위안, 둘 다 있거나 없으면 nil.
+    /// `¥` 가 뜻하는 통화. 가나·円·JPY 만 있으면 엔, 숫자 바로 뒤의 元·CNY·RMB·人民币 만 있으면 위안, 둘 다 있거나 없으면 nil.
+    /// 元 은 숫자 바로 뒤(공백 0~1)일 때만 위안 증거다("元取引番号"·"地元"·"販売元" 의 元 은 아니다).
     let yenCurrency: ReceiptCurrency?
     /// 영수증 전체 줄의 통화 표시 종류(`¥`·영문자 붙은 달러는 정한 통화, 모르면 nil 로 센다).
     let receiptKinds: Set<ReceiptCurrency?>
@@ -64,7 +76,7 @@ extension ReceiptExtractor {
       let lowercased = joined.lowercased()
       let isJapanese = joined.unicodeScalars.contains { (0x3040 ... 0x30FF).contains($0.value) } || joined.contains("円")
         || lowercased.contains("jpy")
-      let isChinese = joined.contains("元") || joined.contains("人民币") || lowercased.contains("cny")
+      let isChinese = joined.contains(#/\d ?元/#) || joined.contains("人民币") || lowercased.contains("cny")
         || lowercased.contains("rmb")
       self.hasHangul = hasHangul
       self.yenCurrency = isJapanese == isChinese ? nil : isJapanese ? .jpy : .cny

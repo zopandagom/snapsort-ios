@@ -207,7 +207,7 @@ struct ReceiptExtractorStoreTests {
     arguments: [
       ReceiptPath("S39", ["いらっしゃいませ", "ローソン 渋谷店", "合計 ¥1,100"], storeName: "ローソン 渋谷店"),
       ReceiptPath("S40", ["東京都渋谷区道玄坂1-2-3", "TEL 03-1234-5678", "合計 ¥1,100"]),
-      ReceiptPath("S41", ["北京市朝阳区建国路88号", "欢迎光临", "合计 ¥88.00", "元"]),
+      ReceiptPath("S41", ["北京市朝阳区建国路88号", "欢迎光临", "合计 ¥88.00", "人民币"]),
       ReceiptPath("S42 붙음", ["品名数量金額", "合計 ¥1,100"]),
       ReceiptPath("S42 띄움", ["品名 数量 金額", "合計 ¥1,100"]),
       ReceiptPath("S44 띄움", ["店舗名 ローソン渋谷店"], storeName: "ローソン渋谷店"),

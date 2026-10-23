@@ -15,7 +15,7 @@ struct ReceiptExtractorRemarkTests {
       ReceiptPath("A35 괄호", ["ローソン", "合計(税込) ¥1,234"], amount: receiptAmount(1234, .jpy)),
       ReceiptPath("A35 붙음", ["ローソン", "税込合計 ¥1,234"], amount: receiptAmount(1234, .jpy)),
       ReceiptPath("A35 꼬리 말", ["ローソン", "合計 税込 ¥1,234"], amount: receiptAmount(1234, .jpy)),
-      ReceiptPath("A36", ["超市 元", "合计 ¥88.00 找零 ¥12.00"], amount: receiptAmount(8800, .cny)),
+      ReceiptPath("A36", ["超市 人民币", "合计 ¥88.00 找零 ¥12.00"], amount: receiptAmount(8800, .cny)),
       ReceiptPath("A37", ["ローソン", "合計 ¥1,100 お預かり ¥2,000"], amount: receiptAmount(1100, .jpy)),
       ReceiptPath("A38", ["合计 金额 ¥88.00", "人民币"], amount: receiptAmount(8800, .cny)),
     ]

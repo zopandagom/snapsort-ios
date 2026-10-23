@@ -24,7 +24,7 @@ struct ReceiptExtractorLanguageTests {
     "환불 금액 복합 라벨·전표 이름·상태 문구·상태 값·머리말은 언어마다 취소 근거다",
     arguments: [
       ReceiptPath("C31", ["ローソン", "返金額 ¥1,100", "合計 ¥1,100"], amount: receiptAmount(1100, .jpy)),
-      ReceiptPath("C32", ["退款金额 ¥88.00", "合计 ¥88.00", "元"], amount: receiptAmount(8800, .cny)),
+      ReceiptPath("C32", ["退款金额 ¥88.00", "合计 ¥88.00", "人民币"], amount: receiptAmount(8800, .cny)),
       ReceiptPath("C33", ["TOTAL REFUND $12.50"], amount: receiptAmount(1250, .usd)),
       ReceiptPath("C34", ["Erstattungsbetrag 12,50 €", "Summe 12,50 €"], amount: receiptAmount(1250, .eur)),
       ReceiptPath("C35", ["STORNOBELEG", "SUMME 12,50 €"]),
@@ -32,7 +32,7 @@ struct ReceiptExtractorLanguageTests {
       ReceiptPath("C37", ["STORNO", "Summe 12,50 €"]),
       ReceiptPath("C39", ["TYPE: RETURN", "TOTAL 12.50"]),
       ReceiptPath("C40", ["Vorgang: Storno", "Summe 12,50 €"]),
-      ReceiptPath("C41", ["ローソン", "元取引番号 1234", "合計 ¥1,100"]),
+      ReceiptPath("C41", ["ローソン", "元取引番号 1234", "合計 ¥1,100"], amount: receiptAmount(1100, .jpy)),
       ReceiptPath("C61", ["TICKET D'ANNULATION", "TOTAL 12,50 €"], amount: receiptAmount(1250, .eur)),
       ReceiptPath("C62", ["TICKET D\u{2019}ANNULATION", "TOTAL 12,50 €"], amount: receiptAmount(1250, .eur)),
     ]

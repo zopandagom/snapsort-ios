@@ -2,7 +2,7 @@ import Core
 import Testing
 
 /// 나라별 숫자·음수 표기 관례(설계 r3.20~r3.22, A76~A85·C108~C112). OCR 줄은 지어낸 텍스트다 (docs/CONVENTIONS.md §3).
-/// 엔 영수증은 `¥` 를 엔으로 정하도록 가나 줄 "ローソン" 을, 위안 영수증은 "元" 줄을 함께 둔다.
+/// 엔 영수증은 `¥` 를 엔으로 정하도록 가나 줄 "ローソン" 을, 위안 영수증은 "人民币" 줄을 함께 둔다.
 struct ReceiptExtractorNotationTests {
   @Test(
     "좁은 공백·아포스트로피 천 단위는 한 수로 읽고, 일반 공백으로 나뉜 1~3자리 + 3자리 수는 갈린다",
@@ -63,7 +63,7 @@ struct ReceiptExtractorNotationTests {
       ReceiptPath("A83b A$", ["TOTAL A$45.20"]),
       ReceiptPath("A84 원정", ["합계 금9,000원정"], amount: receiptAmount(9000, .krw)),
       ReceiptPath("A84 円也", ["ローソン", "合計 金1,100円也"], amount: receiptAmount(1100, .jpy)),
-      ReceiptPath("A84 元整", ["超市 元", "合计 88.00元整"], amount: receiptAmount(8800, .cny)),
+      ReceiptPath("A84 元整", ["超市 人民币", "合计 88.00元整"], amount: receiptAmount(8800, .cny)),
       ReceiptPath("A84b 붙은 라벨", ["결제금액9,000"], amount: receiptAmount(9000, .krw)),
       ReceiptPath("A84b 라벨 아님", ["금액9,000"]),
       ReceiptPath("A84c 정식", ["합계 9,000원정식"]),
@@ -88,7 +88,7 @@ struct ReceiptExtractorNotationTests {
       ReceiptPath("C110 $ - 공백", ["TOTAL $ - 12.50"], amount: receiptAmount(1250, .usd)),
       ReceiptPath("C110 ¥ - 공백", ["ローソン", "合計 ¥ - 1,100"], amount: receiptAmount(1100, .jpy)),
       ReceiptPath("C110 △ 공백 수", ["ローソン", "合計 △ 1,100円"], amount: receiptAmount(1100, .jpy)),
-      ReceiptPath("C111 负", ["超市 元", "人民币", "合计 负¥88.00"], amount: receiptAmount(8800, .cny), isCancelled: true),
+      ReceiptPath("C111 负", ["人民币", "合计 负¥88.00"], amount: receiptAmount(8800, .cny), isCancelled: true),
       ReceiptPath("C8 괄호", ["합계 (9,000)"], amount: receiptAmount(9000, .krw), isCancelled: true),
       ReceiptPath("A15 떨어진 줄표", ["합계 - 9,000"], amount: receiptAmount(9000, .krw)),
     ]

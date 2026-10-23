@@ -13,7 +13,7 @@ struct ReceiptExtractorPendingTests {
       return ["ローソン", status, "合計 ¥1,100"]
     }
     if status.unicodeScalars.contains(where: { (0x4E00 ... 0x9FFF).contains($0.value) }) {
-      return [status, "合计 ¥88.00", "元"]
+      return [status, "合计 ¥88.00", "人民币"]
     }
     return [status, "TOTAL 12.50"]
   }
@@ -98,14 +98,14 @@ struct ReceiptExtractorPendingTests {
     arguments: [
       ReceiptPath("C88 pending", ["Refund amount $12.00 pending", "TOTAL $12.00"], amount: receiptAmount(1200, .usd)),
       ReceiptPath("C88 미처리", ["환불금액 9,000 미처리", "합계 9,000"], amount: receiptAmount(9000, .krw)),
-      ReceiptPath("C88 处理中", ["退款金额 ¥88.00 处理中", "合计 ¥88.00", "元"], amount: receiptAmount(8800, .cny)),
+      ReceiptPath("C88 处理中", ["退款金额 ¥88.00 处理中", "合计 ¥88.00", "人民币"], amount: receiptAmount(8800, .cny)),
       ReceiptPath(
         "C89",
         ["Refund amount $12.00", "TOTAL $12.00"],
         amount: receiptAmount(1200, .usd),
         isCancelled: true
       ),
-      ReceiptPath("C89 退款", ["退款金额 ¥88.00", "合计 ¥88.00", "元"], amount: receiptAmount(8800, .cny), isCancelled: true),
+      ReceiptPath("C89 退款", ["退款金额 ¥88.00", "合计 ¥88.00", "人民币"], amount: receiptAmount(8800, .cny), isCancelled: true),
       ReceiptPath(
         "C93",
         ["ローソン", "返金額 ¥1,100 (未使用分)", "合計 ¥1,100"],
@@ -115,7 +115,7 @@ struct ReceiptExtractorPendingTests {
       ReceiptPath("C93 미사용분", ["환불금액 9,000 (미사용분)", "합계 9,000"], amount: receiptAmount(9000, .krw), isCancelled: true),
       ReceiptPath(
         "C99",
-        ["退款金额 ¥88.00 已退款 未到账", "合计 ¥88.00", "元"],
+        ["退款金额 ¥88.00 已退款 未到账", "合计 ¥88.00", "人民币"],
         amount: receiptAmount(8800, .cny),
         isCancelled: true
       ),

@@ -99,10 +99,10 @@ struct ReceiptExtractorTests {
     arguments: [
       (["ローソン", "TOTAL ¥1,234"], receiptAmount(1234, .jpy) as ReceiptAmount?),
       (["小計 1,000円", "TOTAL ¥1,234"], receiptAmount(1234, .jpy)),
-      (["单位 元", "TOTAL ¥88.00"], receiptAmount(8800, .cny)),
+      (["单位 人民币", "TOTAL ¥88.00"], receiptAmount(8800, .cny)),
       (["PAID IN RMB", "TOTAL ￥88.00"], receiptAmount(8800, .cny)),
       (["TOTAL ¥1,234"], nil),
-      (["ローソン", "单位 元", "TOTAL ¥1,234"], nil),
+      (["ローソン", "单位 人民币", "TOTAL ¥1,234"], nil),
     ]
   )
   func resolvesYenSign(_ texts: [String], _ expected: ReceiptAmount?) {
@@ -133,5 +133,22 @@ struct ReceiptExtractorTests {
     #expect(extractReceipt(["예시마트", "합계 \\9,000"]).amount == receiptAmount(9000, .krw))
     #expect(extractReceipt(["NEW SHOP", "TOTAL W9.00"]).amount == nil)
     #expect(extractReceipt(["NEW 9.00"]).amount == nil)
+  }
+
+  @Test(
+    "영어 낱말 won 은 숫자 바로 뒤일 때만 원 표시이고, 元 은 숫자 바로 뒤일 때만 위안 증거다",
+    arguments: [
+      (["WON TON HOUSE", "TOTAL 23.00"], nil as ReceiptAmount?),
+      (["You won 50 points", "TOTAL 23.00"], nil),
+      (["PAID 23,000 won", "TOTAL 23,000"], receiptAmount(23000, .krw)),
+      (["ローソン", "元取引番号 1234", "合計 ¥1,100"], receiptAmount(1100, .jpy)),
+      (["ローソン", "地元野菜", "合計 ¥1,100"], receiptAmount(1100, .jpy)),
+      (["ローソン", "販売元 example", "合計 ¥1,100"], receiptAmount(1100, .jpy)),
+      (["ローソン", "発行元 example", "合計 ¥1,100"], receiptAmount(1100, .jpy)),
+      (["超市", "找零 12元", "合计 ¥88.00"], receiptAmount(8800, .cny)),
+    ]
+  )
+  func wordLikeCurrencyMarksNeedNumbers(_ texts: [String], _ expected: ReceiptAmount?) {
+    #expect(extractReceipt(texts).amount == expected)
   }
 }
