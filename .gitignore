@@ -19,3 +19,6 @@ IndexingTiming-*.json
 
 # Claude Code 개인 설정 (레포 설정은 .claude/settings.json)
 .claude/settings.local.json
+
+# 팀 구현 설계·지적 기록 (CONVENTIONS §6 "팀 구현")
+.claude/team/

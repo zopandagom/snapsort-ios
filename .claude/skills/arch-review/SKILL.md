@@ -4,6 +4,7 @@ description: SnapSort 변경분을 docs/ARCHITECTURE.md·docs/CONVENTIONS.md 기
 argument-hint: "[base-ref] [작업 범위]"
 context: fork
 agent: Explore
+model: sonnet
 ---
 
 # arch-review
