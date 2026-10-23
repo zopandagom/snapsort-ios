@@ -219,7 +219,7 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
-      // 개수를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세)의 다시 읽기가 함께 시작되게 한다.
+      // 개수를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.requestReminderSync()

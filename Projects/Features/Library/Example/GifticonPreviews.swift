@@ -36,6 +36,10 @@ enum ExampleScenario: String {
   case receiptChecking
   /// 쇼핑·대화·지도 카테고리 처음 읽기만 실패한다. 다시 시도하면 격자가 보인다.
   case captureGroupFailing
+  /// 검색 목록 처음 읽기만 실패한다. 검색 필드를 누르면 실패 화면이 뜨고, 다시 시도하면 결과가 보인다.
+  case searchFailing
+  /// 검색 목록 읽기가 1.5초 걸린다. 열자마자 입력하거나 읽는 중에 "글자 사진 추가"를 눌러 겹침을 본다.
+  case searchSlow
   /// 앱 루트가 빈 영수증 목록이다. 보관함은 영수증이 없으면 줄을 숨겨 빈 목록에 갈 수 없어 루트를 바꾼다.
   case receiptEmpty
 

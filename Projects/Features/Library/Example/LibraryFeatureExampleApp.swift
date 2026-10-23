@@ -22,6 +22,8 @@ import SwiftUI
 /// 쇼핑·대화·지도 줄에서 툴바 묶기 메뉴(쇼핑몰·브랜드·앱·지역별, `PreviewCaptureGroups`)를 보고, "캡처 묶음 추출" 버튼이
 /// 추출 대기 캡처에 값을 쓴다(OCR 대기 캡처는 확인 중으로 남는다).
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
+/// 검색 필드를 누르면 검색 결과(`PreviewSearch` 의 글자 사진, 캡처 묶음 값, 카테고리 이름, 캐시된 여행 장소 이름)를 보고,
+/// "글자 사진 추가" 버튼이 글자를 읽은 사진을 최신으로 더한다(열린 검색 화면이 다시 읽는다).
 /// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
@@ -37,8 +39,17 @@ struct LibraryFeatureExampleApp: App {
       tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:],
       receiptsErrors: Self.scenario == .receiptFailing ? [0: .failed] : [:],
       captureGroupItemsErrors: Self.scenario == .captureGroupFailing ? [0: .failed] : [:],
-      allReceiptsChecking: Self.scenario == .receiptChecking
+      allReceiptsChecking: Self.scenario == .receiptChecking,
+      searchEntriesErrors: Self.scenario == .searchFailing ? [0: .failed] : [:],
+      onSearchEntries: Self.searchHook
     )
+  /// `searchSlow` 는 검색 목록 읽기가 1.5초 걸린다.
+  private static let searchHook: @Sendable (Int) async -> Void = if Self.scenario == .searchSlow {
+    { _ in try? await Task.sleep(for: .seconds(1.5)) }
+  } else {
+    { _ in }
+  }
+
   private static let photoLibrary = Self.scenario == .limited
     ? PhotoLibraryClientFake.previewLimitedClassified
     : PhotoLibraryClientFake.previewAuthorized
@@ -73,8 +84,11 @@ struct LibraryFeatureExampleApp: App {
   )
   @State private var tripListModel = TripListModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var tripDetailModel = TripDetailModel(photoStore: Self.photoStore, map: Self.map)
+  @State private var searchModel = SearchModel(photoStore: Self.photoStore)
   /// 지금까지 더한 새 사진 수. 데모 버튼의 다음 식별자를 정한다.
   @State private var addedCount = 0
+  /// 지금까지 더한 글자 사진 수.
+  @State private var addedTextCount = 0
 
   var body: some Scene {
     WindowGroup {
@@ -97,7 +111,8 @@ struct LibraryFeatureExampleApp: App {
       receiptListModel: self.receiptListModel,
       captureActionsModel: self.captureActionsModel,
       tripListModel: self.tripListModel,
-      tripDetailModel: self.tripDetailModel
+      tripDetailModel: self.tripDetailModel,
+      searchModel: self.searchModel
     )
     .overlay(alignment: .bottom) {
       VStack(spacing: 4) {
@@ -113,6 +128,9 @@ struct LibraryFeatureExampleApp: App {
           }
           Button("캡처 묶음 추출") {
             Task { await self.extractCaptureGroups() }
+          }
+          Button("글자 사진 추가") {
+            Task { await self.addTextPhoto() }
           }
         }
         .buttonStyle(.borderedProminent)
@@ -147,6 +165,14 @@ struct LibraryFeatureExampleApp: App {
   /// 인덱서가 영수증을 소급 추출해 저장하고 같은 값의 진행률을 보낸 것처럼 흉내 낸다. 추출 대기 행만 바뀐다.
   private func extractReceipts() async {
     try? await Self.photoStore.saveReceipts(PreviewReceipts.extractedValues)
+    Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
+  }
+
+  /// 인덱서가 글자를 읽은 문서 사진을 최신으로 저장하고 진행률을 보낸 것처럼 흉내 낸다. 열려 있는 검색 화면이 다시 읽는다.
+  private func addTextPhoto() async {
+    let id = PreviewSearch.newImageID(self.addedTextCount)
+    self.addedTextCount += 1
+    try? await Self.photoStore.save([PreviewSearch.newImage(id: id)])
     Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
   }
 
@@ -220,7 +246,8 @@ private func libraryPreview(
     receiptListModel: ReceiptListModel(photoStore: photoStore),
     captureActionsModel: captureActionsPreviewModel(photoStore: photoStore),
     tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
-    tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map())
+    tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map()),
+    searchModel: SearchModel(photoStore: photoStore)
   )
 }
 
