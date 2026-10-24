@@ -197,7 +197,7 @@ private extension CaptureGroupSection {
   }
 }
 
-/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면·여행 폴더 상세의 칸과 기프티콘·영수증 목록의 줄에서만 연다.
+/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면·여행 폴더 상세의 칸과 기프티콘·영수증 목록의 줄, 검색 결과의 사진 줄에서만 연다.
 struct PhotoDetailRoute: Hashable {
   let asset: ImageAsset
   /// 기프티콘 목록에서 열 때만 그 항목. 이때만 상세가 기프티콘 정보·사용함 버튼·바코드를 보인다.
@@ -209,11 +209,21 @@ struct PhotoDetailRoute: Hashable {
 struct CategoryThumbnailCell: View {
   let model: CategoryModel
   let asset: ImageAsset
-  let category: ImageCategory
+  let scope: ThumbnailScope
+
+  init(model: CategoryModel, asset: ImageAsset, category: ImageCategory) {
+    self.init(model: model, asset: asset, scope: .category(category))
+  }
+
+  init(model: CategoryModel, asset: ImageAsset, scope: ThumbnailScope) {
+    self.model = model
+    self.asset = asset
+    self.scope = scope
+  }
 
   var body: some View {
     ThumbnailTile(self.tileContent, accessibilityLabel: self.accessibilityLabel)
-      .task { await self.model.thumbnailAppeared(id: self.asset.id, in: self.category) }
+      .task { await self.model.thumbnailAppeared(id: self.asset.id, scope: self.scope) }
   }
 
   private var tileContent: ThumbnailTile.Content {

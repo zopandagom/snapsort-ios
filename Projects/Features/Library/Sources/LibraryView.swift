@@ -4,11 +4,12 @@ import SwiftUI
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
 /// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView`)을,
 /// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`. 여행 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
+/// 검색 필드(`.searchable`)를 누르면 카테고리 목록 대신 검색 결과(`SearchResultsView`)를 보이고, 결과의 카테고리·여행·사진 줄이 같은 화면들을 연다.
 /// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
-/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세의 다시 읽기
+/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과의 다시 읽기
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·상세의 다시 읽기
-/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 여섯 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세)
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 일곱 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색)
 public struct LibraryView: View {
   let model: LibraryModel
   let categoryModel: CategoryModel
@@ -17,6 +18,7 @@ public struct LibraryView: View {
   let captureActionsModel: CaptureActionsModel
   let tripListModel: TripListModel
   let tripDetailModel: TripDetailModel
+  let searchModel: SearchModel
 
   @Environment(\.scenePhase) private var scenePhase
 
@@ -27,7 +29,8 @@ public struct LibraryView: View {
     receiptListModel: ReceiptListModel,
     captureActionsModel: CaptureActionsModel,
     tripListModel: TripListModel,
-    tripDetailModel: TripDetailModel
+    tripDetailModel: TripDetailModel,
+    searchModel: SearchModel
   ) {
     self.model = model
     self.categoryModel = categoryModel
@@ -36,31 +39,17 @@ public struct LibraryView: View {
     self.captureActionsModel = captureActionsModel
     self.tripListModel = tripListModel
     self.tripDetailModel = tripDetailModel
+    self.searchModel = searchModel
   }
 
   public var body: some View {
     NavigationStack {
-      List {
-        self.indexingSection
-        if self.model.showsExpiryReminderButton {
-          self.expiryReminderSection
-        }
-        if self.model.showsNotificationSettingsButton {
-          self.notificationSettingsSection
-        }
-        // 덮는 overlay 로 두면 위의 진행률·다시 시도를 가리므로 목록 안에 둔다.
-        if self.model.categoryCounts.isEmpty {
-          Section {
-            ContentUnavailableView(
-              "이미지 \(self.model.imageCount)장",
-              systemImage: "photo.stack",
-              description: Text(self.emptyDescription)
-            )
-          }
-        }
-        self.categorySection("캡처", group: .information)
-        self.categorySection("사진", group: .photo)
-        self.categorySection("기타", group: .other)
+      LibrarySearchContainer(
+        searchModel: self.searchModel,
+        categoryModel: self.categoryModel,
+        isLimited: self.model.isLimited
+      ) {
+        self.categoryList
       }
       .navigationTitle("SnapSort")
       .safeAreaInset(edge: .top) {
@@ -68,6 +57,12 @@ public struct LibraryView: View {
           self.limitedAccessBanner
         }
       }
+      .searchable(
+        text: Binding(get: { self.searchModel.query }, set: { self.searchModel.queryChanged($0) }),
+        prompt: Text("글자·쇼핑몰·지역·장소 검색")
+      )
+      // 자동 고침이 검색 낱말을 바꾸지 않게 하려는 것이다. 검색 필드에 적용되는지는 실기기에서 확인한다.
+      .autocorrectionDisabled()
       // 격자 안에 두지 않고 루트 한곳에 둔다.
       .navigationDestination(for: ImageCategory.self) { category in
         switch category {
@@ -97,6 +92,7 @@ public struct LibraryView: View {
       self.captureActionsModel.libraryStoreChanged()
       self.tripListModel.libraryStoreChanged()
       self.tripDetailModel.libraryStoreChanged()
+      self.searchModel.libraryStoreChanged()
     }
     // 상세를 닫은 뒤 끝난 쓰기도 오른다. 같은 사진을 닫았다 바로 다시 열어 경로의 옛 값을 보이는 상세도 다시 읽어 맞춘다.
     .onChange(of: self.captureActionsModel.usageRevision) {
@@ -113,6 +109,7 @@ public struct LibraryView: View {
       self.captureActionsModel.dayChanged()
       self.tripListModel.dayChanged()
       self.tripDetailModel.dayChanged()
+      self.searchModel.dayChanged()
     }
     // 아래 두 알림 모두 백그라운드 큐에서 post 해도 `.onReceive` 의 action 은 메인에서 돈다(iOS 26.5 시뮬레이터 실험으로 확인).
     .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -130,6 +127,33 @@ public struct LibraryView: View {
     self.captureActionsModel.dayChanged()
     self.tripListModel.dayChanged()
     self.tripDetailModel.dayChanged()
+    self.searchModel.dayChanged()
+  }
+
+  /// 카테고리 줄 목록. 검색 중에는 `SearchResultsView` 가 대신 보인다.
+  private var categoryList: some View {
+    List {
+      self.indexingSection
+      if self.model.showsExpiryReminderButton {
+        self.expiryReminderSection
+      }
+      if self.model.showsNotificationSettingsButton {
+        self.notificationSettingsSection
+      }
+      // 덮는 overlay 로 두면 위의 진행률·다시 시도를 가리므로 목록 안에 둔다.
+      if self.model.categoryCounts.isEmpty {
+        Section {
+          ContentUnavailableView(
+            "이미지 \(self.model.imageCount)장",
+            systemImage: "photo.stack",
+            description: Text(self.emptyDescription)
+          )
+        }
+      }
+      self.categorySection("캡처", group: .information)
+      self.categorySection("사진", group: .photo)
+      self.categorySection("기타", group: .other)
+    }
   }
 
   private var emptyDescription: String {
@@ -137,94 +161,6 @@ public struct LibraryView: View {
       "이미지를 분류하는 중입니다."
     } else {
       "분류된 이미지가 없습니다."
-    }
-  }
-
-  /// 분석 중일 때와 멈췄을 때만 보인다. 정상으로 다 분석하면 숨기되, 미룬 이미지가 있으면 그 수는 남겨 안내한다.
-  /// `isFinished` 는 미룬 수까지 더해 판단하므로, 숨기기만 하면 iCloud 에만 있는 사진처럼 분류되지 않은 이유가 사라진다.
-  /// 분석 중이면 진행률의 `phase` 로 분류 중(1단계) 막대와 글자 읽는 중(2단계) 막대를 나눠 보인다.
-  /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
-  /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
-  @ViewBuilder
-  private var indexingSection: some View {
-    if self.model.isIndexingStopped {
-      Section {
-        HStack {
-          Label(self.stoppedText, systemImage: "exclamationmark.triangle")
-            .font(.subheadline)
-          Spacer()
-          Button("다시 시도") {
-            self.model.retryIndexingTapped()
-          }
-          .buttonStyle(.bordered)
-          .font(.subheadline)
-        }
-      }
-    } else if let progress = self.model.indexingProgress, progress.phase == .classifying {
-      let doneCount = progress.indexedCount + progress.skippedCount
-      Section {
-        ProgressView(value: Double(doneCount), total: Double(max(progress.totalCount, 1))) {
-          Text("이미지 분류 중")
-        } currentValueLabel: {
-          Text("\(doneCount)/\(progress.totalCount)장")
-        }
-      } footer: {
-        if progress.skippedCount > 0 {
-          Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
-        }
-      }
-    } else if let progress = self.model.indexingProgress, progress.phase == .recognizingText {
-      // 분모는 이번 실행에서 남은 일이다. 새 사진이 대기에 더해지면 늘어난다.
-      let doneCount = progress.recognizedTextCount + progress.skippedTextCount
-      let totalCount = doneCount + progress.pendingTextCount
-      Section {
-        ProgressView(value: Double(doneCount), total: Double(max(totalCount, 1))) {
-          Text("글자 읽는 중")
-        } currentValueLabel: {
-          Text("\(doneCount)/\(totalCount)장")
-        }
-      } footer: {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("사진 분류는 끝났습니다. 기프티콘·영수증 같은 캡처는 글자를 읽으며 채웁니다.")
-          if progress.skippedTextCount > 0 {
-            Text("글자를 읽지 못한 \(progress.skippedTextCount)장은 다음에 다시 시도합니다.")
-          }
-          if progress.skippedCount > 0 {
-            Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
-          }
-        }
-      }
-    } else if self.model.isIndexing {
-      Section {
-        HStack(spacing: 12) {
-          ProgressView()
-          Text("이미지 분류 준비 중")
-        }
-      }
-    } else if let progress = self.model.indexingProgress, progress.skippedCount + progress.skippedTextCount > 0 {
-      // 1단계·2단계 미룸은 이용자에게 같은 이유(iCloud 에만 있거나 읽을 수 없음)라 합쳐 센다.
-      Section {
-        Label(
-          "읽지 못한 \(progress.skippedCount + progress.skippedTextCount)장은 다음에 다시 시도합니다",
-          systemImage: "icloud.slash"
-        )
-        .font(.subheadline)
-      } footer: {
-        Text("iCloud 에만 있거나 읽을 수 없는 사진입니다.")
-      }
-    }
-  }
-
-  /// 멈춘 단계로 고른다. 다 분석한 뒤 증분 반영 중에 멈추면 마지막 진행률이 n/n 이므로, 개수 대신 새 사진을 분류하지 못했다고 안내한다.
-  private var stoppedText: String {
-    guard let progress = self.model.indexingProgress else { return "분류를 마치지 못했습니다" }
-    switch progress.phase {
-    case .classifying:
-      return "분류를 마치지 못했습니다 (\(progress.indexedCount + progress.skippedCount)/\(progress.totalCount))"
-    case .recognizingText:
-      return "글자 읽기를 마치지 못했습니다 (남은 \(progress.pendingTextCount)장)"
-    case .finished:
-      return "새 사진을 분류하지 못했습니다"
     }
   }
 
@@ -279,6 +215,37 @@ public struct LibraryView: View {
     .padding()
     .background(.thinMaterial, in: .rect(cornerRadius: 12))
     .padding(.horizontal)
+  }
+}
+
+/// 검색 중이면 `SearchResultsView`, 아니면 카테고리 목록(`content`)을 보인다.
+/// `isSearching` 은 `.searchable` 을 붙인 뷰의 안쪽에서만 읽히므로 이 자식 뷰가 읽는다.
+/// 검색어가 남아 있으면 `isSearching` 이 상세를 다녀오며 바뀌어도 결과를 계속 보인다.
+private struct LibrarySearchContainer<Content: View>: View {
+  let searchModel: SearchModel
+  let categoryModel: CategoryModel
+  let isLimited: Bool
+  @ViewBuilder let content: Content
+
+  @Environment(\.isSearching) private var isSearching
+
+  private var showsSearch: Bool {
+    self.isSearching || !self.searchModel.query.isEmpty
+  }
+
+  var body: some View {
+    Group {
+      if self.showsSearch {
+        SearchResultsView(model: self.searchModel, categoryModel: self.categoryModel, isLimited: self.isLimited)
+      } else {
+        self.content
+      }
+    }
+    .onChange(of: self.showsSearch) { _, shows in
+      if !shows {
+        self.searchModel.searchDismissed()
+      }
+    }
   }
 }
 

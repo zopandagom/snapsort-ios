@@ -15,7 +15,8 @@ import Synchronization
 /// `trips()`·`assets(ids:)`·`assets(in:createdIn:)` 의 호출 번호별 실패(`tripsErrors`·`tripAssetsErrors`·`periodAssetsErrors`)와
 /// 늦은 결과 훅(`onTrips`·`onTripAssets`·`onPeriodAssets`), 장소 캐시 읽기·쓰기만의 실패(`placeError`)도 정할 수 있다.
 /// 영수증 추출 값 소급·목록 읽기의 실패와 훅은 `ReceiptOptions`(PhotoStoreClientFake+Receipt.swift)에,
-/// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에 있다.
+/// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에,
+/// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -36,6 +37,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let tripFolderOptions: TripFolderOptions
   let receiptOptions: ReceiptOptions
   let captureGroupOptions: CaptureGroupOptions
+  let searchOptions: SearchOptions
   let state: Mutex<State>
 
   struct State {
@@ -56,6 +58,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var tripFolder = TripFolderState()
     var receipt = ReceiptState()
     var captureGroup = CaptureGroupState()
+    var search = SearchState()
   }
 
   /// - Parameters:
@@ -100,6 +103,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - receiptError·receiptSaveLimit·onSaveReceipts·receiptsErrors·onReceipts: 영수증용 실패·훅. `ReceiptOptions` 문서 참고.
   ///   - captureGroupError·captureGroupSaveLimit·onSaveCaptureGroups·captureGroupItemsErrors·onCaptureGroupItems:
   ///     캡처 묶음용 실패·훅. `CaptureGroupOptions` 문서 참고.
+  ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기용 실패·훅. `SearchOptions` 문서 참고.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -138,7 +142,9 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     captureGroupSaveLimit: Int? = nil,
     onSaveCaptureGroups: @escaping @Sendable ([ImageAsset.ID: CaptureGroups]) async -> Void = { _ in },
     captureGroupItemsErrors: [Int: PhotoStoreError] = [:],
-    onCaptureGroupItems: @escaping @Sendable (Int) async -> Void = { _ in }
+    onCaptureGroupItems: @escaping @Sendable (Int) async -> Void = { _ in },
+    searchEntriesErrors: [Int: PhotoStoreError] = [:],
+    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in }
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -178,6 +184,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       itemsErrors: captureGroupItemsErrors,
       onItems: onCaptureGroupItems
     )
+    self.searchOptions = SearchOptions(entriesErrors: searchEntriesErrors, onEntries: onSearchEntries)
     let byID = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.state = Mutex(State(
       images: byID,

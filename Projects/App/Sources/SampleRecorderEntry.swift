@@ -13,6 +13,7 @@
     let captureActionsModel: CaptureActionsModel
     let tripListModel: TripListModel
     let tripDetailModel: TripDetailModel
+    let searchModel: SearchModel
     let sampleRecorderModel: SampleRecorderModel
 
     /// 화면 전환만 정하는 일시 상태.
@@ -31,15 +32,17 @@
           receiptListModel: self.receiptListModel,
           captureActionsModel: self.captureActionsModel,
           tripListModel: self.tripListModel,
-          tripDetailModel: self.tripDetailModel
+          tripDetailModel: self.tripDetailModel,
+          searchModel: self.searchModel
         )
-        .overlay(alignment: .bottomLeading) {
+        // 오른쪽 가운데에 얹는다. 아래쪽은 iOS 26 검색 필드, 위쪽은 화면마다 툴바 버튼이 차지한다.
+        .overlay(alignment: .trailing) {
           Button("기록") {
             self.isShowingRecorder = true
           }
           .buttonStyle(.bordered)
           .font(.caption)
-          .padding()
+          .padding(.trailing, 4)
         }
       }
     }

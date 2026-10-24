@@ -10,6 +10,7 @@ import PhotoStoreInterface
 /// 카테고리 화면은 한 번에 하나만 열리므로 App 이 하나를 소유하고, 열 때마다 `onAppear(category:)` 로 다시 쓴다.
 /// 기프티콘·영수증 목록(`GifticonListView`·`ReceiptListView`)은 격자 대신 `GifticonListModel`·`ReceiptListModel` 이,
 /// 여행 폴더 목록·상세(`TripListView`·`TripDetailView`)는 `TripListModel`·`TripDetailModel` 이 내용을 읽고,
+/// 보관함 검색 결과(`SearchResultsView`, `SearchModel`)도 썸네일 칸을 `thumbnailScreenAppeared(scope: .search)` 로 빌린다.
 /// 썸네일 칸은 `thumbnailScreenAppeared(category:)` 로 이 Model 의 보관 규칙을 그대로 쓴다.
 /// 상세는 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 상세 위에서만 열리므로 상세 이미지도 여기서 갖는다
 /// (상세의 캡처 행동은 `CaptureActionsModel`).
@@ -17,8 +18,17 @@ import PhotoStoreInterface
 @MainActor
 @Observable
 public final class CategoryModel {
-  /// 지금(또는 마지막으로) 연 카테고리. 열기 전에는 nil.
-  public private(set) var category: ImageCategory?
+  /// 지금(또는 마지막으로) 썸네일 칸을 쓰는 화면. 열기 전에는 nil.
+  public private(set) var thumbnailScope: ThumbnailScope?
+  /// 지금(또는 마지막으로) 연 카테고리. 열기 전이나 검색 결과 화면이 칸을 쓰는 동안에는 nil.
+  public var category: ImageCategory? {
+    if case let .category(category) = self.thumbnailScope {
+      category
+    } else {
+      nil
+    }
+  }
+
   /// 격자 내용. 다른 카테고리를 열면 `.loading` 부터, 같은 카테고리를 다시 열면 지난 내용을 둔 채 다시 읽는다.
   public private(set) var content: CategoryContent = .loading {
     didSet { self.contentRevision += 1 }
@@ -100,8 +110,8 @@ public final class CategoryModel {
   public func onAppear(category: ImageCategory) async {
     self.generation += 1
     let generation = self.generation
-    if self.category != category {
-      self.switchCategory(to: category)
+    if self.thumbnailScope != .category(category) {
+      self.switchScope(to: .category(category))
     } else if self.content == .failed {
       self.content = .loading
     }
@@ -141,9 +151,14 @@ public final class CategoryModel {
   /// 다른 카테고리였으면 `onAppear(category:)` 처럼 내용·썸네일을 비운다(격자 내용은 `.loading`). 같은 카테고리면 보관한 썸네일을 둔다.
   /// 지난 격자 Task 의 늦은 결과가 내용을 바꾸지 않게 진입 번호를 올린다. 끝나도 아무것도 하지 않는다.
   public func thumbnailScreenAppeared(category: ImageCategory) async {
+    await self.thumbnailScreenAppeared(scope: .category(category))
+  }
+
+  /// 검색 결과 화면은 `.search` 로 빌린다. 카테고리와 검색 사이를 오가면 서로의 내용·썸네일을 비운다.
+  public func thumbnailScreenAppeared(scope: ThumbnailScope) async {
     self.generation += 1
-    if self.category != category {
-      self.switchCategory(to: category)
+    if self.thumbnailScope != scope {
+      self.switchScope(to: scope)
     }
     await self.waitUntilCancelled()
   }
@@ -153,7 +168,11 @@ public final class CategoryModel {
   /// 읽는 중에 사라지면 읽기를 취소하고 지운다. 이미 결과가 있으면(보관분 포함) 다시 읽지 않는다.
   /// 지난 카테고리 격자의 칸이면 아무것도 하지 않는다.
   public func thumbnailAppeared(id: ImageAsset.ID, in category: ImageCategory) async {
-    guard category == self.category else { return }
+    await self.thumbnailAppeared(id: id, scope: .category(category))
+  }
+
+  public func thumbnailAppeared(id: ImageAsset.ID, scope: ThumbnailScope) async {
+    guard scope == self.thumbnailScope else { return }
     self.thumbnailRequestCount += 1
     let request = self.thumbnailRequestCount
     self.thumbnailOwners[id, default: []].insert(request)
@@ -245,9 +264,9 @@ public final class CategoryModel {
     }
   }
 
-  /// 다른 카테고리의 지난 내용과 썸네일이 비치지 않게 비운다. 지난 칸의 Task 는 주인 번호를 찾지 못해 아무것도 하지 않는다.
-  private func switchCategory(to category: ImageCategory) {
-    self.category = category
+  /// 다른 화면의 지난 내용과 썸네일이 비치지 않게 비운다. 지난 칸의 Task 는 주인 번호를 찾지 못해 아무것도 하지 않는다.
+  private func switchScope(to scope: ThumbnailScope) {
+    self.thumbnailScope = scope
     self.content = .loading
     self.thumbnails = [:]
     self.thumbnailOwners = [:]
@@ -289,103 +308,4 @@ public final class CategoryModel {
       try? await Task.sleep(for: .seconds(3600))
     }
   }
-}
-
-/// 카테고리 한 번 읽은 목록. 쇼핑·대화·지도는 묶음 값까지(`CaptureGroupItem`) 읽는다.
-enum CategoryItems: Sendable {
-  case assets([ImageAsset])
-  case captureGroups([CaptureGroupItem], [CaptureGrouping])
-}
-
-/// 다시 읽은 목록을 메인 밖에서 섹션으로 만들고 지금 내용과 비교한다. 1만 장이면 정렬·달력 계산·비교가 진행률마다 되풀이되기 때문이다.
-enum CategorySectioning {
-  /// `current` 와 같으면 `isUnchanged` 가 참이다.
-  @concurrent
-  static func sections(
-    of items: CategoryItems,
-    calendar: Calendar,
-    comparingTo current: CategorySections?
-  ) async -> (sections: CategorySections, isUnchanged: Bool) {
-    let sections = switch items {
-    case let .assets(assets):
-      CategorySections(months: ImageMonthSection.sections(of: assets, calendar: calendar), groups: [:])
-    case let .captureGroups(items, groupings):
-      CategorySections(
-        months: ImageMonthSection.sections(of: items.map(\.asset), calendar: calendar),
-        groups: Dictionary(uniqueKeysWithValues: groupings.map { grouping in
-          (grouping, CaptureGroupSections.sections(of: items, grouping: grouping))
-        })
-      )
-    }
-    return (sections, sections == current)
-  }
-}
-
-/// 한 번 읽은 목록으로 만든 섹션 전부. 월별과 묶기별이 같은 읽기에서 나온다.
-public struct CategorySections: Equatable, Sendable {
-  /// 월별 섹션. 비어 있으면 빈 카테고리.
-  public let months: [ImageMonthSection]
-  /// `CaptureGrouping.groupings(for:)` 의 묶기마다. 그 밖의 카테고리는 빈 사전.
-  public let groups: [CaptureGrouping: [CaptureGroupSection]]
-
-  public var isEmpty: Bool {
-    self.months.isEmpty
-  }
-}
-
-/// 카테고리 화면의 격자 내용.
-public enum CategoryContent: Equatable {
-  case loading
-  /// 섹션이 비어 있으면 빈 카테고리.
-  case loaded(CategorySections)
-  /// 처음 읽기(또는 실패 뒤 다시 읽기)에 실패했다. 이미 섹션이 있을 때 실패하면 지난 섹션을 둔다.
-  case failed
-}
-
-/// 썸네일·상세 이미지 한 장의 읽기 상태.
-public enum ImageLoadState: Sendable {
-  case loading
-  /// `isLocalFallback` 이면 iCloud 원본 대신 기기에 있는 작은 버전이다.
-  case loaded(AnalysisImage)
-  case unavailable(ImageUnavailableReason)
-
-  public var image: AnalysisImage? {
-    if case let .loaded(image) = self {
-      image
-    } else {
-      nil
-    }
-  }
-
-  public var unavailableReason: ImageUnavailableReason? {
-    if case let .unavailable(reason) = self {
-      reason
-    } else {
-      nil
-    }
-  }
-
-  public var isLoading: Bool {
-    if case .loading = self {
-      true
-    } else {
-      false
-    }
-  }
-}
-
-/// 이미지를 보일 수 없는 이유. 화면은 이유마다 다른 대체 표시를 한다.
-public enum ImageUnavailableReason: Sendable, Equatable {
-  /// 기기에 읽을 수 있는 버전이 없고 iCloud 에만 있다 (`ImageLoadError.notAvailableLocally`). 내려받지 않는다.
-  case inCloudOnly
-  /// 보관함에서 지워졌거나 제한 접근 선택에서 빠졌다 (`.notFound`).
-  case notFound
-  /// 그 밖의 실패 (`.failed`).
-  case failed
-}
-
-/// 열린 사진 상세.
-public struct PhotoDetail: Sendable {
-  public let id: ImageAsset.ID
-  public let state: ImageLoadState
 }

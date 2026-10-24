@@ -104,6 +104,13 @@ public protocol PhotoStoreClient: Sendable {
   /// 그 밖의 카테고리는 빈 배열이다(카테고리 화면은 세 카테고리에만 부른다).
   func captureGroupItems(in category: ImageCategory) async throws(PhotoStoreError) -> [CaptureGroupItem]
 
+  /// 검색 화면이 열 때와 다시 읽을 때 한 번에 읽는 목록 (docs/ARCHITECTURE.md §4 검색).
+  /// 글자를 읽은(`.recognized`) 이미지마다 메타데이터·OCR 줄 원문(읽은 순서)·지금 규칙 버전 캡처 묶음 값(아니면 nil)을
+  /// 최신순(생성일 없으면 뒤, 같으면 식별자 순, `assets(in:)` 과 같은 순서)으로, OCR 대기(`.pending`) 이미지 수와 함께 돌려준다.
+  /// 라벨은 읽지 않는다. 줄을 디코딩하지 못한 행은 던지지 않고 줄 없이 담는다(던지면 그 행 하나로 검색 전체가 계속 실패한다).
+  /// 줄은 OCR 텍스트라 로그에 남기지 않는다.
+  func searchEntries() async throws(PhotoStoreError) -> SearchEntries
+
   /// 사용 여부를 쓴다. 기프티콘 카테고리 행만 바꾸고 true, 없거나 기프티콘이 아니면 아무것도 바꾸지 않고 false.
   /// 추출 값·보강 상태는 건드리지 않는다. 사용자가 상세에서 바꿀 때만 부른다.
   func setGifticonUsed(_ isUsed: Bool, id: ImageAsset.ID) async throws(PhotoStoreError) -> Bool

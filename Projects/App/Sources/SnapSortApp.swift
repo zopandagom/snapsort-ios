@@ -25,6 +25,7 @@ struct SnapSortApp: App {
   @State private var captureActionsModel: CaptureActionsModel
   @State private var tripListModel: TripListModel
   @State private var tripDetailModel: TripDetailModel
+  @State private var searchModel: SearchModel
   #if DEBUG
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
@@ -74,6 +75,8 @@ struct SnapSortApp: App {
     // 여행 폴더. 목록은 지오코딩하지 않고, 상세를 열 때만 여행 중심점의 반올림 좌표로 장소 이름을 묻는다.
     self._tripListModel = State(initialValue: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._tripDetailModel = State(initialValue: TripDetailModel(photoStore: photoStore, map: map))
+    // 장소 이름은 캐시만 대조하므로 Map 을 넘기지 않는다.
+    self._searchModel = State(initialValue: SearchModel(photoStore: photoStore))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
         photoLibrary: photoLibrary,
@@ -95,6 +98,7 @@ struct SnapSortApp: App {
             captureActionsModel: self.captureActionsModel,
             tripListModel: self.tripListModel,
             tripDetailModel: self.tripDetailModel,
+            searchModel: self.searchModel,
             sampleRecorderModel: self.sampleRecorderModel
           )
         #else
@@ -105,7 +109,8 @@ struct SnapSortApp: App {
             receiptListModel: self.receiptListModel,
             captureActionsModel: self.captureActionsModel,
             tripListModel: self.tripListModel,
-            tripDetailModel: self.tripDetailModel
+            tripDetailModel: self.tripDetailModel,
+            searchModel: self.searchModel
           )
         #endif
       } else {

@@ -115,6 +115,11 @@ enum KoreanAdministrativeDivisions {
     "조치원읍", "연기면", "연동면", "부강면", "금남면", "장군면", "연서면", "전의면", "전동면", "소정면",
   ]
 
+  /// 그 시·도의 모든 별칭 ("서울특별시"·"서울시"·"서울"). 검색이 지역 이름을 대조할 때 쓴다.
+  static func aliases(of province: KoreanProvince) -> [String] {
+    self.provinceAliasTable.first { $0.province == province }?.aliases ?? []
+  }
+
   /// 시·도 별칭 → 시·도 (세종 포함).
   static let provinceAliases: [String: KoreanProvince] = {
     var aliases: [String: KoreanProvince] = [:]

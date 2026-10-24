@@ -56,6 +56,9 @@ enum PreviewPhotos {
     for index in 0 ..< PreviewPhotos.newPhotoCapacity {
       results[PreviewPhotos.newPhotoID(index)] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
     }
+    for (index, id) in PreviewSearch.imageIDs.enumerated() {
+      results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
+    }
     return results
   }()
 
@@ -105,6 +108,7 @@ extension PhotoStoreClientFake {
   ///   - tripsErrors: 여행 읽기(`trips()`)의 호출 번호별 실패.
   ///   - receiptsErrors: 영수증 목록 읽기(`receipts()`)의 호출 번호별 실패.
   ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.
+  ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기(`searchEntries()`)의 호출 번호별 실패와 읽은 뒤 기다리는 훅.
   ///   - allReceiptsChecking: 참이면 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
   static func previewClassified(
     hasUpcomingExpiry: Bool = true,
@@ -115,7 +119,9 @@ extension PhotoStoreClientFake {
     tripsErrors: [Int: PhotoStoreError] = [:],
     receiptsErrors: [Int: PhotoStoreError] = [:],
     captureGroupItemsErrors: [Int: PhotoStoreError] = [:],
-    allReceiptsChecking: Bool = false
+    allReceiptsChecking: Bool = false,
+    searchEntriesErrors: [Int: PhotoStoreError] = [:],
+    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in }
   ) -> PhotoStoreClientFake {
     let now = Date()
     let today = LocalDate(now, calendar: .current)
@@ -153,6 +159,7 @@ extension PhotoStoreClientFake {
     return PhotoStoreClientFake(
       images: others + (includesGifticons ? gifticons : []) + PreviewReceipts.images(allChecking: allReceiptsChecking)
         + PreviewCaptureGroups
+        .images() + PreviewSearch
         .images() + (includesTrips ? PreviewTrips.images(receiptsChecking: allReceiptsChecking) : []),
       trips: includesTrips ? PreviewTrips.trips : [],
       assetsErrors: assetsErrors,
@@ -162,7 +169,9 @@ extension PhotoStoreClientFake {
       placesLocaleIdentifier: PreviewTrips.placesLocaleIdentifier,
       tripsErrors: tripsErrors,
       receiptsErrors: receiptsErrors,
-      captureGroupItemsErrors: captureGroupItemsErrors
+      captureGroupItemsErrors: captureGroupItemsErrors,
+      searchEntriesErrors: searchEntriesErrors,
+      onSearchEntries: onSearchEntries
     )
   }
 }

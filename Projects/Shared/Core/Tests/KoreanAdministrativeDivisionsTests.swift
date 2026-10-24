@@ -47,4 +47,15 @@ struct KoreanAdministrativeDivisionsTests {
     #expect(KoreanAdministrativeDivisions.standaloneProvinceAliases.isSuperset(of: ["경기도", "세종시", "세종특별자치시", "제주"]))
     #expect(KoreanAdministrativeDivisions.standaloneProvinceAliases.count == 42)
   }
+
+  @Test("aliases(of:) 는 그 시·도의 모든 별칭을 표 순서로 준다")
+  func provinceAliasesList() {
+    #expect(KoreanAdministrativeDivisions.aliases(of: .seoul) == ["서울특별시", "서울시", "서울"])
+    #expect(KoreanAdministrativeDivisions.aliases(of: .gwangju) == ["광주광역시", "광주"])
+    for province in KoreanProvince.allCases {
+      let aliases = KoreanAdministrativeDivisions.aliases(of: province)
+      #expect(!aliases.isEmpty)
+      #expect(aliases.allSatisfy { KoreanAdministrativeDivisions.provinceAliases[$0] == province })
+    }
+  }
 }
