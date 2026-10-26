@@ -243,7 +243,7 @@ struct CaptureActionsUsageTests {
     await cancelAndWait(detail)
   }
 
-  @Test("기프티콘 목록에서 연 상세가 아니면 다시 읽지 않고 사용함 버튼도 반응하지 않는다")
+  @Test("기프티콘 항목 없이 연 상세면 다시 읽지 않고 사용함 버튼도 반응하지 않는다")
   func nonGifticonDetailIgnoresUsage() async {
     let photoStore = PhotoStoreClientFake(images: [.gifticon(id: "g", expiryDate: nil)])
     let model = GifticonFixture.captureModel(photoStore: photoStore)

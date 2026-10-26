@@ -29,7 +29,7 @@ struct CaptureActionsModelTests {
       trackingNumbers: [CapturedText(text: "1234-5678-9012", lineIndex: 1)],
       accountNumbers: [CapturedText(text: "110-123-456789", lineIndex: 2)]
     )))
-    // 기프티콘 목록에서 연 상세가 아니다.
+    // 기프티콘 항목 없이 연 상세다.
     #expect(model.gifticon == nil)
     #expect(model.barcode == .notApplicable)
 
@@ -205,7 +205,7 @@ struct CaptureActionsModelTests {
     await cancelAndWait(second)
   }
 
-  @Test("기프티콘 목록에서 연 상세가 아니면 바코드를 찾지 않는다")
+  @Test("기프티콘 항목 없이 연 상세면 바코드를 찾지 않는다")
   func nonGifticonDetailSkipsDetection() async {
     let imageAnalysis = ImageAnalysisClientFake()
     let model = GifticonFixture.captureModel(

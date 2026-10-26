@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 사진 상세: 기기에 있는 가장 큰 버전으로 한 장을 크게 보인다 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// iCloud 원본은 내려받지 않는다. 작은 대체 버전이면 안내를 붙이고, 기기 버전이 없으면 볼 수 없다고 보인다.
-/// 아래에 캡처 행동(`CaptureActionsPanel`: 주소 지도 앱 열기·번호 복사, 기프티콘 목록에서 열었으면 기프티콘 정보·사용함·바코드)을 붙인다.
+/// 아래에 캡처 행동(`CaptureActionsPanel`: 주소 지도 앱 열기·번호 복사, 기프티콘 목록·정리 화면에서 열었으면 기프티콘 정보·사용함·바코드)을 붙인다.
 /// 읽은 이미지는 바코드 인식에 쓰도록 `captureModel` 로 넘긴다.
 /// 닫히면(`.task` 취소) 두 Model 이 이미지와 캡처 행동 상태를 놓는다.
 public struct PhotoDetailView: View {
@@ -18,7 +18,7 @@ public struct PhotoDetailView: View {
     self.route = route
   }
 
-  /// - Parameter gifticon: 기프티콘 목록에서 열 때의 그 항목. nil 이면 주소·번호 행동만 보인다.
+  /// - Parameter gifticon: 기프티콘 목록·정리 화면에서 열 때의 그 항목. nil 이면 주소·번호 행동만 보인다.
   public init(
     model: CategoryModel,
     captureModel: CaptureActionsModel,
