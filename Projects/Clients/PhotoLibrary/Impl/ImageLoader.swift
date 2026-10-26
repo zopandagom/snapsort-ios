@@ -9,6 +9,7 @@ import UIKit
 /// PHImageManager 는 결과를 메인 스레드로 줄 수 있으므로, 콜백에서는 값만 옮기고 디코딩은 호출한 쪽 실행자에서 한다.
 enum ImageLoader {
   /// 분류·격자 썸네일의 긴 변(픽셀). 임시 값이고, 정확도·1만 장 측정 작업에서 확정한다(격자 화질도 함께 본다).
+  /// 특징 벡터도 이 썸네일로 만들므로 바꾸면 `ImageFeaturePrint.version` 을 올린다(테스트가 대조한다).
   static let thumbnailLength: CGFloat = 512
 
   /// OCR·바코드·사진 상세용 이미지의 픽셀 수 상한(약 12.6MP). 48MP 원본을 그대로 디코딩하면 한 장에 약 190MB 라 줄인다 (이 상한이면 약 50MB).
