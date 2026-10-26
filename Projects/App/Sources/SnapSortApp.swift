@@ -10,11 +10,12 @@ import PasteboardImpl
 import PhotoLibraryImpl
 import PhotoStoreImpl
 import SwiftUI
+import WidgetTimelineImpl
 #if DEBUG
   import SampleRecorderFeature
 #endif
 
-/// 조립 지점. Client Impl 을 만들어 Feature Model 에 주입하는 곳은 여기뿐이다.
+/// 앱의 조립 지점. Client Impl 을 만들어 Feature Model 에 주입한다(다른 조립 지점은 위젯 Extension, docs/ARCHITECTURE.md §2).
 @main
 struct SnapSortApp: App {
   @State private var onboardingModel: OnboardingModel
@@ -32,12 +33,6 @@ struct SnapSortApp: App {
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
   #endif
-  /// 분류 결과 저장 위치. 상위 폴더는 저장소 전용이며 기기 백업에서 빠진다(PhotoStoreClientImpl).
-  /// 위젯 작업(W4)에서 App Group 컨테이너로 바꾼다.
-  private static let photoStoreURL = URL.applicationSupportDirectory
-    .appending(path: "PhotoStore", directoryHint: .isDirectory)
-    .appending(path: "PhotoStore.store")
-
   init() {
     // 앱이 앞에 있을 때도 만료 알림이 보이게 한다. 알림이 울리기 전에 등록돼 있어야 하므로 가장 먼저 한다
     // (docs/ARCHITECTURE.md §4 만료 알림).
@@ -45,9 +40,13 @@ struct SnapSortApp: App {
     let photoLibrary = PhotoLibraryClientImpl()
     let imageAnalysis = ImageAnalysisClientImpl()
     self._onboardingModel = State(initialValue: OnboardingModel(photoLibrary: photoLibrary))
-    // 인덱서가 쓰고 보관함 화면이 읽는 같은 저장소다.
+    // 인덱서가 쓰고 보관함 화면이 읽고 위젯이 읽기 전용으로 여는 같은 저장소다.
     // 저장소를 열지 못하면(디스크 공간 부족, 손상된 저장 파일 등) 분류 없이 보관함만 보여 준다.
-    let photoStore = try? PhotoStoreClientImpl(url: Self.photoStoreURL)
+    let photoStore = Self.openPhotoStore()
+    // 저장소를 옮기거나 처음 만들거나 경량 이전을 한 것은 여기다. 그 전에 위젯이 읽어 "앱을 열어 주세요"가 남았을 수 있어
+    // 열기 성공·실패와 관계없이 한 번 다시 읽기를 요청한다(조립 지점의 부수효과, docs/ARCHITECTURE.md §4 만료 임박 위젯).
+    let widgetTimeline = WidgetTimelineClientImpl()
+    widgetTimeline.reloadExpiryWidget()
     let indexing = photoStore.map { photoStore in
       IndexingClientImpl(
         photoLibrary: photoLibrary,
@@ -60,7 +59,8 @@ struct SnapSortApp: App {
       photoLibrary: photoLibrary,
       indexing: indexing,
       photoStore: photoStore,
-      notification: NotificationClientImpl()
+      notification: NotificationClientImpl(),
+      widgetTimeline: widgetTimeline
     ))
     // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
@@ -93,6 +93,17 @@ struct SnapSortApp: App {
         imageAnalysis: imageAnalysis
       ))
     #endif
+  }
+
+  /// 저장 위치는 App Group 컨테이너이고, 옛 위치(Application Support)에만 있으면 열기 전에 옮긴다.
+  /// 컨테이너가 없거나(서명 없는 빌드) 옮기지 못하면 옛 위치를 쓴다. 상위 폴더는 저장소 전용이며 기기 백업에서 빠진다
+  /// (PhotoStoreClientImpl, docs/ARCHITECTURE.md §4 저장소).
+  private static func openPhotoStore() -> PhotoStoreClientImpl? {
+    let url = PhotoStoreClientImpl.preparedStoreURL(
+      groupContainer: PhotoStoreClientImpl.appGroupContainer(),
+      legacyParent: .applicationSupportDirectory
+    )
+    return try? PhotoStoreClientImpl(url: url)
   }
 
   var body: some Scene {

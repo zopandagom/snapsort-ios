@@ -80,7 +80,8 @@ struct LibraryFeatureExampleApp: App {
     photoStore: Self.photoStore,
     notification: Self.scenario == .notificationDenied
       ? NotificationClientFake.previewDenied()
-      : NotificationClientFake.previewNotDetermined()
+      : NotificationClientFake.previewNotDetermined(),
+    widgetTimeline: nil
   )
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
@@ -227,7 +228,8 @@ private func libraryPreview(
       photoLibrary: photoLibrary,
       indexing: indexing,
       photoStore: photoStore,
-      notification: notification
+      notification: notification,
+      widgetTimeline: nil
     ),
     categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
     gifticonListModel: GifticonListModel(photoStore: photoStore),

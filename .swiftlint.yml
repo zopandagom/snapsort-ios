@@ -34,26 +34,36 @@ identifier_name:
 
 # ── 아키텍처 규칙 (docs/ARCHITECTURE.md) ─────────────────────────────
 custom_rules:
-  impl_import_only_in_app:
-    name: "Impl 은 App 에서만 import"
+  impl_import_only_in_assembly:
+    name: "Impl 은 조립 지점(App·Extension)에서만 import"
+    # 조립 지점은 App 과 Extension(위젯)이라 둘은 검사하지 않는다.
     # Impl 이 다른 Client 를 조합해도 그 Interface 만 쓰도록 Impl 폴더도 검사한다 (정적 프레임워크라 의존성에 없어도 import 가 컴파일될 수 있다).
     included: "Projects/(Features|Clients/[^/]+/(Interface|Impl|Testing))/"
     regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+Impl(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
-    message: "Client Impl 은 App 모듈에서만 import 합니다. Feature 와 다른 Client Impl 은 Interface 에 의존하세요."
+    message: "Client Impl 은 조립 지점(App·Extension)에서만 import 합니다. Feature 와 다른 Client Impl 은 Interface 에 의존하세요."
     severity: error
 
   testing_import_not_in_production:
     name: "Testing 모듈은 테스트/Example 에서만"
-    included: "Projects/(App/Sources|Features/[^/]+/Sources|Clients/[^/]+/(Interface|Impl))/"
+    included: "Projects/(App/Sources|Extensions/[^/]+/Sources|Features/[^/]+/Sources|Clients/[^/]+/(Interface|Impl))/"
     regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?\\w+Testing(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "Fake 가 든 Testing 모듈은 Tests 와 Example 타깃에서만 import 합니다."
     severity: error
 
   system_framework_only_in_impl:
     name: "Apple 데이터 프레임워크는 Client Impl 에서만"
-    included: "Projects/(App|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
+    included: "Projects/(App|Extensions|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
     regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
     message: "사진·OCR·AI·저장소·결제·알림 프레임워크는 Client Impl 안에서만 사용합니다. Interface 나 Core 에 값 타입을 정의하세요."
+    severity: error
+
+  widget_center_only_in_impl:
+    name: "WidgetCenter 는 Client Impl 에서만"
+    # 위젯 Feature 는 WidgetKit 을 import 해야 하므로(TimelineProvider) import 가 아니라 이름을 막는다.
+    included: "Projects/(App|Extensions|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
+    regex: "\\bWidgetCenter\\b"
+    excluded_match_kinds: [comment, doccomment]
+    message: "위젯 갱신 요청은 WidgetTimelineClient 로 합니다. View·Feature 가 WidgetCenter 를 직접 부르면 보관함의 값이 바뀔 때만 요청하는 중복 제거와 테스트를 거치지 않습니다(App init 의 1회 요청도 Client 로 합니다) (docs/ARCHITECTURE.md §4 만료 임박 위젯)."
     severity: error
 
   shared_independent_of_clients:

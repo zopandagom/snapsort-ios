@@ -105,6 +105,7 @@ struct LibraryModelNotificationSettingsTests {
       indexing: nil,
       photoStore: PhotoStoreClientFake(images: [.extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29))]),
       notification: notification,
+      widgetTimeline: nil,
       calendar: .seoul,
       now: { clock.now }
     )

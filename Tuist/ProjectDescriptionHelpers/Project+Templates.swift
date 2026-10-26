@@ -17,13 +17,23 @@ public enum Env {
     "DEVELOPMENT_TEAM": .string(Self.developmentTeam),
   ]
 
+  /// 앱과 위젯이 저장소를 함께 쓰는 App Group. 이름의 단일 출처이며, Swift 코드는 Info.plist 의
+  /// `appGroupInfoKey` 로 읽는다 (docs/ARCHITECTURE.md §4 저장소).
+  public static let appGroupIdentifier = "group.com.zopandagom.snapsort"
+  public static let appGroupInfoKey = "SnapSortAppGroupIdentifier"
+
+  /// 서명 없는 빌드(`CODE_SIGNING_ALLOWED=NO`)에는 들어가지 않아 group 컨테이너가 nil 이다. 그때 앱은 옛 위치를 쓴다.
+  static let appGroupEntitlements: Entitlements = .dictionary([
+    "com.apple.security.application-groups": .array([.string(Self.appGroupIdentifier)]),
+  ])
+
   static func bundleId(_ name: String) -> String {
     "\(self.bundleIdPrefix).\(name.lowercased())"
   }
 }
 
 public extension Project {
-  /// 앱 조립 지점. Feature 와 Client Impl 을 모두 알고 있는 유일한 모듈.
+  /// 앱 조립 지점. Feature 와 Client Impl 을 모두 알고 있는 두 조립 지점(App·Extension) 중 앱.
   static func app(infoPlist: [String: Plist.Value], dependencies: [TargetDependency]) -> Project {
     Project(
       name: "App",
@@ -36,8 +46,41 @@ public extension Project {
           product: .app,
           bundleId: Env.bundleIdPrefix,
           deploymentTargets: Env.deploymentTargets,
-          infoPlist: .extendingDefault(with: infoPlist.merging(["UILaunchScreen": [:]]) { $1 }),
+          infoPlist: .extendingDefault(with: infoPlist.merging([
+            "UILaunchScreen": [:],
+            Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
+          ]) { $1 }),
           buildableFolders: ["Sources", "Resources"],
+          entitlements: Env.appGroupEntitlements,
+          dependencies: dependencies
+        ),
+      ]
+    )
+  }
+
+  /// 앱 확장 조립 지점(위젯 등). Feature 와 Client Impl 을 조립하며, App 이 의존해 임베드한다.
+  /// 타깃은 하나(`SnapSort<Name>`)이고 App 과 같은 App Group 을 쓴다.
+  static func appExtension(_ appExtension: AppExtension, dependencies: [TargetDependency]) -> Project {
+    Project(
+      name: appExtension.rawValue,
+      options: .options(defaultKnownRegions: ["ko", "en"], developmentRegion: "ko"),
+      settings: .settings(base: Env.baseSettings),
+      targets: [
+        .target(
+          name: appExtension.name,
+          destinations: Env.destinations,
+          product: .appExtension,
+          bundleId: Env.bundleId(appExtension.rawValue),
+          deploymentTargets: Env.deploymentTargets,
+          infoPlist: .extendingDefault(with: [
+            "CFBundleDisplayName": .string(Env.appName),
+            "NSExtension": [
+              "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
+            ],
+            Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
+          ]),
+          buildableFolders: ["Sources"],
+          entitlements: Env.appGroupEntitlements,
           dependencies: dependencies
         ),
       ]

@@ -9,7 +9,8 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
   /// 저장·조회가 메인을 막지 않도록 actor 는 메인 밖 Task 에서 만든다.
   private let store: Task<PhotoStore, Never>
 
-  /// - Parameter url: 저장 파일 위치. App 이 정해 넘기므로 위젯과 나눠 쓸 때(App Group) App 에서만 바꾸면 된다.
+  /// 앱이 쓰는 저장소. 위젯은 같은 파일을 `init(readingAt:)` 으로 읽기만 하고, 경량 이전은 여기서만 한다.
+  /// - Parameter url: 저장 파일 위치. App 이 `preparedStoreURL` 로 정해 넘긴다(App Group 컨테이너, 없으면 옛 위치).
   ///   상위 폴더는 저장소 전용이어야 한다. 그 폴더를 통째로 기기 백업에서 뺀다.
   public init(url: URL) throws(PhotoStoreError) {
     var folder = url.deletingLastPathComponent()

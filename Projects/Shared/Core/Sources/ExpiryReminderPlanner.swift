@@ -37,8 +37,10 @@ public enum ExpiryReminderPlanner {
   public static let reminderMinute = 0
   /// iOS 가 앱마다 남기는 대기 알림 수 상한. 넘으면 시스템이 가장 늦은 것부터 버린다.
   public static let maximumCount = 64
+  /// 7일 전 알림의 일수. 만료 임박 위젯의 창(`ExpiryWidgetTimeline.windowDays`)도 같은 값을 쓴다.
+  public static let weekBeforeDays = 7
   /// 7일 전, 1일 전.
-  static let daysBefore = [7, 1]
+  static let daysBefore = [weekBeforeDays, 1]
 
   /// - Parameters:
   ///   - expiries: 같은 `imageID` 가 여러 번 오면 한 번만 센다(마지막 값).

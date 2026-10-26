@@ -14,6 +14,7 @@ public enum Client: String, CaseIterable {
   case classifier = "Classifier"
   case map = "Map"
   case pasteboard = "Pasteboard"
+  case widgetTimeline = "WidgetTimeline"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }
@@ -28,6 +29,7 @@ public enum Feature: String, CaseIterable {
   case library = "Library"
   case onboarding = "Onboarding"
   case sampleRecorder = "SampleRecorder"
+  case expiryWidget = "ExpiryWidget"
 
   public var name: String { "\(self.rawValue)Feature" }
   public var tests: String { "\(self.name)Tests" }
@@ -46,12 +48,21 @@ public enum Shared: String, CaseIterable {
   var path: Path { .relativeToRoot("Projects/Shared/\(self.rawValue)") }
 }
 
+/// 앱에 임베드되는 확장(위젯 등). Feature 와 Client Impl 을 조립하는 두 번째 조립 지점이다.
+/// 타깃 이름은 `SnapSort<Name>`, 위치는 `Projects/Extensions/<Name>`. App 만 의존해 임베드한다.
+public enum AppExtension: String, CaseIterable {
+  case widget = "Widget"
+
+  public var name: String { "SnapSort\(self.rawValue)" }
+  var path: Path { .relativeToRoot("Projects/Extensions/\(self.rawValue)") }
+}
+
 public extension TargetDependency {
   static func client(interface client: Client) -> TargetDependency {
     .project(target: client.interface, path: client.path)
   }
 
-  /// Impl 은 App(조립 지점)만 의존한다.
+  /// Impl 은 조립 지점(App·Extension)만 의존한다.
   static func client(impl client: Client) -> TargetDependency {
     .project(target: client.impl, path: client.path)
   }
@@ -67,5 +78,10 @@ public extension TargetDependency {
 
   static func feature(_ feature: Feature) -> TargetDependency {
     .project(target: feature.name, path: feature.path)
+  }
+
+  /// App 만 의존한다. App 의 PlugIns 에 임베드된다.
+  static func appExtension(_ appExtension: AppExtension) -> TargetDependency {
+    .project(target: appExtension.name, path: appExtension.path)
   }
 }

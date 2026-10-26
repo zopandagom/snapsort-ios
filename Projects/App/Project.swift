@@ -21,5 +21,8 @@ let project = Project.app(
     .client(impl: .notification),
     .client(impl: .map),
     .client(impl: .pasteboard),
+    .client(impl: .widgetTimeline),
+    // 만료 임박 위젯. App 의 PlugIns 에 임베드된다.
+    .appExtension(.widget),
   ]
 )

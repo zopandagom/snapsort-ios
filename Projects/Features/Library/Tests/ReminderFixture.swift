@@ -8,6 +8,7 @@ import PhotoLibraryTesting
 import PhotoStoreInterface
 import PhotoStoreTesting
 import Synchronization
+import WidgetTimelineTesting
 @testable import LibraryFeature
 
 /// 만료 알림 테스트의 공통 준비. 지금 시각은 Asia/Seoul 2026-10-19 08:00 으로 고정한다(오늘 09:00 알림이 아직 지나지 않았다).
@@ -20,6 +21,7 @@ enum ReminderFixture {
     photoStore: PhotoStoreClientFake,
     notification: NotificationClientFake,
     indexing: IndexingClientFake? = nil,
+    widgetTimeline: WidgetTimelineClientFake? = nil,
     now: Date = .seoul(2026, 10, 19, hour: 8)
   ) -> LibraryModel {
     LibraryModel(
@@ -27,6 +29,7 @@ enum ReminderFixture {
       indexing: indexing,
       photoStore: photoStore,
       notification: notification,
+      widgetTimeline: widgetTimeline,
       calendar: .seoul,
       now: { now }
     )

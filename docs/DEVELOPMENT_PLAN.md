@@ -36,7 +36,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
 | 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
 | 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | |
-| 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세)), Pasteboard(이 기기만 복사), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회, 영수증 추출 값·목록 조회, 캡처 묶음 추출 값·목록 조회, 검색 목록 조회, 캡처 인박스 보관·조회, 특징 벡터 저장·비슷한 사진 조회), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터), (Indexing 확장: 특징 벡터 1단계·소급) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더, 영수증 목록, 쇼핑·대화·지도 묶기, 검색, 정리 도우미(기프티콘 정리·캡처 인박스·비슷한 사진)), Widget |
+| 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세)), Pasteboard(이 기기만 복사), WidgetTimeline(위젯 갱신 요청), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회, 영수증 추출 값·목록 조회, 캡처 묶음 추출 값·목록 조회, 검색 목록 조회, 캡처 인박스 보관·조회, 특징 벡터 저장·비슷한 사진 조회, App Group 저장 위치·옛 위치에서 옮기기·위젯용 읽기 전용 열기), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터), (Indexing 확장: 특징 벡터 1단계·소급) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더, 영수증 목록, 쇼핑·대화·지도 묶기, 검색, 정리 도우미(기프티콘 정리·캡처 인박스·비슷한 사진)), ExpiryWidget(만료 임박 위젯), Extension `Widget`(위젯 조립 지점) |
 | 5 | Purchase(StoreKit) | Paywall |
 
 ## 작업 진행 방식
@@ -57,7 +57,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 항목 | 필요 시점 | 상태 |
 |---|---|---|
 | Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☑ |
-| App ID `com.zopandagom.snapsort` + App Group 등록 | W4 (위젯과 SwiftData 저장소 공유. W2 는 App 기본 위치에 저장) | ☐ |
+| App ID `com.zopandagom.snapsort`(+ 위젯 `com.zopandagom.snapsort.widget`) + App Group `group.com.zopandagom.snapsort` 등록 | W4 (위젯과 SwiftData 저장소 공유. App Group 은 등록함, App ID 연결은 첫 실기기 빌드 서명에서 확인한 뒤 ☑) | ☐ |
 | App Store Connect 앱 생성, 앱 이름 선점 ("SnapSort" / 한국어 이름) | 가능한 빨리 | ☐ |
 | 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
 | 가격 정책 결정 (유료 일회성 vs 무료 + 인앱) | W5 전 | ☐ |
