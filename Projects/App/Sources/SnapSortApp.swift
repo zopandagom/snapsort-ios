@@ -80,7 +80,12 @@ struct SnapSortApp: App {
     // 장소 이름은 캐시만 대조하므로 Map 을 넘기지 않는다.
     self._searchModel = State(initialValue: SearchModel(photoStore: photoStore))
     // 정리 도우미. 사진을 지우는 것은 사용자가 고른 사진을 시스템 확인 창을 거쳐서만 한다.
-    self._cleanupModel = State(initialValue: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore))
+    // 비슷한 사진은 이 기기에서 특징 벡터를 만들 수 있을 때만 보인다(시뮬레이터는 섹션 없음).
+    self._cleanupModel = State(initialValue: CleanupModel(
+      photoLibrary: photoLibrary,
+      photoStore: photoStore,
+      findsSimilarPhotos: imageAnalysis.isFeaturePrintAvailable
+    ))
     self._captureInboxModel = State(initialValue: CaptureInboxModel(photoLibrary: photoLibrary, photoStore: photoStore))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
