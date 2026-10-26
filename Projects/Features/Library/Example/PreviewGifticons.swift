@@ -66,6 +66,8 @@ enum PreviewGifticons {
     Demo(creationDaysAgo: 12, expiryInDays: 45, place: "파리바게뜨", modelFill: .sourcesUnknown),
     Demo(creationDaysAgo: 13, expiryInDays: 3, place: "버거킹", isUsed: true),
     Demo(creationDaysAgo: 50, expiryInDays: -10, place: "맘스터치", isUsed: true),
+    // 만료됐지만 만료일이 모델 추정: 정리 화면에서 기본으로 고르지 않는다.
+    Demo(creationDaysAgo: 15, expiryInDays: -3, place: "파스쿠찌", modelFilledFields: [.expiryDate]),
   ]
 
   /// 주소·송장·계좌번호가 있는 캡처(`PreviewPhotos.id(.document, 0)`)의 OCR 줄. 지어낸 값이다.

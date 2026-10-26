@@ -24,7 +24,9 @@ import SwiftUI
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 검색 필드를 누르면 검색 결과(`PreviewSearch` 의 글자 사진, 캡처 묶음 값, 카테고리 이름, 캐시된 여행 장소 이름)를 보고,
 /// "글자 사진 추가" 버튼이 글자를 읽은 사진을 최신으로 더한다(열린 검색 화면이 다시 읽는다).
-/// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수를 보인다.
+/// 보관함 맨 아래 "정리 도우미" 줄에서 정리 화면(만료됨·사용함 기프티콘 후보)과 캡처 인박스(최근 30일 스크린샷)를 본다.
+/// 정리 시나리오(`ExampleScenario.isCleanup`)는 삭제를 흉내 내는 보관함 대역을 쓰고, 지운 이미지를 인덱서처럼 저장소에서 지우고 진행률을 보낸다.
+/// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수, 정리 화면이 저장소를 읽은 횟수와 삭제 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
@@ -41,7 +43,8 @@ struct LibraryFeatureExampleApp: App {
       captureGroupItemsErrors: Self.scenario == .captureGroupFailing ? [0: .failed] : [:],
       allReceiptsChecking: Self.scenario == .receiptChecking,
       searchEntriesErrors: Self.scenario == .searchFailing ? [0: .failed] : [:],
-      onSearchEntries: Self.searchHook
+      onSearchEntries: Self.searchHook,
+      extraImages: Self.scenario.isCleanup ? PreviewCleanup.screenshots(now: Date()) : []
     )
   /// `searchSlow` 는 검색 목록 읽기가 1.5초 걸린다.
   private static let searchHook: @Sendable (Int) async -> Void = if Self.scenario == .searchSlow {
@@ -50,9 +53,14 @@ struct LibraryFeatureExampleApp: App {
     { _ in }
   }
 
-  private static let photoLibrary = Self.scenario == .limited
-    ? PhotoLibraryClientFake.previewLimitedClassified
-    : PhotoLibraryClientFake.previewAuthorized
+  private static let photoLibrary = if Self.scenario == .limited {
+    PhotoLibraryClientFake.previewLimitedClassified
+  } else if Self.scenario.isCleanup {
+    PhotoLibraryClientFake.previewCleanup(scenario: Self.scenario)
+  } else {
+    PhotoLibraryClientFake.previewAuthorized
+  }
+
   /// 계속 분석 중이라 버튼으로 진행률을 더 보낼 수 있다.
   private static let indexing = IndexingClientFake(
     progress: IndexingClientFake.previewInProgress.progress,
@@ -85,6 +93,8 @@ struct LibraryFeatureExampleApp: App {
   @State private var tripListModel = TripListModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var tripDetailModel = TripDetailModel(photoStore: Self.photoStore, map: Self.map)
   @State private var searchModel = SearchModel(photoStore: Self.photoStore)
+  @State private var cleanupModel = CleanupModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
+  @State private var captureInboxModel = CaptureInboxModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   /// 지금까지 더한 새 사진 수. 데모 버튼의 다음 식별자를 정한다.
   @State private var addedCount = 0
   /// 지금까지 더한 글자 사진 수.
@@ -99,6 +109,14 @@ struct LibraryFeatureExampleApp: App {
         }
       } else {
         self.library
+          // 정리 삭제가 보관함 변경 → 저장소 삭제 → 진행률로 이어지는 것을 흉내 낸다(실제는 인덱서가 한다).
+          .task {
+            await simulateIndexerDeletions(
+              photoLibrary: Self.photoLibrary,
+              photoStore: Self.photoStore,
+              indexing: Self.indexing
+            )
+          }
       }
     }
   }
@@ -112,7 +130,9 @@ struct LibraryFeatureExampleApp: App {
       captureActionsModel: self.captureActionsModel,
       tripListModel: self.tripListModel,
       tripDetailModel: self.tripDetailModel,
-      searchModel: self.searchModel
+      searchModel: self.searchModel,
+      cleanupModel: self.cleanupModel,
+      captureInboxModel: self.captureInboxModel
     )
     .overlay(alignment: .bottom) {
       VStack(spacing: 4) {
@@ -134,7 +154,12 @@ struct LibraryFeatureExampleApp: App {
           }
         }
         .buttonStyle(.borderedProminent)
-        FakeRecordView(map: Self.map, pasteboard: Self.pasteboard)
+        FakeRecordView(
+          map: Self.map,
+          pasteboard: Self.pasteboard,
+          photoStore: Self.photoStore,
+          photoLibrary: Self.photoLibrary
+        )
       }
       .font(.caption)
       .padding()
@@ -183,49 +208,6 @@ struct LibraryFeatureExampleApp: App {
   }
 }
 
-extension PhotoLibraryClientFake {
-  static let previewAuthorized = PhotoLibraryClientFake(
-    currentState: .authorized,
-    imageAssets: .stubs(count: 128),
-    loadImageResults: PreviewPhotos.loadImageResults
-  )
-
-  /// 읽기가 끝나지 않는다. 상세의 불러오는 중을 확인한다.
-  static let previewLoadingForever = PhotoLibraryClientFake(
-    currentState: .authorized,
-    loadImageResults: PreviewPhotos.loadImageResults,
-    loadGate: { _ in
-      try? await Task.sleep(for: .seconds(3600))
-    }
-  )
-
-  /// 모든 이미지가 iCloud 에만 있다. 칸의 대체 심볼을 확인한다.
-  static let previewInCloudOnly = PhotoLibraryClientFake(
-    currentState: .authorized,
-    loadImageResults: PreviewPhotos.loadImageResults.mapValues { _ in .failure(.notAvailableLocally) }
-  )
-
-  /// 모든 이미지를 읽지 못한다. 상세의 실패를 확인한다.
-  static let previewFailing = PhotoLibraryClientFake(
-    currentState: .authorized,
-    loadImageResults: PreviewPhotos.loadImageResults.mapValues { _ in .failure(.failed) }
-  )
-
-  /// 제한 접근이지만 분류 결과의 이미지를 모두 읽을 수 있다. `-scenario limited` 에서 여행 목록 안내를 본다.
-  static let previewLimitedClassified = PhotoLibraryClientFake(
-    currentState: .limited,
-    imageAssets: .stubs(count: 128),
-    loadImageResults: PreviewPhotos.loadImageResults
-  )
-
-  /// "사진 더 선택"을 누르면 고른 사진이 늘어난 것처럼 보이게 한다.
-  static let previewLimited = PhotoLibraryClientFake(
-    currentState: .limited,
-    imageAssets: .stubs(count: 12),
-    imageAssetsAfterPicker: .stubs(count: 30)
-  )
-}
-
 /// 같은 저장소를 읽는 Model 들로 보관함 화면을 만든다. 카테고리 줄을 누르면 그 저장소로 카테고리 화면이 열린다.
 @MainActor
 private func libraryPreview(
@@ -247,7 +229,9 @@ private func libraryPreview(
     captureActionsModel: captureActionsPreviewModel(photoStore: photoStore),
     tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
     tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map()),
-    searchModel: SearchModel(photoStore: photoStore)
+    searchModel: SearchModel(photoStore: photoStore),
+    cleanupModel: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore),
+    captureInboxModel: CaptureInboxModel(photoLibrary: photoLibrary, photoStore: photoStore)
   )
 }
 

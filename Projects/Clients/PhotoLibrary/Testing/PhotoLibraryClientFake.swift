@@ -12,9 +12,11 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   private let albums: [String: [ImageAsset]]
   private let fetchGate: (@Sendable () async -> Void)?
   private let loadGate: (@Sendable (ImageAsset.ID) async -> Void)?
-  private let state: Mutex<State>
+  let deletionErrors: [Int: ImageDeletionError]
+  let deletionGate: (@Sendable (Set<ImageAsset.ID>) async -> Void)?
+  let state: Mutex<State>
 
-  private struct State {
+  struct State {
     var accessState: PhotoAccessState
     var imageAssets: [ImageAsset]
     var limitedPickerPresentCount = 0
@@ -22,6 +24,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     var nextSubscriptionID = 0
     var subscriptions: [Int: AsyncStream<ImageChange>.Continuation] = [:]
     var changesFinished = false
+    var deletionRequests: [Set<ImageAsset.ID>] = []
   }
 
   /// `requestAccess()` 뒤에는 `accessState()` 도 `stateAfterRequest` 를 돌려준다.
@@ -30,6 +33,9 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   /// 던진다.
   /// `albums` 는 앨범 제목별 이미지다. 없는 제목은 nil 이다.
   /// `fetchGate` 를 주면 두 조회가 결과를 주기 전에 기다린다. 조회 도중의 취소를 흉내 낸다.
+  /// `deletionErrors` 는 `deleteImages` 의 호출 번호(0부터)별 실패다. 그 번째 호출만 던지고 아무것도 바꾸지 않는다
+  /// (PhotoLibraryClientFake+Deletion.swift).
+  /// `deletionGate` 를 주면 `deleteImages` 가 요청을 기록한 뒤 결과 전에 요청 식별자를 넘겨 기다린다. 시스템 확인 창이 떠 있는 동안을 흉내 낸다.
   /// `loadGate` 를 주면 `loadImage` 가 요청을 기록한 뒤, 취소를 확인하고 결과를 주기 전에 식별자를 넘겨 기다린다. 읽기 도중의 취소를 흉내 낸다.
   public init(
     currentState: PhotoAccessState = .notDetermined,
@@ -39,7 +45,9 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     loadImageResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:],
     albums: [String: [ImageAsset]] = [:],
     fetchGate: (@Sendable () async -> Void)? = nil,
-    loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil
+    loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil,
+    deletionErrors: [Int: ImageDeletionError] = [:],
+    deletionGate: (@Sendable (Set<ImageAsset.ID>) async -> Void)? = nil
   ) {
     self.stateAfterRequest = stateAfterRequest
     self.imageAssetsAfterPicker = imageAssetsAfterPicker
@@ -47,6 +55,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     self.albums = albums
     self.fetchGate = fetchGate
     self.loadGate = loadGate
+    self.deletionErrors = deletionErrors
+    self.deletionGate = deletionGate
     self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
   }
 
@@ -182,7 +192,7 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
 
   /// 상태 변경, 보낼 변경 계산, 보내기를 한 번의 잠금 안에서 해, 구독자가 받는 순서가 상태가 바뀐 순서와 같게 한다. nil 이면 보내지 않는다.
   /// `yield` 는 `.unbounded` 버퍼라 막히지 않고 `onTermination` 도 부르지 않으므로 잠금 안에서 불러도 교착이 없다.
-  private func send(_ update: (inout State) -> ImageChange?) {
+  func send(_ update: (inout State) -> ImageChange?) {
     self.state.withLock { state in
       guard let change = update(&state) else { return }
       for continuation in state.subscriptions.values {

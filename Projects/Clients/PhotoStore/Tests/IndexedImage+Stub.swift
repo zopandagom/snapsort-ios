@@ -13,7 +13,8 @@ extension IndexedImage {
     gifticon: GifticonInfo? = nil,
     gifticonModelFill: GifticonModelFill = .pending(failures: 0),
     receipt: ReceiptInfo? = nil,
-    captureGroups: CaptureGroups? = nil
+    captureGroups: CaptureGroups? = nil,
+    isScreenshot: Bool = false
   ) -> IndexedImage {
     IndexedImage(
       asset: ImageAsset(
@@ -22,7 +23,7 @@ extension IndexedImage {
         coordinate: coordinate,
         pixelWidth: 1170,
         pixelHeight: 2532,
-        isScreenshot: false
+        isScreenshot: isScreenshot
       ),
       labels: labels,
       textRecognition: textRecognition,

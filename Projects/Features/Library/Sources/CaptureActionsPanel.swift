@@ -2,7 +2,7 @@ import Core
 import SwiftUI
 
 /// 사진 상세 아래의 캡처 행동 (docs/ARCHITECTURE.md §4 캡처 정보 추출).
-/// 기프티콘 목록에서 열었으면 교환처·만료일·D-n·사용함 버튼·바코드 상태를, 저장된 OCR 줄에서 찾은 주소마다 "지도에서 보기",
+/// 기프티콘 목록·정리 화면에서 열었으면 교환처·만료일·D-n·사용함 버튼·바코드 상태를, 저장된 OCR 줄에서 찾은 주소마다 "지도에서 보기",
 /// 송장·계좌번호마다 "복사"를 보인다. 바코드 크게 보기 화면과 복사 안내의 표시 여부는 화면 일시 상태라 이 View 가 갖는다.
 struct CaptureActionsPanel: View {
   let model: CaptureActionsModel

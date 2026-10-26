@@ -59,6 +59,9 @@ enum PreviewPhotos {
     for (index, id) in PreviewSearch.imageIDs.enumerated() {
       results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
     }
+    for (index, id) in PreviewCleanup.imageIDs.enumerated() {
+      results[id] = .success(PreviewPhotos.image(index: index, isLocalFallback: false))
+    }
     return results
   }()
 
@@ -109,6 +112,8 @@ extension PhotoStoreClientFake {
   ///   - receiptsErrors: 영수증 목록 읽기(`receipts()`)의 호출 번호별 실패.
   ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.
   ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기(`searchEntries()`)의 호출 번호별 실패와 읽은 뒤 기다리는 훅.
+  ///   - captureInboxErrors: 캡처 인박스 읽기(`captureInboxScreenshots(createdSince:)`)의 호출 번호별 실패.
+  ///   - extraImages: 분류 결과에 더하는 이미지. 정리 도우미 데모의 스크린샷(`PreviewCleanup`)을 더할 때 쓴다.
   ///   - allReceiptsChecking: 참이면 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
   static func previewClassified(
     hasUpcomingExpiry: Bool = true,
@@ -121,30 +126,13 @@ extension PhotoStoreClientFake {
     captureGroupItemsErrors: [Int: PhotoStoreError] = [:],
     allReceiptsChecking: Bool = false,
     searchEntriesErrors: [Int: PhotoStoreError] = [:],
-    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in }
+    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in },
+    captureInboxErrors: [Int: PhotoStoreError] = [:],
+    extraImages: [IndexedImage] = []
   ) -> PhotoStoreClientFake {
     let now = Date()
     let today = LocalDate(now, calendar: .current)
-    let others = PreviewPhotos.counts.filter {
-      $0.0 != .gifticon && $0.0 != .receipt && !PreviewCaptureGroups.categories.contains($0.0)
-    }.flatMap { category, count in
-      (0 ..< count).map { index in
-        let isCapture = category == .document && index == 0
-        return IndexedImage(
-          asset: .stub(
-            id: PreviewPhotos.id(category, index),
-            creationDate: PreviewPhotos.creationDate(index: index, count: count)
-          ),
-          labels: [],
-          textRecognition: isCapture
-            ? .recognized(PreviewGifticons.captureLines.map {
-              RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero)
-            })
-            : .notNeeded,
-          categories: [category]
-        )
-      }
-    }
+    let others = PreviewPhotos.otherImages()
     let gifticons = PreviewGifticons.images(today: today, now: now).map { image in
       guard !hasUpcomingExpiry, let gifticon = image.gifticon else { return image }
       return IndexedImage(
@@ -160,7 +148,7 @@ extension PhotoStoreClientFake {
       images: others + (includesGifticons ? gifticons : []) + PreviewReceipts.images(allChecking: allReceiptsChecking)
         + PreviewCaptureGroups
         .images() + PreviewSearch
-        .images() + (includesTrips ? PreviewTrips.images(receiptsChecking: allReceiptsChecking) : []),
+        .images() + (includesTrips ? PreviewTrips.images(receiptsChecking: allReceiptsChecking) : []) + extraImages,
       trips: includesTrips ? PreviewTrips.trips : [],
       assetsErrors: assetsErrors,
       usedIDs: PreviewGifticons.usedIDs,
@@ -171,7 +159,34 @@ extension PhotoStoreClientFake {
       receiptsErrors: receiptsErrors,
       captureGroupItemsErrors: captureGroupItemsErrors,
       searchEntriesErrors: searchEntriesErrors,
-      onSearchEntries: onSearchEntries
+      onSearchEntries: onSearchEntries,
+      captureInboxErrors: captureInboxErrors
     )
+  }
+}
+
+extension PreviewPhotos {
+  /// 기프티콘·영수증·캡처 묶음 카테고리를 뺀 나머지 카테고리의 사진. 문서 첫 장은 주소·송장·계좌번호가 있는 캡처다.
+  static func otherImages() -> [IndexedImage] {
+    self.counts.filter {
+      $0.0 != .gifticon && $0.0 != .receipt && !PreviewCaptureGroups.categories.contains($0.0)
+    }.flatMap { category, count in
+      (0 ..< count).map { index in
+        let isCapture = category == .document && index == 0
+        return IndexedImage(
+          asset: .stub(
+            id: self.id(category, index),
+            creationDate: self.creationDate(index: index, count: count)
+          ),
+          labels: [],
+          textRecognition: isCapture
+            ? .recognized(PreviewGifticons.captureLines.map {
+              RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero)
+            })
+            : .notNeeded,
+          categories: [category]
+        )
+      }
+    }
   }
 }
