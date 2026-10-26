@@ -149,7 +149,7 @@
         break
       case .limited:
         return .failed(.limitedAccess)
-      case .denied, .notDetermined:
+      case .denied, .notDetermined, .restricted:
         return .failed(.notAuthorized)
       }
       let library = await self.photoLibrary.fetchImageAssets()

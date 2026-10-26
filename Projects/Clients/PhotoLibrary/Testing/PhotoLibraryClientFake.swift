@@ -12,12 +12,14 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   private let albums: [String: [ImageAsset]]
   private let fetchGate: (@Sendable () async -> Void)?
   private let loadGate: (@Sendable (ImageAsset.ID) async -> Void)?
+  private let requestGate: (@Sendable () async -> Void)?
   let deletionErrors: [Int: ImageDeletionError]
   let deletionGate: (@Sendable (Set<ImageAsset.ID>) async -> Void)?
   let state: Mutex<State>
 
   struct State {
     var accessState: PhotoAccessState
+    var requestAccessCount = 0
     var imageAssets: [ImageAsset]
     var limitedPickerPresentCount = 0
     var loadImageRequests: [LoadImageRequest] = []
@@ -28,6 +30,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   }
 
   /// `requestAccess()` 뒤에는 `accessState()` 도 `stateAfterRequest` 를 돌려준다.
+  /// `requestGate` 를 주면 `requestAccess()` 가 요청 수를 센 뒤 기다리고, 풀린 뒤에 상태를 `stateAfterRequest` 로 바꿔 돌려준다.
+  /// 권한 팝업이 떠 있는 동안을 흉내 낸다.
   /// `imageAssetsAfterPicker` 를 주면 선택 화면이 닫힌 뒤부터 그 값을 조회 결과로 돌려주고, 실제 보관함처럼 달라진 만큼 증분 변경을 보낸다.
   /// `loadImageResults` 는 식별자별 `loadImage` 결과다. 크기와 관계없이 같은 결과를 주고, 없는 식별자는 `.notFound`, 취소된 Task 에는 `.cancelled` 를
   /// 던진다.
@@ -47,7 +51,8 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     fetchGate: (@Sendable () async -> Void)? = nil,
     loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil,
     deletionErrors: [Int: ImageDeletionError] = [:],
-    deletionGate: (@Sendable (Set<ImageAsset.ID>) async -> Void)? = nil
+    deletionGate: (@Sendable (Set<ImageAsset.ID>) async -> Void)? = nil,
+    requestGate: (@Sendable () async -> Void)? = nil
   ) {
     self.stateAfterRequest = stateAfterRequest
     self.imageAssetsAfterPicker = imageAssetsAfterPicker
@@ -57,7 +62,13 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
     self.loadGate = loadGate
     self.deletionErrors = deletionErrors
     self.deletionGate = deletionGate
+    self.requestGate = requestGate
     self.state = Mutex(State(accessState: currentState, imageAssets: imageAssets))
+  }
+
+  /// `requestAccess()` 를 부른 횟수.
+  public var requestAccessCount: Int {
+    self.state.withLock { $0.requestAccessCount }
   }
 
   /// 제한 접근 선택 화면을 띄운 횟수.
@@ -80,7 +91,9 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   }
 
   public func requestAccess() async -> PhotoAccessState {
-    self.state.withLock { state in
+    self.state.withLock { $0.requestAccessCount += 1 }
+    await self.requestGate?()
+    return self.state.withLock { state in
       state.accessState = self.stateAfterRequest
       return state.accessState
     }
@@ -144,6 +157,11 @@ public final class PhotoLibraryClientFake: PhotoLibraryClient {
   }
 
   // MARK: - 변경 흉내
+
+  /// 설정 앱에서 권한을 바꾼 것처럼 현재 상태만 바꾼다. 변경 알림은 보내지 않는다.
+  public func changeAccessState(_ state: PhotoAccessState) {
+    self.state.withLock { $0.accessState = state }
+  }
 
   /// 이미지가 추가·삭제된 것처럼 조회 결과(와 권한 상태)를 바꾸고 증분 변경을 보낸다. 추가된 이미지는 최신순 맨 앞에 붙인다.
   /// 실제 보관함처럼 조회 결과에 이미 있는 식별자는 다시 붙이지 않는다. 보내는 변경은 받은 그대로 둔다.

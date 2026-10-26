@@ -20,7 +20,7 @@
 - SwiftUI (규칙 기반 단방향 MV), Swift 6 strict concurrency
 - PhotoKit, Vision (이미지 분류·OCR·바코드·유사 이미지), Foundation Models (Apple Intelligence 기기), SwiftData
 - MapKit (지도 표시·장소 이름 변환, 위치 좌표만 Apple 로 전송)
-- WidgetKit, StoreKit 2
+- WidgetKit
 - Tuist 모듈러 아키텍처 (Feature / Client Interface·Impl·Testing)
 
 ## 시작하기

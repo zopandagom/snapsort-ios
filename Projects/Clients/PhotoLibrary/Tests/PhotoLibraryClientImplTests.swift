@@ -13,7 +13,7 @@ struct PhotoLibraryClientImplTests {
       (.limited, .limited),
       (.notDetermined, .notDetermined),
       (.denied, .denied),
-      (.restricted, .denied),
+      (.restricted, .restricted),
     ]
   )
   func mapsAuthorizationStatus(status: PHAuthorizationStatus, expected: PhotoAccessState) {

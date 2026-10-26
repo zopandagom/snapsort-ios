@@ -128,7 +128,9 @@ public struct PhotoLibraryClientImpl: PhotoLibraryClient {
     case .authorized: .authorized
     case .limited: .limited
     case .notDetermined: .notDetermined
-    default: .denied
+    case .denied: .denied
+    case .restricted: .restricted
+    @unknown default: .denied
     }
   }
 }

@@ -43,16 +43,33 @@ flowchart TD
 @Observable
 public final class OnboardingModel {
   public private(set) var access: PhotoAccessState
+  public private(set) var isRequestingAccess = false  // 요청 중에는 시작 버튼만 막는다
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
 
   public func startButtonTapped() async {
-    self.access = await self.photoLibrary.requestAccess()
+    guard self.access == .notDetermined, !self.isRequestingAccess else { return }  // 연타해도 한 번만 요청
+    self.isRequestingAccess = true
+    let result = await self.photoLibrary.requestAccess()
+    self.isRequestingAccess = false
+    if result != .notDetermined { self.access = result }  // 정해진 권한을 미정으로 되돌리지 않는다 (§4 사진 권한)
+  }
+
+  /// 앱이 앞으로 돌아왔다. 설정 앱에서 권한을 바꿨을 수 있어 다시 읽는다.
+  public func sceneBecameActive() {
+    let current = self.photoLibrary.accessState()
+    guard current != .notDetermined else { return }
+    self.access = current
   }
 }
 
 // View
 Button("정리 시작하기") { Task { await self.model.startButtonTapped() } }
+  .disabled(self.model.isRequestingAccess)
+// View body 전체에: 앱이 앞으로 돌아오면 다시 읽게 한다
+.onChange(of: self.scenePhase) { _, phase in
+  if phase == .active { self.model.sceneBecameActive() }
+}
 
 // App: 화면 간 흐름은 App 이 정한다 (규칙 6)
 if self.onboardingModel.access.canRead {
@@ -191,7 +208,8 @@ Extension 에는 App 만 의존한다(`TargetDependency.appExtension(_:)`, 임�
 ## 4. 확정된 기술 결정
 | 결정 | 이유 |
 |---|---|
-| 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. StoreKit 2 는 기기에서 영수증 검증 |
+| 서버 없음 | "사진이 밖으로 나가지 않는다"가 제품 가치. 결제가 없는 무료 앱이다(2026-10-26 결정) |
+| 사진 권한 | 온보딩(OnboardingFeature)은 사진 권한만 다룬다. 첫 실행 판단은 권한이 `notDetermined` 인지로 하고 '소개 봤음'을 저장하지 않는다. 팝업을 띄우는 시점과 제한 접근·알림 권한 처리는 CONVENTIONS §4 를 따른다. 앱이 앞으로 돌아오면(scenePhase `.active`) 권한을 다시 읽어, 설정 앱에서 허용하고 돌아온 사용자를 보관함으로 보낸다. `access` 는 한 번 정해지면 앱 실행 중 미정으로 돌아가지 않는다(요청 결과·복귀에서 읽은 미정 값은 쓰지 않는다). 근거 실측(시뮬레이터, 2026-10-26~27): iOS 26.5 에서 `simctl privacy grant` 로 허용한 뒤 `authorizationStatus` 가 미정으로 읽혔고, 권한 팝업이 떠 있는 동안 다른 앱에 갔다 와도 팝업이 남아 요청 결과를 기다리며 `.active` 가 오지 않았다(iOS 26.5·27.0). 실행 중 권한이 미정으로 돌아가는 권한 초기화는 앱을 종료해(`simctl privacy reset` 실측) 다음 실행의 init 이 읽는다. 요청 중 복귀에서 정해진 값을 읽으면 바로 반영해, 요청 결과가 늦거나 오지 않아도 화면이 멈추지 않는다(알고 둔 한계: 팝업에 답한 뒤 결과가 오기 전에 설정 앱에서 권한을 바꾸고 돌아오면 늦게 온 결과가 새 값을 덮을 수 있고, 다음 복귀에서 다시 읽어 맞춘다). `restricted`(스크린 타임·기기 관리)는 사용자가 이 앱 설정에서 바꿀 수 없어 설정 버튼 없이 이유만 안내한다. 첫 화면의 개인정보 문구는 아래 위치·지도 행의 두 예외(위치 좌표, 누를 때만 주소를 지도 앱으로)까지 적는다 |
 | 위치·지도는 Apple 시스템 서비스 | 장소 이름 변환은 MapKit `MKReverseGeocodingRequest`(`CLGeocoder` 는 iOS 26 에서 deprecated. 요청 수 제한이 있으므로 사진마다가 아니라 위치 묶음마다), 지도 핀은 MapKit `Map`(여행 폴더 상세를 열 때만 반올림 중심점 핀 하나를 보이는 고정 지도. 사진마다 핀을 꽂지 않는다. 지도 캡처에도 핀을 꽂지 않는다(지도 위 핀은 Out): 스크린샷에는 촬영 좌표가 없고(`ImageAsset.coordinate`), OCR 로 읽은 지역의 중심 좌표로 지도를 띄우면 타일 요청이 OCR 유래 위치를 Apple 로 보내고 집 근처 타일도 요청하게 된다. 지도 캡처는 기기 안 행정구역 대조로 지역별로만 묶는다(캡처 묶음 추출 행). Feature 에서 MapKit 을 import 하는 파일은 LibraryFeature `TripMapView` 하나다. 지도 타일 요청은 CLAUDE.md 의 "지도 표시" 예외다). 모듈 경계: ① Feature View 는 `Map` 렌더링만을 위해 MapKit 을 import 할 수 있다 ② 지오코딩과 지도 앱 열기는 부수효과이므로 Client Impl 에서 한다(Map Client. `MapClient.openInMaps(address:)` 는 주소 문자열을 지도 앱 검색 `maps://?q=`(RFC 3986 unreserved 밖은 모두 퍼센트 인코딩)으로 넘기기만 하고 앱은 주소를 지오코딩하지 않는다. 지도 앱이 그 주소를 검색하는지는 실기기에서 확인한다. 역지오코딩은 `MapClient.placeName(near:locale:)` 하나로, Core `RoundedCoordinate`(반올림 좌표 ×100 정수 두 개)를 받아 `PlaceInfo`(이름·시간대 식별자)를 돌려준다. Impl 은 그 정수에서 만든 좌표만 `MKReverseGeocodingRequest` 에 넣고 `preferredLocale` 을 넘긴 로캘로 둔다. 이름은 응답 항목의 `addressRepresentations` 에서 cityWithContext → cityName → regionName 중 앞뒤 공백을 지우고 비지 않은 첫 값이다(실측: 제주 "제주특별자치도 제주시", 도쿄 "일본 도쿄 지요다구", 파리 "파리, 프랑스". `MKMapItem.name` 은 POI·거리 주소·우편번호가 와서 쓰지 않는다). 쓸 필드가 없으면 이름 없음이다. 시간대는 첫 항목의 `MKMapItem.timeZone` 이다(실측: 바다는 "GMT-1000" 같은 고정 오프셋). 항목이 없으면(`MKError.placemarkNotFound`, 실측상 북극 같은 곳) nil, 요청을 만들지 못하거나 그 밖의 오류면 실패(`PlaceNameError.failed`)다. 요청은 Task 취소를 받지 않아 끝까지 가고, 진행 중 `cancel()` 을 부르면 응답이 영영 오지 않아(실측) 부르지 않는다. 좌표·장소 이름은 로그에 남기지 않는다) ③ Interface 의 좌표는 자체 `Sendable` 값 타입으로 둔다(`CLLocationCoordinate2D` 노출 금지). Shared·Interface·Testing 의 CoreLocation·MapKit import 는 lint(`location_map_only_outside_shared_interface`)가 막고, Feature 의 `Map` 렌더링 외 사용은 리뷰로 잡는다. 이때 **위치 좌표만** Apple 로 가고 사진과 OCR 텍스트는 보내지 않는다. OCR 로 읽은 주소를 지도 앱으로 넘기는 것은 사용자가 누를 때만. 개인정보 처리방침에 명시한다. 지오코딩 요청 원칙: ① 사용자가 장소가 필요한 화면(여행 폴더 상세)을 열 때만 요청하고 결과(이름·시간대)는 기기에 캐시한다(요청 실패와 항목 없음은 캐시하지 않는다, 저장소 행). 목록은 묻지 않는다(여행 폴더 행). 검색도 캐시된 이름만 대조하고 묻지 않는다(검색 Model 은 Map Client 를 받지 않는다, 검색 행). 여행은 판정할 때마다 다시 만들어지므로 캐시 키는 여행이 아니라 ③의 반올림한 중심점이다. 백그라운드 일괄 지오코딩 금지 ② 사진 좌표는 여행 판정이 찾은 여행(Core `Trip`)의 중심점만 지오코딩하고, 여행이 아닌 사진 좌표 묶음은 지오코딩하지 않는다. 여행은 자주 가는 지역 밖에서만 나오므로 집 근처 좌표는 보내지 않는다 ③ 보내는 좌표는 묶음 중심점을 소수점 2자리(약 1km)로 반올림한 값. 구체적인 수치는 구현 PR 에서 조정할 수 있다 |
 | 분류 대상 | 보관함의 모든 이미지(영상 제외). 스크린샷 여부(`.photoScreenshot`)는 조회 필터가 아니라 분류 신호로 쓴다 |
 | 분류 3단 파이프라인 | ① 메타데이터(스크린샷 여부·위치·날짜·크기, 픽셀을 읽지 않음) → ② Vision 이미지 분류(`ClassifyImageRequest`) 라벨(ImageAnalysis Client, Core `ImageLabel`. 신뢰도 기준(Core `ClassificationRules.minimumLabelConfidence`, 임시 0.1)은 정확도 측정 작업에서 확정. 시뮬레이터에서는 동작하지 않아 실기기로 확인한다) → ③ 스크린샷(메타데이터 또는 `screenshot` 라벨), 정보형·글자가 많은 라벨(`document`·`receipt`·`coupon`·`ticket` 등, 신뢰도 0.3(`ClassificationRules.textLabelMinimumConfidence`) 이상. 식탁 위 메뉴판·만화·그림에 약하게 붙는 문서 라벨을 거른다)이 있는 이미지(위치·사진형 카테고리는 보지 않는다. 실기기 보관함 1만 장에서 위치도 사진형 카테고리도 없어서 OCR 한 이미지는 모두 기타였고, 저장한 기프티콘은 글자 라벨로 잡혔다. 위치 없이 음식 라벨만 붙은 저장 기프티콘도 없었다)만 OCR(대상 판정은 Core `TextRecognitionPolicy`. `RecognizeTextRequest`. ImageAnalysis Client, Core `RecognizedTextLine` = 줄 텍스트·신뢰도·왼쪽 위 원점 정규화 위치. 한국어 우선 + 영어, 정확도 우선 + 언어 보정. 빈 줄만 버리고 신뢰도 기준은 정확도 측정 작업에서 정한다) + 키워드 규칙(Core `RuleClassifier` 순수 함수: 정보형은 라벨 하나 또는 OCR 키워드 기준 개수 이상(문서는 라벨에 더해 OCR 글자 30자 이상), 대화 캡처는 단독 줄의 오전·오후 말풍선 시각이 2개 이상이고 대체로 오름차순일 때도(최신순인 통화 기록·알림 센터, 영문 AM·PM 탑승권은 제외), 사진형은 스크린샷(메타데이터 또는 `screenshot` 라벨)이 아닐 때 라벨로 정한다(인물 0.3·풍경 0.4 이상, 그림 라벨(0.5 이상)이 있으면 붙이지 않고, 인물이 있으면 풍경은 붙이지 않는다). 여행은 여행 판정이 정한다). 라벨·키워드 표(Core `ClassificationRules`)와 OCR 대상 조건은 정확도 측정 작업에서 픽스처(Core 테스트의 `ClassificationSamples.json` 에 실기기에서 기록한(기록 도구, 이 표의 "기록 도구 (Debug 전용)" 행. 라벨은 0.01 까지 기록) 분류 입력과 기대 카테고리를 둔다, CONVENTIONS §3. 시드 샘플: `ClassificationAccuracyTests` 머리 주석)로 조정한다. 인덱서는 모든 새 이미지의 ①②를 먼저 저장하고(1단계. 비슷한 사진 대상이면 같은 썸네일로 특징 벡터도, 이 표의 "인덱싱"·"정리 도우미" 행) ③은 OCR 대상만 나중에(2단계) 한다(이 표의 "인덱싱" 행). ①~③은 모든 기기에서 동작한다. `SystemLanguageModel.default.availability == .available` 인 기기에서는 ③ 뒤에 Foundation Models 로 OCR 텍스트를 해석해 보강한다: 글자를 읽었는데 규칙 분류가 기타뿐인 이미지에 원문 근거가 있는 정보형만 더하고(Core `ModelCategoryPolicy`), 기프티콘 추출에서 규칙이 비운 필드만 채운다(Core `GifticonExtractor.filling`). 모델 답은 Classifier Client 가 돌려주는 확인 전 값이고, 받는 쪽이 Core 로 원문과 대조한 것만 쓴다(이 표의 "Foundation Models 보강" 행). Vision 은 Swift 네이티브 API(`VN` 접두사 없는 async 요청)만 쓴다 |

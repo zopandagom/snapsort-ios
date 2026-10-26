@@ -61,6 +61,7 @@
       arguments: [
         (PhotoAccessState.denied, SamplePreviewFailure.notAuthorized),
         (.notDetermined, .notAuthorized),
+        (.restricted, .notAuthorized),
         (.limited, .limitedAccess),
       ]
     )

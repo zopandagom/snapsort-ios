@@ -194,6 +194,7 @@
           RecordingFailure.notAuthorized
         ),
         (.notDetermined, .speed(count: 100), nil, .notAuthorized),
+        (.restricted, .accuracy, [.stub(id: "a")], .notAuthorized),
         (.limited, .accuracy, [.stub(id: "a")], .limitedAccess),
         (.authorized, .accuracy, nil, .albumNotFound),
         (.authorized, .accuracy, [], .albumEmpty),
