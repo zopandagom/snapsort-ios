@@ -13,12 +13,7 @@ struct LibraryModelIndexingStateTests {
   func isIndexingUntilFinished() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 && model.isIndexing }
     #expect(model.indexingProgress == nil)
@@ -38,12 +33,7 @@ struct LibraryModelIndexingStateTests {
   func isIndexingDuringTextPass() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 && model.isIndexing }
 
@@ -63,12 +53,7 @@ struct LibraryModelIndexingStateTests {
     let last = IndexingProgress(totalCount: 2, indexedCount: 2, skippedCount: 0, pendingTextCount: 1)
     let indexing = IndexingClientFake(progress: [last])
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
 
     await waitUntil { model.isIndexingStopped }
@@ -84,12 +69,7 @@ struct LibraryModelIndexingStateTests {
   func isIndexingFalseAfterStopOrCancel() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     // 인덱싱 중 표시는 `run()` 전에 켜지므로, 스트림이 생긴 뒤에 끝내야 멈춤이 된다.
     await waitUntil { indexing.activeRunCount == 1 && model.isIndexing }
@@ -110,12 +90,7 @@ struct LibraryModelIndexingStateTests {
   func overlappingReappearKeepsNewState() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let firstAppear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
 
@@ -140,12 +115,7 @@ struct LibraryModelIndexingStateTests {
   func reappearRestartsStoppedIndexing() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let firstAppear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     indexing.finishRuns()
@@ -166,12 +136,7 @@ struct LibraryModelIndexingStateTests {
     let last = IndexingProgress(totalCount: 10, indexedCount: 3, skippedCount: 0)
     let indexing = IndexingClientFake(progress: [last])
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
 
     await waitUntil { model.isIndexingStopped }
@@ -185,12 +150,7 @@ struct LibraryModelIndexingStateTests {
   func streamEndWithoutProgressMarksIndexingStopped() async {
     let indexing = IndexingClientFake(progress: [])
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { model.isIndexingStopped }
     #expect(model.indexingProgress == nil)
@@ -207,7 +167,7 @@ struct LibraryModelIndexingStateTests {
     let photoStore = PhotoStoreClientFake()
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: photoStore, notification: nil)
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: photoStore)
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
 
@@ -228,12 +188,7 @@ struct LibraryModelIndexingStateTests {
       finishesAfterProgress: false
     )
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     indexing.finishRuns()
@@ -250,12 +205,7 @@ struct LibraryModelIndexingStateTests {
   func repeatedRetryRestartsOnce() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     indexing.finishRuns()
@@ -279,12 +229,7 @@ struct LibraryModelIndexingStateTests {
   func retryIgnoredWhileRunning() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
 

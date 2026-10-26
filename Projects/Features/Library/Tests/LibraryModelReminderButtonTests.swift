@@ -238,6 +238,7 @@ struct LibraryModelReminderButtonTests {
         .extractedGifticon(id: "a", expiryDate: .date(2026, 10, 29)),
       ]),
       notification: hasNotification ? notification : nil,
+      widgetTimeline: nil,
       calendar: .seoul,
       now: { .seoul(2026, 10, 19, hour: 8) }
     )

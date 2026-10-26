@@ -21,7 +21,7 @@ struct LibraryModelCategoryCountTests {
       trips: [.stub(), .stub()]
     )
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore, notification: nil)
+    let model = libraryModel(photoLibrary, photoStore: photoStore)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
@@ -33,7 +33,7 @@ struct LibraryModelCategoryCountTests {
   func noTripsOmitsTravel() async {
     let photoStore = PhotoStoreClientFake(images: [.stub(id: "a", categories: [.document])])
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: nil, photoStore: photoStore, notification: nil)
+    let model = libraryModel(photoLibrary, photoStore: photoStore)
     photoLibrary.finishImageChanges()
 
     await model.onAppear()
@@ -44,11 +44,9 @@ struct LibraryModelCategoryCountTests {
   @Test("저장소를 읽지 못하면 개수를 비워 둔다")
   func storeFailureLeavesCountsEmpty() async {
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: nil,
-      photoStore: PhotoStoreClientFake(images: [.stub(id: "a", categories: [.food])], error: .failed),
-      notification: nil
+    let model = libraryModel(
+      photoLibrary,
+      photoStore: PhotoStoreClientFake(images: [.stub(id: "a", categories: [.food])], error: .failed)
     )
     photoLibrary.finishImageChanges()
 
@@ -62,7 +60,7 @@ struct LibraryModelCategoryCountTests {
     let photoStore = PhotoStoreClientFake()
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(photoLibrary: photoLibrary, indexing: indexing, photoStore: photoStore, notification: nil)
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: photoStore)
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
 
@@ -80,12 +78,7 @@ struct LibraryModelCategoryCountTests {
   func progressBumpsStoreRevision() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     let before = model.storeRevision
@@ -105,12 +98,7 @@ struct LibraryModelCategoryCountTests {
   func stopBumpsStoreRevision() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     let before = model.storeRevision
@@ -127,12 +115,7 @@ struct LibraryModelCategoryCountTests {
   func cancelDoesNotBumpStoreRevision() async {
     let indexing = IndexingClientFake(finishesAfterProgress: false)
     let photoLibrary = PhotoLibraryClientFake(currentState: .authorized)
-    let model = LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: PhotoStoreClientFake(),
-      notification: nil
-    )
+    let model = libraryModel(photoLibrary, indexing: indexing, photoStore: PhotoStoreClientFake())
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     let before = model.storeRevision

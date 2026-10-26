@@ -5,6 +5,7 @@ import NotificationInterface
 import Observation
 import PhotoLibraryInterface
 import PhotoStoreInterface
+import WidgetTimelineInterface
 
 /// 이미지 보관함 화면의 상태와 로직.
 /// 상태는 모두 private(set) 이고, View 는 이벤트 메서드 호출로만 상태 변경을 요청한다.
@@ -69,11 +70,14 @@ public final class LibraryModel {
   @ObservationIgnored private var reminderGeneration = 0
   /// 권한 요청을 시작할 때마다 하나씩 올린다. 요청과 겹친 동기화가 요청 전에 읽은 권한으로 상태를 덮지 않게 한다.
   @ObservationIgnored private var authorizationRequestCount = 0
+  /// 이 Model 이 마지막으로 위젯 갱신을 요청할 때의 요약. nil 이면 아직 요청하지 않았다. 값이 같으면 다시 요청하지 않는다.
+  @ObservationIgnored private var requestedWidgetSummaries: [ExpiryWidgetSummary]?
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
   @ObservationIgnored private let photoStore: (any PhotoStoreClient)?
   @ObservationIgnored private let notification: (any NotificationClient)?
+  @ObservationIgnored private let widgetTimeline: (any WidgetTimelineClient)?
   @ObservationIgnored private let calendar: Calendar
   @ObservationIgnored private let now: @Sendable () -> Date
 
@@ -85,6 +89,8 @@ public final class LibraryModel {
   ///   - photoStore: 인덱서가 저장한 분류 결과를 읽는 저장소.
   ///   저장소를 열지 못하면(디스크 공간 부족 등) App 이 둘 다 nil 을 넘기고, 분류 없이 보관함만 보여 준다.
   ///   - notification: 만료 알림. 저장소가 없거나 이것이 nil 이면 알림을 예약하지 않고 버튼도 보이지 않는다.
+  ///   - widgetTimeline: 만료 임박 위젯 갱신 요청. 만료 알림 동기화가 위젯에 보일 값이 바뀐 것을 볼 때만 요청한다.
+  ///   알림이나 저장소가 없으면 동기화가 돌지 않으므로 위젯 갱신도 하지 않는다.
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
   public init(
@@ -92,6 +98,7 @@ public final class LibraryModel {
     indexing: (any IndexingClient)?,
     photoStore: (any PhotoStoreClient)?,
     notification: (any NotificationClient)?,
+    widgetTimeline: (any WidgetTimelineClient)?,
     calendar: Calendar = .autoupdatingCurrent,
     now: @escaping @Sendable () -> Date = { Date() }
   ) {
@@ -99,6 +106,7 @@ public final class LibraryModel {
     self.indexing = indexing
     self.photoStore = photoStore
     self.notification = notification
+    self.widgetTimeline = widgetTimeline
     self.calendar = calendar
     self.now = now
     self.isLimited = photoLibrary.accessState() == .limited
@@ -279,6 +287,8 @@ public final class LibraryModel {
   /// 권한을 읽고, 저장소의 만료 예정으로 원하는 알림을 계산해 대기 알림과의 식별자 차이만 지우고 더한다.
   /// 저장소를 읽지 못하거나 추출 대기가 있으면 예약을 바꾸지 않는다(판단은 `ExpiryReminderPlanner.changes`,
   /// docs/ARCHITECTURE.md §4 만료 알림). 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 루프가 상태와 예약을 바꾸지 않게 한다.
+  /// 같은 읽기로 위젯에 보일 요약을 계산해, 지난 요청 때와 다를 때만 위젯 갱신을 요청한다(알림 권한과 관계없이,
+  /// docs/ARCHITECTURE.md §4 만료 임박 위젯). 저장소를 읽지 못하면 요청하지 않는다.
   private func syncReminders(
     notification: any NotificationClient,
     photoStore: any PhotoStoreClient,
@@ -305,6 +315,7 @@ public final class LibraryModel {
       return
     }
     guard self.isCurrentReminderSync(generation) else { return }
+    self.requestWidgetReloadIfChanged(expiries: expiries, isChecking: !pendingExtractionIDs.isEmpty, now: now)
     let desired = ExpiryReminderPlanner.reminders(for: expiries, now: now, calendar: self.calendar)
       .map { $0.notificationRequest(calendar: self.calendar) }
     self.hasPlannedReminder = !desired.isEmpty
@@ -334,6 +345,19 @@ public final class LibraryModel {
 
   private func isCurrentReminderSync(_ generation: Int) -> Bool {
     generation == self.reminderGeneration
+  }
+
+  /// 비교와 요청 사이에 기다리지 않아 겹치지 않는다. 요약에 날짜가 들어 있어 자정을 넘기면(`dayChanged`) 하루 한 번 더 요청한다.
+  private func requestWidgetReloadIfChanged(expiries: [GifticonExpiry], isChecking: Bool, now: Date) {
+    guard let widgetTimeline = self.widgetTimeline else { return }
+    let summaries = ExpiryWidgetTimeline.summaries(
+      for: expiries,
+      isChecking: isChecking,
+      today: LocalDate(now, calendar: self.calendar)
+    )
+    guard summaries != self.requestedWidgetSummaries else { return }
+    self.requestedWidgetSummaries = summaries
+    widgetTimeline.reloadExpiryWidget()
   }
 
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
