@@ -120,4 +120,49 @@ struct PhotoLibraryClientFakeTests {
     #expect(try await load.value.cgImage.width == 7)
     #expect(waitingIDs.withLock { $0 } == ["a"])
   }
+
+  @Test("요청 대기를 주면 요청을 센 뒤 기다리고, 풀린 뒤에 상태를 바꿔 결과를 준다")
+  func waitsForRequestGate() async {
+    let (signal, release) = AsyncStream.makeStream(of: Void.self)
+    let released = Task { for await _ in signal {} }
+    let waiting = Mutex(false)
+    let fake = PhotoLibraryClientFake(
+      currentState: .notDetermined,
+      stateAfterRequest: .limited,
+      requestGate: {
+        waiting.withLock { $0 = true }
+        await released.value
+      }
+    )
+
+    let request = Task { await fake.requestAccess() }
+    while !waiting.withLock({ $0 }) {
+      await Task.yield()
+    }
+    #expect(fake.requestAccessCount == 1)
+    #expect(fake.accessState() == .notDetermined)
+    release.finish()
+
+    #expect(await request.value == .limited)
+    #expect(fake.accessState() == .limited)
+    #expect(fake.requestAccessCount == 1)
+  }
+
+  @Test("권한 바꾸기는 현재 상태만 바꾸고 변경 알림을 보내지 않는다")
+  func changesAccessStateWithoutNotifying() async {
+    let fake = PhotoLibraryClientFake(currentState: .denied, imageAssets: [.stub(id: "a")])
+    let changes = await fake.imageChanges()
+
+    fake.changeAccessState(.authorized)
+    fake.finishImageChanges()
+
+    #expect(fake.accessState() == .authorized)
+    #expect(fake.requestAccessCount == 0)
+    #expect(await fake.fetchImageAssets().map(\.id) == ["a"])
+    var received: [ImageChange] = []
+    for await change in changes {
+      received.append(change)
+    }
+    #expect(received.isEmpty)
+  }
 }

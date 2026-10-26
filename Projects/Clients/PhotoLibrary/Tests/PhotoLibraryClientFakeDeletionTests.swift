@@ -77,7 +77,7 @@ struct PhotoLibraryClientFakeDeletionTests {
     #expect(await fake.fetchImageAssets().count == 3)
   }
 
-  @Test("읽기 권한이 없으면 notAuthorized 를 던지고 요청은 기록한다", arguments: [PhotoAccessState.denied, .notDetermined])
+  @Test("읽기 권한이 없으면 notAuthorized 를 던지고 요청은 기록한다", arguments: [PhotoAccessState.denied, .notDetermined, .restricted])
   func notAuthorized(state: PhotoAccessState) async {
     let fake = Self.fake(accessState: state)
 
