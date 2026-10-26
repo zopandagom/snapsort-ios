@@ -58,6 +58,48 @@ extension Fixture {
     }
   }
 
+  /// 분석 Fake. 특징 벡터는 `featurePrint` 설정대로 쓸 수 있음을 정하고 `featurePrinter` 로 결과를 만든다.
+  static func analysis(
+    classify: @escaping @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>,
+    recognizeText: @escaping @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>,
+    featurePrint: FeaturePrintOptions,
+    featurePrintFailures: FailingIDs,
+    idsByWidth: [Int: ImageAsset.ID]
+  ) -> ImageAnalysisClientFake {
+    let later = Later<ImageAnalysisClientFake>()
+    let analysis = ImageAnalysisClientFake(
+      classify: classify,
+      recognizeText: recognizeText,
+      isFeaturePrintAvailable: featurePrint.isAvailable,
+      featurePrint: Self.featurePrinter(
+        idsByWidth: idsByWidth,
+        failures: featurePrintFailures,
+        analysis: later,
+        onFeaturePrint: featurePrint.onFeaturePrint
+      )
+    )
+    later.set(analysis)
+    return analysis
+  }
+
+  /// 특징 벡터 Fake 의 결과. 폭으로 이미지를 찾아 `onFeaturePrint` 를 부른 뒤, `failures` 에 있거나 훅이 쓸 수 없게 바꿨으면 실패,
+  /// 아니면 첫 원소가 폭인 벡터(`fixtureFeaturePrint`)를 준다.
+  static func featurePrinter(
+    idsByWidth: [Int: ImageAsset.ID],
+    failures: FailingIDs,
+    analysis: Later<ImageAnalysisClientFake>,
+    onFeaturePrint: @escaping @Sendable (ImageAsset.ID, ImageAnalysisClientFake?) async -> Void
+  ) -> @Sendable (AnalysisImage) async -> Result<ImageFeaturePrint, ImageAnalysisError> {
+    { image in
+      let id = idsByWidth[image.cgImage.width] ?? ""
+      await onFeaturePrint(id, analysis.current)
+      if failures.contains(id) || analysis.current?.isFeaturePrintAvailable == false {
+        return .failure(.failed)
+      }
+      return .success(fixtureFeaturePrint(width: image.cgImage.width))
+    }
+  }
+
   static var seoulCalendar: Calendar {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .gmt
