@@ -5,7 +5,7 @@ struct CleanupCandidatesTests {
   private static let today = gifticonDay(20_261_019)
 
   private static func sections(_ items: [GifticonListItem]) -> CleanupSections {
-    CleanupSections.gifticons(items, today: self.today)
+    CleanupSections.make(gifticons: items, today: self.today)
   }
 
   private static func estimated(_ id: String, expiry: Int, isUsed: Bool = false) -> GifticonListItem {
@@ -135,5 +135,78 @@ struct CleanupCandidatesTests {
   func emptySectionsAreDropped() {
     #expect(Self.sections([]).isEmpty)
     #expect(Self.sections([extractedGifticon("u", expiry: nil, isUsed: true)]).sections.map(\.kind) == [.usedGifticons])
+  }
+
+  private static let similarGroups = [
+    SimilarPhotoGroup(
+      photos: [similarAsset("s1", seconds: 0), similarAsset("s2", seconds: 1), similarAsset("s3", seconds: 2)],
+      keptID: "s2"
+    ),
+    SimilarPhotoGroup(photos: [similarAsset("t1", seconds: -100), similarAsset("t2", seconds: -99)], keptID: "t1"),
+  ]
+
+  @Test("섹션 순서는 만료됨 → 사용함 → 비슷한 사진이고 비슷한 사진은 묶음마다 하나다")
+  func similarPhotosSectionOrder() {
+    let result = CleanupSections.make(
+      gifticons: [
+        extractedGifticon("used", expiry: nil, isUsed: true),
+        extractedGifticon("expired", expiry: 20_261_001),
+      ],
+      today: Self.today,
+      similarPhotoGroups: Self.similarGroups
+    )
+
+    #expect(result.sections.map(\.kind) == [.expiredGifticons, .usedGifticons, .similarPhotos])
+    let similar = result.sections.last
+    #expect(similar?.groups.map(\.id) == ["s1", "t1"])
+    #expect(similar?.groups.map { $0.candidates.map(\.id) } == [["s1", "s2", "s3"], ["t1", "t2"]])
+    #expect(similar?.candidates.map(\.id) == ["s1", "s2", "s3", "t1", "t2"])
+    #expect(result.candidateIDs == ["used", "expired", "s1", "s2", "s3", "t1", "t2"])
+  }
+
+  @Test("비슷한 사진은 남길 장만 기본 선택하지 않고 기프티콘 정보가 없다")
+  func similarPhotoDefaults() throws {
+    let result = CleanupSections.make(gifticons: [], today: Self.today, similarPhotoGroups: Self.similarGroups)
+
+    let candidates = try #require(result.sections.first?.candidates)
+    #expect(candidates.filter(\.isKept).map(\.id) == ["s2", "t1"])
+    #expect(candidates.filter { !$0.isSelectedByDefault }.map(\.id) == ["s2", "t1"])
+    #expect(candidates.allSatisfy { $0.gifticon == nil })
+  }
+
+  @Test("모두 선택은 비슷한 사진에서 남길 장을 빼고 기프티콘 섹션에서는 전부다")
+  func bulkSelectableIDs() {
+    let result = CleanupSections.make(
+      gifticons: [Self.estimated("model", expiry: 20_261_001)],
+      today: Self.today,
+      similarPhotoGroups: Self.similarGroups
+    )
+
+    #expect(result.sections.map(\.bulkSelectableIDs) == [["model"], ["s1", "s3", "t2"]])
+  }
+
+  @Test("기프티콘 후보는 항목을 담고 남길 장이 아니다")
+  func gifticonCandidateDetail() throws {
+    let item = extractedGifticon("a", expiry: 20_261_001)
+    let candidate = try #require(Self.sections([item]).sections.first?.candidates.first)
+
+    #expect(candidate.gifticon == item)
+    #expect(candidate.asset == item.asset)
+    #expect(!candidate.isKept)
+  }
+
+  @Test("아직 비교하지 않은 수를 그대로 담고, 후보가 없어도 비어 있다")
+  func uncomparedCount() {
+    let result = CleanupSections.make(gifticons: [], today: Self.today, uncomparedPhotoCount: 4)
+
+    #expect(result.uncomparedPhotoCount == 4)
+    #expect(result.isEmpty)
+    #expect(Self.sections([]).uncomparedPhotoCount == 0)
+  }
+
+  @Test("후보가 없는 섹션은 묶음이 없어 빠진다")
+  func emptySectionHasNoGroups() {
+    #expect(CleanupSection(kind: .usedGifticons, candidates: []).groups.isEmpty)
+    #expect(CleanupSections.make(gifticons: [], today: Self.today, similarPhotoGroups: []).isEmpty)
   }
 }
