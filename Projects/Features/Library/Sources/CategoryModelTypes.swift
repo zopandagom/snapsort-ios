@@ -7,6 +7,8 @@ public enum ThumbnailScope: Hashable, Sendable {
   case category(ImageCategory)
   /// 보관함 검색 결과.
   case search
+  /// 정리 도우미: 정리 화면과 그 위에 push 되는 캡처 인박스가 함께 쓴다.
+  case cleanup
 }
 
 /// 카테고리 한 번 읽은 목록. 쇼핑·대화·지도는 묶음 값까지(`CaptureGroupItem`) 읽는다.

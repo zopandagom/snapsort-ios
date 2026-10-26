@@ -5,11 +5,13 @@ import SwiftUI
 /// 카테고리 줄을 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView`)을,
 /// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`. 여행 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
 /// 검색 필드(`.searchable`)를 누르면 카테고리 목록 대신 검색 결과(`SearchResultsView`)를 보이고, 결과의 카테고리·여행·사진 줄이 같은 화면들을 연다.
+/// 목록 맨 아래 "정리 도우미" 줄은 정리 화면(`CleanupView`)을, 그 안의 줄은 캡처 인박스(`CaptureInboxView`)를 연다.
 /// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
-/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과의 다시 읽기
-/// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·상세의 다시 읽기
-/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 일곱 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색)
+/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과·정리 화면·캡처 인박스의 다시 읽기
+/// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·캡처
+/// 인박스)
 public struct LibraryView: View {
   let model: LibraryModel
   let categoryModel: CategoryModel
@@ -19,6 +21,8 @@ public struct LibraryView: View {
   let tripListModel: TripListModel
   let tripDetailModel: TripDetailModel
   let searchModel: SearchModel
+  let cleanupModel: CleanupModel
+  let captureInboxModel: CaptureInboxModel
 
   @Environment(\.scenePhase) private var scenePhase
 
@@ -30,7 +34,9 @@ public struct LibraryView: View {
     captureActionsModel: CaptureActionsModel,
     tripListModel: TripListModel,
     tripDetailModel: TripDetailModel,
-    searchModel: SearchModel
+    searchModel: SearchModel,
+    cleanupModel: CleanupModel,
+    captureInboxModel: CaptureInboxModel
   ) {
     self.model = model
     self.categoryModel = categoryModel
@@ -40,6 +46,8 @@ public struct LibraryView: View {
     self.tripListModel = tripListModel
     self.tripDetailModel = tripDetailModel
     self.searchModel = searchModel
+    self.cleanupModel = cleanupModel
+    self.captureInboxModel = captureInboxModel
   }
 
   public var body: some View {
@@ -82,6 +90,14 @@ public struct LibraryView: View {
       .navigationDestination(for: PhotoDetailRoute.self) { route in
         PhotoDetailView(model: self.categoryModel, captureModel: self.captureActionsModel, route: route)
       }
+      .navigationDestination(for: CleanupRoute.self) { route in
+        switch route {
+        case .cleanup:
+          CleanupView(model: self.cleanupModel, categoryModel: self.categoryModel)
+        case .captureInbox:
+          CaptureInboxView(model: self.captureInboxModel, categoryModel: self.categoryModel)
+        }
+      }
     }
     // 모두 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 신호를 넘긴다.
     .task { await self.model.onAppear() }
@@ -93,11 +109,15 @@ public struct LibraryView: View {
       self.tripListModel.libraryStoreChanged()
       self.tripDetailModel.libraryStoreChanged()
       self.searchModel.libraryStoreChanged()
+      self.cleanupModel.libraryStoreChanged()
+      self.captureInboxModel.libraryStoreChanged()
     }
     // 상세를 닫은 뒤 끝난 쓰기도 오른다. 같은 사진을 닫았다 바로 다시 열어 경로의 옛 값을 보이는 상세도 다시 읽어 맞춘다.
+    // 사용 여부 쓰기는 `storeRevision` 을 올리지 않으므로, 정리 화면에서 연 상세에서 바꾼 기프티콘이 만료됨 ↔ 사용함 섹션을 옮기도록 정리 화면도 맞춘다.
     .onChange(of: self.captureActionsModel.usageRevision) {
       self.model.gifticonUsageChanged()
       self.gifticonListModel.libraryStoreChanged()
+      self.cleanupModel.libraryStoreChanged()
       self.captureActionsModel.libraryStoreChanged()
     }
     // 시작 직후의 첫 값은 부르지 않는다(화면 진입 동기화가 맡는다). 백그라운드(잠금 포함) 동안의 날짜 변경도 여기서 덮는다.
@@ -110,6 +130,8 @@ public struct LibraryView: View {
       self.tripListModel.dayChanged()
       self.tripDetailModel.dayChanged()
       self.searchModel.dayChanged()
+      self.cleanupModel.dayChanged()
+      self.captureInboxModel.dayChanged()
     }
     // 아래 두 알림 모두 백그라운드 큐에서 post 해도 `.onReceive` 의 action 은 메인에서 돈다(iOS 26.5 시뮬레이터 실험으로 확인).
     .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -128,6 +150,8 @@ public struct LibraryView: View {
     self.tripListModel.dayChanged()
     self.tripDetailModel.dayChanged()
     self.searchModel.dayChanged()
+    self.cleanupModel.dayChanged()
+    self.captureInboxModel.dayChanged()
   }
 
   /// 카테고리 줄 목록. 검색 중에는 `SearchResultsView` 가 대신 보인다.
@@ -153,6 +177,19 @@ public struct LibraryView: View {
       self.categorySection("캡처", group: .information)
       self.categorySection("사진", group: .photo)
       self.categorySection("기타", group: .other)
+      self.cleanupSection
+    }
+  }
+
+  /// 이미지가 하나라도 분류돼 있을 때만 보인다. 정리 화면은 그 안에서 후보를 고른다.
+  @ViewBuilder
+  private var cleanupSection: some View {
+    if !self.model.categoryCounts.isEmpty {
+      Section {
+        NavigationLink(value: CleanupRoute.cleanup) {
+          Label("정리 도우미", systemImage: "sparkles")
+        }
+      }
     }
   }
 
