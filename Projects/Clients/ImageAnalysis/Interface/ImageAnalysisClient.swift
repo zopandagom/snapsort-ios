@@ -1,6 +1,6 @@
 import Core
 
-/// 이미지 분석 (Vision 이미지 분류·OCR·바코드).
+/// 이미지 분석 (Vision 이미지 분류·OCR·바코드·특징 벡터).
 /// 구현은 ImageAnalysisImpl, 테스트 대역은 ImageAnalysisTesting 에 있다.
 public protocol ImageAnalysisClient: Sendable {
   /// 썸네일에서 이미지 분류 라벨을 신뢰도 높은 순으로 돌려준다. `minimumConfidence` 보다 낮은 라벨은 뺀다.
@@ -20,4 +20,14 @@ public protocol ImageAnalysisClient: Sendable {
   /// OCR 과 같이 기기에 있는 가장 큰 버전(`ImageSize.largestAvailable`)을 넘긴다.
   /// 호출한 Task 가 취소되면 `.cancelled` 를 던진다.
   func detectBarcodes(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [DetectedBarcode]
+
+  /// 비슷한 사진 비교용 특징 벡터를 이 기기에서 만들 수 있는지. 시뮬레이터는 false 다(Vision 이 실패하거나 멈추거나
+  /// 모든 사진에 같은 벡터를 준다, docs/ARCHITECTURE.md §4 정리 도우미 실측). false 면 부르는 쪽이 계산·대기 조회를 하지 않는다.
+  /// 요청이 시한(Impl `FeaturePrinting.timeout`)을 넘기면 이 프로세스가 끝날 때까지 false 가 된다. 부르는 쪽은 부를 때마다 묻는다.
+  var isFeaturePrintAvailable: Bool { get }
+
+  /// 썸네일(`ImageSize.thumbnail`, 대체 버전이 아닌 것)에서 `ImageFeaturePrint.version` 의 요청으로 특징 벡터를 만든다.
+  /// 쓸 수 없는 기기에서는 Vision 을 부르지 않고 `.failed` 를 던진다. 요청이 시한을 넘겨도 `.failed` 다.
+  /// 호출한 Task 가 취소되면 `.cancelled` 를 던진다.
+  func featurePrint(_ image: AnalysisImage) async throws(ImageAnalysisError) -> ImageFeaturePrint
 }

@@ -1,7 +1,7 @@
 import ImageAnalysisInterface
 import Vision
 
-/// Vision 요청 실패를 Interface 의 이유로 바꾸는 규칙. 이미지 분류·OCR·바코드 인식이 함께 쓴다.
+/// Vision 요청 실패를 Interface 의 이유로 바꾸는 규칙. 이미지 분류·OCR·바코드 인식·특징 벡터가 함께 쓴다.
 enum VisionFailure {
   /// Task 가 취소된 뒤의 오류는 원인과 관계없이 취소로 본다.
   static func analysisError(_ error: any Error, isTaskCancelled: Bool) -> ImageAnalysisError {
