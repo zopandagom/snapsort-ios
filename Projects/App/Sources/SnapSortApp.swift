@@ -26,6 +26,8 @@ struct SnapSortApp: App {
   @State private var tripListModel: TripListModel
   @State private var tripDetailModel: TripDetailModel
   @State private var searchModel: SearchModel
+  @State private var cleanupModel: CleanupModel
+  @State private var captureInboxModel: CaptureInboxModel
   #if DEBUG
     /// Debug 빌드 전용 기록 도구 (docs/ARCHITECTURE.md §4 기록 도구).
     @State private var sampleRecorderModel: SampleRecorderModel
@@ -77,6 +79,9 @@ struct SnapSortApp: App {
     self._tripDetailModel = State(initialValue: TripDetailModel(photoStore: photoStore, map: map))
     // 장소 이름은 캐시만 대조하므로 Map 을 넘기지 않는다.
     self._searchModel = State(initialValue: SearchModel(photoStore: photoStore))
+    // 정리 도우미. 사진을 지우는 것은 사용자가 고른 사진을 시스템 확인 창을 거쳐서만 한다.
+    self._cleanupModel = State(initialValue: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore))
+    self._captureInboxModel = State(initialValue: CaptureInboxModel(photoLibrary: photoLibrary, photoStore: photoStore))
     #if DEBUG
       self._sampleRecorderModel = State(initialValue: SampleRecorderModel(
         photoLibrary: photoLibrary,
@@ -99,6 +104,8 @@ struct SnapSortApp: App {
             tripListModel: self.tripListModel,
             tripDetailModel: self.tripDetailModel,
             searchModel: self.searchModel,
+            cleanupModel: self.cleanupModel,
+            captureInboxModel: self.captureInboxModel,
             sampleRecorderModel: self.sampleRecorderModel
           )
         #else
@@ -110,7 +117,9 @@ struct SnapSortApp: App {
             captureActionsModel: self.captureActionsModel,
             tripListModel: self.tripListModel,
             tripDetailModel: self.tripDetailModel,
-            searchModel: self.searchModel
+            searchModel: self.searchModel,
+            cleanupModel: self.cleanupModel,
+            captureInboxModel: self.captureInboxModel
           )
         #endif
       } else {
