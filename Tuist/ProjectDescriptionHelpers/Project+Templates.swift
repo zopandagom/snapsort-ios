@@ -2,6 +2,8 @@ import ProjectDescription
 
 public enum Env {
   public static let appName = "SnapSort"
+  /// 홈 화면·알림에 보이는 이름. 타깃·모듈 이름(`appName`)과 따로 둔다. 영어 이름(Ganjik)은 App 의 `Resources/InfoPlist.xcstrings` 에 있다.
+  public static let displayName = "간직함"
   public static let bundleIdPrefix = "com.zopandagom.snapsort"
   public static let destinations: Destinations = [.iPhone]
   /// Foundation Models 가 동작하는 최소 버전.
@@ -73,7 +75,7 @@ public extension Project {
           bundleId: Env.bundleId(appExtension.rawValue),
           deploymentTargets: Env.deploymentTargets,
           infoPlist: .extendingDefault(with: [
-            "CFBundleDisplayName": .string(Env.appName),
+            "CFBundleDisplayName": .string(Env.displayName),
             "NSExtension": [
               "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
             ],
