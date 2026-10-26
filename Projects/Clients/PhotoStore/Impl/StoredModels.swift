@@ -71,6 +71,16 @@ final class StoredImage {
   /// 행이 지워지면 함께 사라진다(보관함에서 빠졌다 돌아오면 새 행이라 보관하지 않은 것으로 돌아온다).
   /// 기본값이 있어 경량 이전으로 보관하지 않음이 된다.
   var isKeptInCaptureInbox = false
+  /// 특징 벡터는 두 값으로 읽는다(`PhotoStore.storedFeaturePrint`). 세 상태:
+  /// 대상 아님(메타데이터로 판정: 스크린샷·생성일 없음·OCR 대상, `PhotoStore.isFeaturePrintTarget`) /
+  /// 대기(대상이고 버전이 `ImageFeaturePrint.version` 과 다름) / 값(버전이 같고 `featurePrint.data` 가 풀림).
+  /// 벡터를 만든 버전. 0 이면 만들지 않았다. `!=` 로 비교해 앱을 되돌려 높은 버전이 남아도 다시 계산한다.
+  /// 기본값이 있어 경량 이전으로 기존 행은 0(대상이면 대기)이 된다.
+  var featurePrintVersion = 0
+  /// 벡터 원소(3KB). 이 행을 통째로 읽는 조회(`assets(in:)`·`gifticons()`·`save` 의 기존 행 조회 등)가 장마다 3KB 를 더 읽지 않게
+  /// 따로 둔다(관계는 접근할 때만 읽힌다). 행이 지워지면 함께 지워진다.
+  @Relationship(deleteRule: .cascade, inverse: \StoredFeaturePrint.image)
+  var featurePrint: StoredFeaturePrint?
   /// 카테고리별 개수·목록을 조회 조건으로 세기 위해 카테고리마다 한 행으로 둔다.
   @Relationship(deleteRule: .cascade, inverse: \StoredCategoryMembership.image)
   var memberships: [StoredCategoryMembership] = []
@@ -89,6 +99,21 @@ final class StoredCategoryMembership {
 
   init(category: String) {
     self.category = category
+  }
+}
+
+/// 이미지 한 장의 특징 벡터 (`StoredImage.featurePrint`). `data` 는 `ImageFeaturePrint.floatData` 형식이다.
+/// `assetID` 는 관계를 거치지 않고 식별자로 고르려고 중복으로 둔다. 새 엔티티라 경량 이전으로 빈 표가 된다.
+/// 사진에서 만든 값이라 로그에 남기지 않는다.
+@Model
+final class StoredFeaturePrint {
+  var assetID: String
+  var data: Data
+  var image: StoredImage?
+
+  init(assetID: String, data: Data) {
+    self.assetID = assetID
+    self.data = data
   }
 }
 

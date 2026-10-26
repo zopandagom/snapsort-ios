@@ -12,6 +12,9 @@ import SwiftUI
 /// 기프티콘 데모(`PreviewGifticons`)가 만료됨(CU·메가커피, 추정 만료일 파스쿠찌)·사용함(버거킹·맘스터치)·확인 중 후보를 이미 갖고 있고,
 /// 그 이미지는 모두 스크린샷이라 캡처 인박스에도 든다. 여기에 인박스 기간 안팎의 스크린샷을 더한다.
 /// 보관함 대역은 데모 이미지를 갖고 있어 삭제가 실제처럼 증분 변경을 보낸다. CU 한 장은 일부러 보관함에서 빼, "이미 없어 건너뜀" 안내를 본다.
+/// 비슷한 사진(`similarPhotos`)은 Fake 벡터를 단 카메라 사진이다: 묶음 A(3장, 2초 간격, 가운데 장이 가장 커서 남김),
+/// 묶음 B(2장, 크기가 같아 최신이 남김), 묶음 A 바로 뒤에 찍었지만 거리가 먼 1장(묶이지 않음), 같은 시각의 스크린샷 1장(대상 아님),
+/// 벡터가 없는 대상 사진 3장(아직 비교하지 않은 3장). 벡터는 원소 하나만 바꿔 거리를 그 차이로 맞춘다.
 enum PreviewCleanup {
   /// 오늘부터 며칠 전에 찍은 스크린샷. 30일(오늘 포함) 밖은 인박스에 나오지 않는다.
   static let screenshotDaysAgo = [0, 2, 5, 9, 14, 21, 29, 35, 60]
@@ -22,8 +25,69 @@ enum PreviewCleanup {
     "cleanup-shot-\(index)"
   }
 
+  /// 비슷한 사진 데모 한 장: 몇 초 전에 찍었는지, 벡터 첫 원소(nil 이면 벡터 없음), 크기, 스크린샷 여부.
+  struct SimilarPhoto {
+    let secondsAgo: TimeInterval
+    let featureValue: Float?
+    var pixelWidth = 4032
+    var pixelHeight = 3024
+    var isScreenshot = false
+  }
+
+  static let similarPhotoSamples: [SimilarPhoto] = [
+    // 묶음 A: 두 시간 전 2초 간격. 이웃 거리 0.1, 첫 장과 0.2.
+    SimilarPhoto(secondsAgo: 7200, featureValue: 0),
+    SimilarPhoto(secondsAgo: 7198, featureValue: 0.1, pixelWidth: 5712, pixelHeight: 4284),
+    SimilarPhoto(secondsAgo: 7196, featureValue: 0.2),
+    // 묶음 A 의 5초 뒤지만 거리 0.8 이라 끊기고, 혼자라 묶음이 아니다.
+    SimilarPhoto(secondsAgo: 7191, featureValue: 1.0),
+    // 같은 때의 스크린샷은 대상이 아니다.
+    SimilarPhoto(secondsAgo: 7195, featureValue: 0.15, isScreenshot: true),
+    // 묶음 B: 하루 전 3초 간격. 크기가 같아 최신이 남김.
+    SimilarPhoto(secondsAgo: 86400, featureValue: 3.0),
+    SimilarPhoto(secondsAgo: 86397, featureValue: 3.05),
+    // 아직 비교하지 않은 대상 사진.
+    SimilarPhoto(secondsAgo: 3 * 86400, featureValue: nil),
+    SimilarPhoto(secondsAgo: 3 * 86400 - 1, featureValue: nil),
+    SimilarPhoto(secondsAgo: 3 * 86400 - 2, featureValue: nil),
+  ]
+
+  static func similarID(_ index: Int) -> ImageAsset.ID {
+    "cleanup-similar-\(index)"
+  }
+
   static var imageIDs: [ImageAsset.ID] {
-    self.screenshotDaysAgo.indices.map { self.id($0) }
+    self.screenshotDaysAgo.indices.map { self.id($0) } + self.similarPhotoSamples.indices.map { self.similarID($0) }
+  }
+
+  /// 정리 데모가 저장소에 더하는 이미지: 인박스 스크린샷과 비슷한 사진.
+  static func images(now: Date) -> [IndexedImage] {
+    self.screenshots(now: now) + self.similarPhotos(now: now)
+  }
+
+  static func similarPhotos(now: Date) -> [IndexedImage] {
+    self.similarPhotoSamples.enumerated().map { index, sample in
+      IndexedImage(
+        asset: .stub(
+          id: self.similarID(index),
+          creationDate: now.addingTimeInterval(-sample.secondsAgo),
+          pixelWidth: sample.pixelWidth,
+          pixelHeight: sample.pixelHeight,
+          isScreenshot: sample.isScreenshot
+        ),
+        labels: [],
+        textRecognition: .notNeeded,
+        categories: [.other],
+        featurePrint: sample.featureValue.flatMap(self.featurePrint)
+      )
+    }
+  }
+
+  /// 첫 원소만 `value` 이고 나머지는 0 인 벡터. 두 벡터의 거리는 첫 원소 차이다.
+  private static func featurePrint(_ value: Float) -> ImageFeaturePrint? {
+    var values = [Float](repeating: 0, count: ImageFeaturePrint.elementCount)
+    values[0] = value
+    return ImageFeaturePrint(values: values)
   }
 
   static func screenshots(now: Date) -> [IndexedImage] {
@@ -47,7 +111,7 @@ enum PreviewCleanup {
       .enumerated()
       .filter { $0.offset != self.missingGifticonIndex }
       .map(\.element.asset)
-    return .stubs(count: 128) + gifticons + self.screenshots(now: now).map(\.asset)
+    return .stubs(count: 128) + gifticons + self.images(now: now).map(\.asset)
   }
 }
 
@@ -105,7 +169,7 @@ private func cleanupPreview(
 ) -> some View {
   NavigationStack {
     CleanupView(
-      model: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore),
+      model: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore, findsSimilarPhotos: true),
       categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore)
     )
   }
@@ -131,7 +195,7 @@ private func cleanupPreviewStore(
   PhotoStoreClientFake.previewClassified(
     gifticonsErrors: gifticonsErrors,
     captureInboxErrors: captureInboxErrors,
-    extraImages: PreviewCleanup.screenshots(now: Date())
+    extraImages: PreviewCleanup.images(now: Date())
   )
 }
 

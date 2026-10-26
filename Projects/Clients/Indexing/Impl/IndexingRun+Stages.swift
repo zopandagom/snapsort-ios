@@ -7,11 +7,12 @@ import PhotoStoreInterface
 import Synchronization
 
 /// 분석 두 단계 (docs/ARCHITECTURE.md §4 인덱싱).
-/// 1단계(`classify(_:)`)는 새 이미지를 모두 분류해 저장하고, 2단계(`recognize(_:asset:)`)는 OCR 대기 이미지의 글자를 나중에 읽어
+/// 1단계(`classify(_:)`)는 새 이미지를 모두 분류해 저장하고(벡터 대상 사진은 같은 썸네일로 특징 벡터도 만들어 같은 저장에 넣는다), 2단계(`recognize(_:asset:)`)는 OCR 대기
+/// 이미지의 글자를 나중에 읽어
 /// 규칙 분류하고, 기프티콘이면 만료일·교환처를, 영수증이면 가게·금액을, 쇼핑·대화·지도면 쇼핑몰·브랜드·대화 앱·지역을 추출해 함께 저장한다. 모델을 쓸 수 있으면 2단계가 언어 모델로 보강한다:
 /// 규칙 분류가 기타뿐인 이미지에 근거 있는 정보형 카테고리를 더하고, 기프티콘 추출 값의 빈 필드를 확인된 값으로 채운다(IndexingRun+ModelFill.swift).
 /// Debug 기록 도구의 `SampleRecording.measure`(SampleRecorderFeature)는 한 장에서 두 단계를 이어 단계별 시간을 잰다.
-/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다. 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 기록 도구가 재지 않고,
+/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다(기록 도구도 1단계처럼 대상 사진의 특징 벡터 시간을 잰다). 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 기록 도구가 재지 않고,
 /// 언어 모델 보강은 기록 도구가 하지 않아 재지 않는다(기록 도구는 Classifier 를 주입받지 않는다).
 extension IndexingRun {
   // MARK: - 1단계: 분류
@@ -53,12 +54,14 @@ extension IndexingRun {
     report(self.progress)
   }
 
-  /// 1단계: ① 메타데이터 → ② 썸네일 이미지 분류 → OCR 대상 판정.
+  /// 1단계: ① 메타데이터 → ② 썸네일 이미지 분류 → OCR 대상 판정 → 벡터 대상이면 같은 썸네일로 특징 벡터.
   /// OCR 대상은 대기(`.pending`)로, 카테고리는 라벨만으로 정한 것(`pendingCategories`)으로 저장한다.
-  func classify(_ asset: ImageAsset) async throws(IndexingStop) -> Outcome {
+  /// 벡터를 만들지 못하면 벡터 없이 분류를 저장한다(`phaseOneFeaturePrint`, 다음 실행·전체 다시 비교가 대기로 고른다).
+  mutating func classify(_ asset: ImageAsset) async throws(IndexingStop) -> Outcome {
+    let thumbnail: AnalysisImage
     let labels: [ImageLabel]
     do throws(AnalysisFailure) {
-      let thumbnail = try await self.loadImage(asset.id, size: .thumbnail)
+      thumbnail = try await self.loadImage(asset.id, size: .thumbnail)
       labels = try await self.analysis { () async throws(ImageAnalysisError) in
         try await self.imageAnalysis.classify(thumbnail, minimumConfidence: ClassificationRules.minimumLabelConfidence)
       }
@@ -67,7 +70,14 @@ extension IndexingRun {
     }
     guard TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: labels) else {
       let categories = RuleClassifier.classify(asset: asset, labels: labels, textLines: [])
-      return .indexed(IndexedImage(asset: asset, labels: labels, textRecognition: .notNeeded, categories: categories))
+      let featurePrint = try await self.phaseOneFeaturePrint(asset: asset, thumbnail: thumbnail)
+      return .indexed(IndexedImage(
+        asset: asset,
+        labels: labels,
+        textRecognition: .notNeeded,
+        categories: categories,
+        featurePrint: featurePrint
+      ))
     }
     return .indexed(IndexedImage(
       asset: asset,
@@ -219,7 +229,7 @@ extension IndexingRun {
 
   // MARK: - 오류 변환
 
-  private func loadImage(_ id: ImageAsset.ID, size: ImageSize) async throws(AnalysisFailure) -> AnalysisImage {
+  func loadImage(_ id: ImageAsset.ID, size: ImageSize) async throws(AnalysisFailure) -> AnalysisImage {
     do throws(ImageLoadError) {
       return try await self.photoLibrary.loadImage(id: id, size: size)
     } catch {
@@ -252,6 +262,14 @@ enum Outcome {
   case unavailable
   /// 보관함에 없다.
   case gone
+}
+
+/// 인덱싱을 멈추는 이유.
+enum IndexingStop: Error {
+  case cancelled
+  case storeFailed
+  /// 사진을 읽을 권한이 없다.
+  case notReadable
 }
 
 /// 이미지 한 장을 분석하지 못한 이유.

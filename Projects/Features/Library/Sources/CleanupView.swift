@@ -2,7 +2,8 @@ import Core
 import DesignSystem
 import SwiftUI
 
-/// 정리 화면: 만료된 기프티콘과 사용한 기프티콘을 후보로 보이고, 고른 것을 지운다 (docs/ARCHITECTURE.md §4 정리 도우미).
+/// 정리 화면: 만료된 기프티콘과 사용한 기프티콘, 비슷한 사진 묶음을 후보로 보이고, 고른 것을 지운다 (docs/ARCHITECTURE.md §4 정리 도우미).
+/// 비슷한 사진은 묶음마다 목록 섹션 하나로 그리고, 첫 묶음 머리에 섹션 제목과 "모두 선택"을, 마지막 묶음 바닥에 섹션 바닥글을 둔다.
 /// 맨 위에서 캡처 인박스(`CaptureInboxView`)로 간다. 후보 줄은 체크 원(선택)과 나머지(사진 상세로 가는 링크)로 나뉜다:
 /// 사진을 보고 고르게 하려는 것이라 체크 원이 아닌 곳을 누르면 선택이 바뀌지 않는다.
 /// 큰 제목이 흐려지지 않게 안내는 목록 첫 섹션으로 두고, 선택 수·확보 용량을 담은 삭제 버튼은 아래 도구 막대에 둔다
@@ -64,7 +65,7 @@ public struct CleanupView: View {
           }
         }
         Section {
-          StatusMessageView("기프티콘을 불러오지 못했습니다", systemImage: "exclamationmark.triangle") {
+          StatusMessageView("정리 후보를 불러오지 못했습니다", systemImage: "exclamationmark.triangle") {
             self.model.retryButtonTapped()
           }
           .listRowBackground(Color.clear)
@@ -106,7 +107,7 @@ public struct CleanupView: View {
       }
       if sections.isEmpty {
         Section {
-          StatusMessageView("정리할 기프티콘이 없습니다", systemImage: "checkmark.circle")
+          StatusMessageView("정리할 항목이 없습니다", systemImage: "checkmark.circle")
             .listRowBackground(Color.clear)
         }
       }
@@ -117,34 +118,76 @@ public struct CleanupView: View {
         if sections.checkingGifticonCount > 0 {
           CleanupFootnote("확인 중인 기프티콘 \(sections.checkingGifticonCount)장은 만료일을 찾은 뒤 후보가 됩니다.")
         }
+        if sections.uncomparedPhotoCount > 0 {
+          CleanupFootnote(
+            "아직 비교하지 않은 사진 \(sections.uncomparedPhotoCount)장은 비교를 마치면 비슷한 사진 묶음에 들 수 있습니다. "
+              + "기기에 작은 버전만 있는 iCloud 사진은 비교하지 못할 수 있습니다."
+          )
+        }
         CleanupFootnote(CleanupText.sizeEstimateNote)
       }
     }
   }
 
+  @ViewBuilder
   private func sectionView(_ section: CleanupSection) -> some View {
-    let isAllSelected = section.candidates.allSatisfy { self.model.selectedIDs.contains($0.id) }
-    return Section {
-      ForEach(section.candidates) { candidate in
-        self.row(candidate)
-      }
-    } header: {
-      HStack {
-        Text(section.kind.title)
-        Spacer()
-        Button(isAllSelected ? "모두 해제" : "모두 선택") {
-          self.model.sectionSelectionToggled(section.kind)
+    switch section.kind {
+    case .expiredGifticons, .usedGifticons:
+      Section {
+        ForEach(section.candidates) { candidate in
+          self.row(candidate)
         }
-        .buttonStyle(.borderless)
-        .textCase(nil)
+      } header: {
+        self.sectionHeader(section)
+      } footer: {
+        if section.kind == .expiredGifticons,
+           section.candidates.contains(where: { $0.gifticon?.estimatedFields.contains(.expiryDate) == true })
+        {
+          Text("추정한 만료일은 기본으로 고르지 않았습니다.")
+        }
       }
-    } footer: {
-      if section.kind == .expiredGifticons,
-         section.candidates.contains(where: { $0.item.estimatedFields.contains(.expiryDate) })
-      {
-        Text("추정한 만료일은 기본으로 고르지 않았습니다.")
+    case .similarPhotos:
+      ForEach(section.groups) { group in
+        Section {
+          ForEach(group.candidates) { candidate in
+            self.row(candidate)
+          }
+        } header: {
+          VStack(alignment: .leading, spacing: 8) {
+            if group.id == section.groups.first?.id {
+              self.sectionHeader(section)
+            }
+            Text(self.groupTitle(group))
+              .textCase(nil)
+          }
+        } footer: {
+          if group.id == section.groups.last?.id {
+            Text("묶음마다 가장 큰 사진 한 장은 남김으로 두고 고르지 않았습니다.")
+          }
+        }
       }
     }
+  }
+
+  /// 섹션 제목과 "모두 선택/모두 해제". 비슷한 사진의 "모두 선택"은 남길 장을 고르지 않는다(`bulkSelectableIDs`).
+  private func sectionHeader(_ section: CleanupSection) -> some View {
+    let isAllSelected = section.bulkSelectableIDs.isSubset(of: self.model.selectedIDs)
+    return HStack {
+      Text(section.kind.title)
+      Spacer()
+      Button(isAllSelected ? "모두 해제" : "모두 선택") {
+        self.model.sectionSelectionToggled(section.kind)
+      }
+      .buttonStyle(.borderless)
+      .textCase(nil)
+    }
+  }
+
+  /// 묶음 머리말: 장수와 첫 장 촬영 시각.
+  private func groupTitle(_ group: CleanupCandidateGroup) -> String {
+    let count = "\(group.candidates.count)장"
+    guard let date = group.candidates.first?.asset.creationDate else { return count }
+    return "\(count) · \(date.formatted(CleanupText.photoTimeStyle(calendar: self.model.calendar)))"
   }
 
   private func row(_ candidate: CleanupCandidate) -> some View {
@@ -159,13 +202,21 @@ public struct CleanupView: View {
       }
       .buttonStyle(.borderless)
       .accessibilityLabel(isSelected ? "선택 해제" : "선택")
-      NavigationLink(value: PhotoDetailRoute(asset: candidate.asset, gifticon: candidate.item)) {
-        CleanupCandidateRow(
-          categoryModel: self.categoryModel,
-          item: candidate.item,
-          today: self.model.today,
-          calendar: self.model.calendar
-        )
+      NavigationLink(value: PhotoDetailRoute(asset: candidate.asset, gifticon: candidate.gifticon)) {
+        if let item = candidate.gifticon {
+          CleanupCandidateRow(
+            categoryModel: self.categoryModel,
+            item: item,
+            today: self.model.today,
+            calendar: self.model.calendar
+          )
+        } else {
+          CleanupSimilarPhotoRow(
+            categoryModel: self.categoryModel,
+            candidate: candidate,
+            calendar: self.model.calendar
+          )
+        }
       }
     }
   }
@@ -222,6 +273,34 @@ private struct CleanupCandidateRow: View {
         if let expiryDate = info.expiryDate {
           GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.today))
         }
+      }
+    }
+  }
+}
+
+/// 비슷한 사진 한 줄의 사진 쪽: 썸네일·촬영 시각(초까지)·남길 장이면 "남김".
+private struct CleanupSimilarPhotoRow: View {
+  let categoryModel: CategoryModel
+  let candidate: CleanupCandidate
+  let calendar: Calendar
+
+  var body: some View {
+    HStack(spacing: 12) {
+      CategoryThumbnailCell(model: self.categoryModel, asset: self.candidate.asset, scope: .cleanup)
+        .frame(width: 56, height: 56)
+        .clipShape(.rect(cornerRadius: 8))
+      if let date = self.candidate.asset.creationDate {
+        Text(date, format: CleanupText.photoTimeStyle(calendar: self.calendar))
+          .font(.subheadline)
+      }
+      Spacer()
+      if self.candidate.isKept {
+        Text("남김")
+          .font(.caption.weight(.semibold))
+          .padding(.horizontal, 8)
+          .padding(.vertical, 2)
+          .background(.secondary.opacity(0.15), in: .capsule)
+          .foregroundStyle(.secondary)
       }
     }
   }

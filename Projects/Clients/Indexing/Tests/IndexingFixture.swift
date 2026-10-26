@@ -24,13 +24,37 @@ struct Fixture {
   let analysis: ImageAnalysisClientFake
   /// 언어 모델 Fake. 기본은 쓸 수 없음이라 모델 보강 없이 규칙 결과만 저장한다.
   let classifier: ClassifierClientFake
-  let indexing: IndexingClientImpl
   /// 분류에 실패하는 이미지. 테스트 도중 바꿔 다시 시도를 확인한다.
   let classifyFailures: FailingIDs
   /// OCR 에 실패하는 이미지. 테스트 도중 바꿔 다시 시도를 확인한다.
   let recognizeFailures: FailingIDs
+  /// 특징 벡터 요청에 실패하는 이미지. 테스트 도중 바꿔 다시 시도를 확인한다.
+  let featurePrintFailures: FailingIDs
   /// 테스트 도중 바꿀 수 있는 읽기 실패. `largestErrors` 로 시작하고, 보관함에서 사라졌다 돌아온 이미지를 흉내 낸다.
   let loadFailures: LoadFailures
+  /// 썸네일이 대체 버전으로 읽히는 이미지.
+  let localFallbackIDs: Set<ImageAsset.ID>
+  let changeRequests: ChangeRequests?
+  let batchSize: Int
+  let textBatchSize: Int
+
+  /// 위 Fake 를 조합한 인덱서. 상태가 없는 값이라 부를 때마다 만들어도 같다.
+  var indexing: IndexingClientImpl {
+    IndexingClientImpl(
+      photoLibrary: LargestFailingPhotoLibrary(
+        base: self.photoLibrary,
+        loadFailures: self.loadFailures,
+        localFallbackIDs: self.localFallbackIDs,
+        changeRequests: self.changeRequests
+      ),
+      imageAnalysis: self.analysis,
+      photoStore: self.store,
+      classifier: self.classifier,
+      calendar: Self.seoulCalendar,
+      batchSize: self.batchSize,
+      textBatchSize: self.textBatchSize
+    )
+  }
 
   /// - Parameters:
   ///   - library: 처음 보관함 이미지.
@@ -51,6 +75,8 @@ struct Fixture {
   ///   - usedIDs: 저장소에서 처음 사용함인 기프티콘.
   ///   - receipt: 저장소의 영수증 소급 호출 실패·한도·훅(`ReceiptStoreOptions`).
   ///   - captureGroup: 저장소의 캡처 묶음 소급 호출 실패·한도·훅(`CaptureGroupStoreOptions`).
+  ///   - featurePrint: 특징 벡터 쓸 수 있음·실패·대체 버전 썸네일·훅과 저장소의 벡터 소급 호출 실패·한도(`FeaturePrintOptions`).
+  ///     기본은 쓸 수 없음이라 벡터 요청이 없다.
   ///   - accessState: 사진 접근 권한.
   ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
@@ -81,6 +107,7 @@ struct Fixture {
     usedIDs: Set<ImageAsset.ID> = [],
     receipt: ReceiptStoreOptions = ReceiptStoreOptions(),
     captureGroup: CaptureGroupStoreOptions = CaptureGroupStoreOptions(),
+    featurePrint: FeaturePrintOptions = FeaturePrintOptions(),
     accessState: PhotoAccessState = .authorized,
     classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
@@ -107,35 +134,32 @@ struct Fixture {
       onSaveReceipts: receipt.onSave,
       captureGroupError: captureGroup.error,
       captureGroupSaveLimit: captureGroup.saveLimit,
-      onSaveCaptureGroups: captureGroup.onSave
+      onSaveCaptureGroups: captureGroup.onSave,
+      featurePrintError: featurePrint.storeError,
+      featurePrintSaveLimit: featurePrint.saveLimit
     )
     let failing = FailingIDs(classifyFailures)
     self.classifyFailures = failing
     self.recognizeFailures = FailingIDs(recognizeFailures)
     self.loadFailures = LoadFailures(largest: largestErrors)
     self.classifier = classifier
-    self.analysis = ImageAnalysisClientFake(
+    self.featurePrintFailures = FailingIDs(featurePrint.failures)
+    self.analysis = Self.analysis(
       classify: Self.classifier(idsByWidth: idsByWidth, labels: labels, failures: failing, onClassify: onClassify),
       recognizeText: Self.recognizer(
         idsByWidth: idsByWidth,
         text: text,
         failures: self.recognizeFailures,
         onRecognize: onRecognize
-      )
-    )
-    self.indexing = IndexingClientImpl(
-      photoLibrary: LargestFailingPhotoLibrary(
-        base: self.photoLibrary,
-        loadFailures: self.loadFailures,
-        changeRequests: changeRequests
       ),
-      imageAnalysis: self.analysis,
-      photoStore: self.store,
-      classifier: classifier,
-      calendar: Self.seoulCalendar,
-      batchSize: batchSize,
-      textBatchSize: textBatchSize
+      featurePrint: featurePrint,
+      featurePrintFailures: self.featurePrintFailures,
+      idsByWidth: idsByWidth
     )
+    self.localFallbackIDs = featurePrint.localFallbackIDs
+    self.changeRequests = changeRequests
+    self.batchSize = batchSize
+    self.textBatchSize = textBatchSize
   }
 }
 
@@ -144,6 +168,8 @@ struct Fixture {
 struct LargestFailingPhotoLibrary: PhotoLibraryClient {
   let base: PhotoLibraryClientFake
   let loadFailures: LoadFailures
+  /// 이 이미지는 읽은 결과를 대체 버전(`isLocalFallback`)으로 바꿔 준다.
+  var localFallbackIDs: Set<ImageAsset.ID> = []
   let changeRequests: ChangeRequests?
 
   func accessState() -> PhotoAccessState {
@@ -167,7 +193,9 @@ struct LargestFailingPhotoLibrary: PhotoLibraryClient {
       _ = try? await self.base.loadImage(id: id, size: size)
       throw error
     }
-    return try await self.base.loadImage(id: id, size: size)
+    let image = try await self.base.loadImage(id: id, size: size)
+    guard self.localFallbackIDs.contains(id) else { return image }
+    return AnalysisImage(cgImage: image.cgImage, orientation: image.orientation, isLocalFallback: true)
   }
 
   @MainActor

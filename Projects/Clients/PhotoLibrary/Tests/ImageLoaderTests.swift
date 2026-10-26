@@ -10,6 +10,11 @@ import UniformTypeIdentifiers
 @testable import PhotoLibraryImpl
 
 struct ImageLoaderTests {
+  @Test("썸네일 긴 변은 특징 벡터 버전에 든 값과 같다")
+  func thumbnailLengthMatchesFeaturePrintVersion() {
+    #expect(Int(ImageLoader.thumbnailLength) == ImageFeaturePrint.version % 10000)
+  }
+
   @Test(
     "어느 요청도 iCloud 원본을 내려받지 않는다",
     arguments: [PHImageRequestOptionsDeliveryMode.highQualityFormat, .fastFormat]

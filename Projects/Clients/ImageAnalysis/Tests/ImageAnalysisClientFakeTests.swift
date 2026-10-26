@@ -154,11 +154,19 @@ struct ImageAnalysisClientFakeTests {
         startedSignals.continuation.yield()
         try? await Task.sleep(for: .seconds(60))
         return .success([])
+      },
+      isFeaturePrintAvailable: true,
+      featurePrint: { _ in
+        startedSignals.continuation.yield()
+        try? await Task.sleep(for: .seconds(60))
+        return .failure(.failed)
       }
     )
 
     var started = startedSignals.stream.makeAsyncIterator()
-    for operation in [AnalysisRequest.classify(minimumConfidence: 0.1), .recognizeText, .detectBarcodes] {
+    for operation in [
+      AnalysisRequest.classify(minimumConfidence: 0.1), .recognizeText, .detectBarcodes, .featurePrint,
+    ] {
       let task = Task { () async -> ImageAnalysisError? in
         do throws(ImageAnalysisError) {
           switch operation {
@@ -168,6 +176,8 @@ struct ImageAnalysisClientFakeTests {
             _ = try await fake.recognizeText(.stub())
           case .detectBarcodes:
             _ = try await fake.detectBarcodes(.stub())
+          case .featurePrint:
+            _ = try await fake.featurePrint(.stub())
           }
           return nil
         } catch {

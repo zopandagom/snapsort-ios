@@ -33,6 +33,7 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     do {
       container = try ModelContainer(
         for: StoredImage.self, StoredCategoryMembership.self, StoredTrip.self, StoredPlaceName.self,
+        StoredFeaturePrint.self,
         configurations: configuration
       )
     } catch {
@@ -107,6 +108,27 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
   public func searchEntries() async throws(PhotoStoreError) -> SearchEntries {
     let (rows, pendingTextCount) = try await Self.perform { try await self.store.value.searchRows() }
     return await SearchEntries(entries: Self.searchEntries(from: rows), pendingTextCount: pendingTextCount)
+  }
+
+  public func featurePrintPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID> {
+    try await Self.perform { try await self.store.value.featurePrintPendingIDs() }
+  }
+
+  public func saveFeaturePrints(_ prints: [ImageAsset.ID: ImageFeaturePrint]) async throws(PhotoStoreError) {
+    try await Self.perform { try await self.store.value.saveFeaturePrints(prints) }
+  }
+
+  public func similarPhotoEntries() async throws(PhotoStoreError) -> SimilarPhotoEntries {
+    let store = await self.store.value
+    let (read, uncomparedCount) = try await Self.perform { try await store.similarPhotoRows() }
+    switch read {
+    case let .cached(photos):
+      return SimilarPhotoEntries(photos: photos, uncomparedCount: uncomparedCount)
+    case let .rows(rows, generation):
+      let photos = await Self.featurePrintedPhotos(from: rows)
+      await store.cacheSimilarPhotos(photos, generation: generation)
+      return SimilarPhotoEntries(photos: photos, uncomparedCount: uncomparedCount)
+    }
   }
 
   public func captureInboxScreenshots(createdSince: Date) async throws(PhotoStoreError) -> [ImageAsset] {
@@ -202,6 +224,14 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     return rows.map { row in
       let lines = (try? decoder.decode([StoredLineText].self, from: row.textLinesData))?.map(\.text) ?? []
       return SearchEntry(asset: row.asset, lines: lines, captureGroups: row.captureGroups)
+    }
+  }
+
+  /// 벡터를 풀고 풀리지 않는 행은 뺀다(던지면 그 행 하나로 정리 화면이 계속 실패한다). 메인과 저장소 actor 밖에서 돈다.
+  @concurrent
+  private static func featurePrintedPhotos(from rows: [PhotoStore.SimilarPhotoRow]) async -> [FeaturePrintedPhoto] {
+    rows.compactMap { row in
+      ImageFeaturePrint(floatData: row.data).map { FeaturePrintedPhoto(asset: row.asset, featurePrint: $0) }
     }
   }
 

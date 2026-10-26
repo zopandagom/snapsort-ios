@@ -42,7 +42,8 @@ public extension PhotoStoreClientFake {
           gifticonModelFill: image.gifticonModelFill,
           receipt: image.receipt,
           // 행 카테고리로 제한하는 것은 `IndexedImage.init` 이 한다.
-          captureGroups: value
+          captureGroups: value,
+          featurePrint: image.featurePrint
         )
       }
       return true

@@ -60,6 +60,40 @@ public struct ImageAnalysisClientImpl: ImageAnalysisClient {
     )
   }
 
+  /// 특징 벡터를 쓸 수 있는지(`FeaturePrinting.availability`). 시한을 넘긴 요청이 있으면 이 프로세스 동안 false 다.
+  public var isFeaturePrintAvailable: Bool {
+    FeaturePrinting.availability.withLock { $0 }
+  }
+
+  /// 메인 밖에서 시한(`FeaturePrinting.timeout`)과 경주시켜 실행한다. 시한을 넘기면 쓸 수 없음으로 바꾸고 `.failed` 를 던진다
+  /// (그 요청은 끝까지 돌 수 있고 결과는 버린다). `cropAndScaleAction` 은 기본값(`.scaleToFill`)을 둔다.
+  @concurrent
+  public func featurePrint(_ image: AnalysisImage) async throws(ImageAnalysisError) -> ImageFeaturePrint {
+    guard self.isFeaturePrintAvailable else {
+      throw Task.isCancelled ? .cancelled : .failed
+    }
+    let outcome = try await FeaturePrinting
+      .race(timeout: FeaturePrinting.timeout) { () async throws(ImageAnalysisError) in
+        let observation = try await Self.perform {
+          try await GenerateImageFeaturePrintRequest(FeaturePrinting.revision)
+            .perform(on: image.cgImage, orientation: image.orientation)
+        }
+        guard let featurePrint = FeaturePrinting.featurePrint(
+          data: observation.data,
+          elementType: observation.elementType,
+          elementCount: observation.elementCount
+        ) else {
+          throw .failed
+        }
+        return featurePrint
+      }
+    let handled = FeaturePrinting.handle(outcome)
+    if handled.makesUnavailable {
+      FeaturePrinting.availability.withLock { $0 = false }
+    }
+    return try handled.result.get()
+  }
+
   /// Vision 요청을 실행하고 실패를 이유로 바꾼다. 시작 전과 끝난 뒤에 Task 취소를 확인한다.
   private static func perform<Output>(
     _ request: () async throws -> Output

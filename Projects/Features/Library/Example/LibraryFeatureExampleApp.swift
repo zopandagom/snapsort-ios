@@ -24,7 +24,8 @@ import SwiftUI
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 검색 필드를 누르면 검색 결과(`PreviewSearch` 의 글자 사진, 캡처 묶음 값, 카테고리 이름, 캐시된 여행 장소 이름)를 보고,
 /// "글자 사진 추가" 버튼이 글자를 읽은 사진을 최신으로 더한다(열린 검색 화면이 다시 읽는다).
-/// 보관함 맨 아래 "정리 도우미" 줄에서 정리 화면(만료됨·사용함 기프티콘 후보)과 캡처 인박스(최근 30일 스크린샷)를 본다.
+/// 보관함 맨 아래 "정리 도우미" 줄에서 정리 화면(만료됨·사용함 기프티콘 후보, 정리 시나리오면 비슷한 사진 묶음)과
+/// 캡처 인박스(최근 30일 스크린샷)를 본다.
 /// 정리 시나리오(`ExampleScenario.isCleanup`)는 삭제를 흉내 내는 보관함 대역을 쓰고, 지운 이미지를 인덱서처럼 저장소에서 지우고 진행률을 보낸다.
 /// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수, 정리 화면이 저장소를 읽은 횟수와 삭제 요청 수를 보인다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
@@ -44,7 +45,7 @@ struct LibraryFeatureExampleApp: App {
       allReceiptsChecking: Self.scenario == .receiptChecking,
       searchEntriesErrors: Self.scenario == .searchFailing ? [0: .failed] : [:],
       onSearchEntries: Self.searchHook,
-      extraImages: Self.scenario.isCleanup ? PreviewCleanup.screenshots(now: Date()) : []
+      extraImages: Self.scenario.isCleanup ? PreviewCleanup.images(now: Date()) : []
     )
   /// `searchSlow` 는 검색 목록 읽기가 1.5초 걸린다.
   private static let searchHook: @Sendable (Int) async -> Void = if Self.scenario == .searchSlow {
@@ -93,7 +94,12 @@ struct LibraryFeatureExampleApp: App {
   @State private var tripListModel = TripListModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var tripDetailModel = TripDetailModel(photoStore: Self.photoStore, map: Self.map)
   @State private var searchModel = SearchModel(photoStore: Self.photoStore)
-  @State private var cleanupModel = CleanupModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
+  /// Example 은 시뮬레이터에서 돌지만 Fake 벡터로 비슷한 사진 섹션을 본다(App 시뮬레이터에는 섹션이 없다).
+  @State private var cleanupModel = CleanupModel(
+    photoLibrary: Self.photoLibrary,
+    photoStore: Self.photoStore,
+    findsSimilarPhotos: true
+  )
   @State private var captureInboxModel = CaptureInboxModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   /// 지금까지 더한 새 사진 수. 데모 버튼의 다음 식별자를 정한다.
   @State private var addedCount = 0
@@ -230,7 +236,7 @@ private func libraryPreview(
     tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
     tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map()),
     searchModel: SearchModel(photoStore: photoStore),
-    cleanupModel: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore),
+    cleanupModel: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore, findsSimilarPhotos: true),
     captureInboxModel: CaptureInboxModel(photoLibrary: photoLibrary, photoStore: photoStore)
   )
 }

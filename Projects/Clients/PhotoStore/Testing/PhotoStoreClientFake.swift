@@ -3,7 +3,8 @@ import PhotoStoreInterface
 import Synchronization
 
 /// 테스트와 Example 앱용 대역. 메모리에 저장해 Impl 처럼 저장·삭제·추출 값 저장·여행 교체가 조회에 반영되고,
-/// 저장·삭제·추출 값 저장·보강 결과 저장 요청을 기록한다. 추출 규칙 버전과 보강 버전은 두지 않는다(버전 동작은 Impl 테스트가 본다).
+/// 저장·삭제·추출 값 저장·보강 결과 저장 요청을 기록한다. 추출 규칙 버전·보강 버전·특징 벡터 버전은 두지 않는다(버전 동작은 Impl 테스트가 본다).
+/// 그래서 벡터 대상인데 `IndexedImage.featurePrint` 가 nil 이면 대기다.
 /// 그래서 만료 예정 조회(`upcomingGifticonExpiries`)는 추출 값의 만료일만 보고, 보강 상태는 `IndexedImage.gifticonModelFill`
 /// 로만 다룬다(`.stale`·`.sourcesUnknown` 은 테스트가 그 상태의 이미지를 넣어 만든다. 출처를 모르는 옛 행을 `.sourcesUnknown` 으로
 /// 읽는 판정은 Impl 만 한다). 사용 여부는 `usedIDs` 로 따로 두고 Impl 처럼 `save`·`delete` 가 기프티콘에서 빠진 행을 지운다.
@@ -17,6 +18,7 @@ import Synchronization
 /// 영수증 추출 값 소급·목록 읽기의 실패와 훅은 `ReceiptOptions`(PhotoStoreClientFake+Receipt.swift)에,
 /// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에,
 /// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에,
+/// 특징 벡터 소급·비슷한 사진 읽기의 실패와 훅은 `SimilarPhotoOptions`(`similar`, PhotoStoreClientFake+SimilarPhoto.swift)에,
 /// 캡처 인박스 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
@@ -39,6 +41,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let receiptOptions: ReceiptOptions
   let captureGroupOptions: CaptureGroupOptions
   let searchOptions: SearchOptions
+  let similar: SimilarPhotoOptions
   let captureInboxOptions: CaptureInboxOptions
   let state: Mutex<State>
 
@@ -61,6 +64,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var receipt = ReceiptState()
     var captureGroup = CaptureGroupState()
     var search = SearchState()
+    var similarPhoto = SimilarPhotoState()
     var captureInbox = CaptureInboxState()
   }
 
@@ -107,6 +111,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - captureGroupError·captureGroupSaveLimit·onSaveCaptureGroups·captureGroupItemsErrors·onCaptureGroupItems:
   ///     캡처 묶음용 실패·훅. `CaptureGroupOptions` 문서 참고.
   ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기용 실패·훅. `SearchOptions` 문서 참고.
+  ///   - similarPhotoEntriesErrors·onSimilarPhotoEntries·featurePrintError·featurePrintSaveLimit:
+  ///     특징 벡터 소급·비슷한 사진 읽기용 실패·훅. `SimilarPhotoOptions` 문서 참고.
   ///   - captureInboxErrors·onCaptureInboxScreenshots·captureInboxKeepError·onKeepInCaptureInbox:
   ///     캡처 인박스용 실패·훅. `CaptureInboxOptions` 문서 참고.
   ///   - keptInCaptureInbox: 처음 캡처 인박스에서 보관한 이미지. 들어간 이미지 중 있는 것만 남긴다.
@@ -151,6 +157,10 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     onCaptureGroupItems: @escaping @Sendable (Int) async -> Void = { _ in },
     searchEntriesErrors: [Int: PhotoStoreError] = [:],
     onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in },
+    similarPhotoEntriesErrors: [Int: PhotoStoreError] = [:],
+    onSimilarPhotoEntries: @escaping @Sendable (Int) async -> Void = { _ in },
+    featurePrintError: PhotoStoreError? = nil,
+    featurePrintSaveLimit: Int? = nil,
     captureInboxErrors: [Int: PhotoStoreError] = [:],
     onCaptureInboxScreenshots: @escaping @Sendable (Int) async -> Void = { _ in },
     captureInboxKeepError: PhotoStoreError? = nil,
@@ -196,6 +206,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       onItems: onCaptureGroupItems
     )
     self.searchOptions = SearchOptions(entriesErrors: searchEntriesErrors, onEntries: onSearchEntries)
+    self.similar = .init(similarPhotoEntriesErrors, onSimilarPhotoEntries, featurePrintError, featurePrintSaveLimit)
     self.captureInboxOptions = CaptureInboxOptions(
       errors: captureInboxErrors,
       onScreenshots: onCaptureInboxScreenshots,
@@ -217,27 +228,6 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public var images: [IndexedImage] {
     self.state.withLock { $0.images.values.sorted { $0.id < $1.id } }
   }
-
-  /// `save` 에 넘긴 이미지 목록을 부른 순서대로.
-  public var savedBatches: [[IndexedImage]] {
-    self.state.withLock { $0.savedBatches }
-  }
-
-  /// `saveGifticons` 에 넘긴 추출 값을 부른 순서대로. 실패한 호출은 빠진다.
-  public var savedGifticonBatches: [[ImageAsset.ID: GifticonInfo]] {
-    self.state.withLock { $0.savedGifticonBatches }
-  }
-
-  /// `saveGifticonModelFills` 에 넘긴 보강 결과를 부른 순서대로. 실패한 호출은 빠진다.
-  public var savedModelFillBatches: [[ImageAsset.ID: GifticonModelFillResult]] {
-    self.state.withLock { $0.savedModelFillBatches }
-  }
-
-  /// 지금까지 `assets(in:)` 을 부른 횟수. `assetsErrors` 로 실패한 호출은 포함하고, `error`(모든 호출 실패)로 던진 호출은 세지 않는다
-  /// (`throwIfNeeded` 가 번호를 매기기 전에 던진다). 재조회 합치기 테스트가 센다.
-  public var assetsCallCount: Int {
-    self.state.withLock { $0.assetsCallCount }
-  }
 }
 
 // 저장·삭제·조회와 기프티콘 소급 추출. 저장 속성은 위 본문에 둔다.
@@ -250,7 +240,10 @@ public extension PhotoStoreClientFake {
       }
       state.savedBatches.append(images)
       for image in images {
-        state.images[image.id] = image
+        // Impl 처럼 벡터가 nil 이면 저장된 벡터를 둔다.
+        state.images[image.id] = image.featurePrint == nil
+          ? Self.replacingFeaturePrint(of: image, with: state.images[image.id]?.featurePrint)
+          : image
         // Impl 처럼 사용 여부는 저장된 값을 두고, 기프티콘에서 빠지면 지운다.
         if !image.categories.contains(.gifticon) {
           state.usedIDs.remove(image.id)
@@ -314,7 +307,8 @@ public extension PhotoStoreClientFake {
           // Impl 처럼 규칙으로 다시 추출하면 보강도 다시 한다.
           gifticonModelFill: .initial(for: gifticon),
           receipt: image.receipt,
-          captureGroups: image.captureGroups
+          captureGroups: image.captureGroups,
+          featurePrint: image.featurePrint
         )
       }
       return true
