@@ -63,7 +63,7 @@ custom_rules:
     included: "Projects/(App|Extensions|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
     regex: "\\bWidgetCenter\\b"
     excluded_match_kinds: [comment, doccomment]
-    message: "위젯 갱신 요청은 WidgetTimelineClient 로 합니다. View·Feature 가 WidgetCenter 를 직접 부르면 값이 바뀔 때만 요청하는 중복 제거와 테스트를 거치지 않습니다 (docs/ARCHITECTURE.md §4 만료 임박 위젯)."
+    message: "위젯 갱신 요청은 WidgetTimelineClient 로 합니다. View·Feature 가 WidgetCenter 를 직접 부르면 보관함의 값이 바뀔 때만 요청하는 중복 제거와 테스트를 거치지 않습니다(App init 의 1회 요청도 Client 로 합니다) (docs/ARCHITECTURE.md §4 만료 임박 위젯)."
     severity: error
 
   shared_independent_of_clients:
