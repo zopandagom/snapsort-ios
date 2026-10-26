@@ -29,6 +29,10 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// 추출했는데 못 찾은 값은 그 필드가 nil·빈 집합이다. 쇼핑·대화·지도 중 하나에 들고 `.recognized` 일 때만 담고(아니면 init 이 nil),
   /// 카테고리에 없는 필드는 init 이 비운다(`CaptureGroups.restricted(to:)`). 기프티콘·영수증 값과 독립이다.
   public let captureGroups: CaptureGroups?
+  /// 비슷한 사진 비교용 특징 벡터. 벡터 대상(`ImageFeaturePrint.isTarget`: 스크린샷 아님·생성일 있음·OCR 대상 아님)일 때만 담고,
+  /// 아니면 init 이 nil 로 둔다. nil 은 "이번 결과에 벡터 없음"(대상 아님·계산 안 함·실패·쓸 수 없음)이다.
+  /// `save` 는 nil 이면 저장된 벡터를 둔다. 사진에서 만든 값이라 로그에 남기지 않는다.
+  public let featurePrint: ImageFeaturePrint?
 
   public var id: ImageAsset.ID { self.asset.id }
 
@@ -48,7 +52,8 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     gifticon: GifticonInfo? = nil,
     gifticonModelFill: GifticonModelFill = .pending(failures: 0),
     receipt: ReceiptInfo? = nil,
-    captureGroups: CaptureGroups? = nil
+    captureGroups: CaptureGroups? = nil,
+    featurePrint: ImageFeaturePrint? = nil
   ) {
     self.asset = asset
     self.labels = labels
@@ -73,6 +78,9 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
     } else {
       nil
     }
+    self.featurePrint = ImageFeaturePrint.isTarget(asset, needsTextRecognition: textRecognition != .notNeeded)
+      ? featurePrint
+      : nil
   }
 }
 

@@ -6,7 +6,15 @@ import SwiftData
 /// SwiftData 읽기·쓰기. `@Model` 객체는 Sendable 이 아니므로 이 actor 밖으로 내보내지 않고 값 타입으로 바꿔 돌려준다.
 @ModelActor
 actor PhotoStore {
+  /// 마지막으로 푼 비슷한 사진(`similarPhotoRows`·`cacheSimilarPhotos`). 그 결과를 바꿀 수 있는 쓰기가 시도 전에 비운다
+  /// (PhotoStore+SimilarPhoto.swift). 같은 actor 의 쓰기만 보므로 같은 파일을 여는 다른 인스턴스의 쓰기는 반영되지 않는다
+  /// (App 은 인덱서·화면이 인스턴스 하나를 함께 쓴다).
+  var similarPhotoCache: [FeaturePrintedPhoto]?
+  /// 캐시를 비울 때마다 늘린다. 행을 읽은 뒤 actor 밖에서 푸는 동안 쓰기가 있었으면 그 결과를 캐시에 넣지 않는다.
+  var similarPhotoCacheGeneration = 0
+
   func save(_ images: [IndexedImage]) throws {
+    self.invalidateSimilarPhotoCache(saving: images)
     try self.write {
       // 같은 배치에 같은 식별자가 여러 번 오면 마지막 결과를 쓴다.
       let latest = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -55,14 +63,17 @@ actor PhotoStore {
         Self.setModelFill(image.gifticonModelFill, on: stored)
         Self.setReceipt(image.receipt, on: stored)
         Self.setCaptureGroups(image.captureGroups, on: stored)
+        // nil 이면 저장된 벡터를 둔다(분류·OCR 을 다시 저장하는 경로가 벡터를 지우지 않게).
+        self.setFeaturePrint(image.featurePrint, on: stored)
       }
     }
   }
 
   func delete(ids: Set<ImageAsset.ID>) throws {
+    self.invalidateSimilarPhotoCache()
     try self.write {
       let ids = Array(ids)
-      // 일괄 삭제(`delete(model:where:)`)가 아니라 하나씩 지워 카테고리 행도 함께 지워지게 한다.
+      // 일괄 삭제(`delete(model:where:)`)가 아니라 하나씩 지워 카테고리 행·벡터 행도 함께 지워지게 한다.
       let stored = try self.modelContext.fetch(
         FetchDescriptor<StoredImage>(predicate: #Predicate { ids.contains($0.assetID) })
       )
@@ -257,7 +268,8 @@ actor PhotoStore {
       gifticon: Self.storedGifticon(stored),
       gifticonModelFill: Self.modelFill(stored),
       receipt: Self.storedReceipt(stored),
-      captureGroups: Self.storedCaptureGroups(stored)
+      captureGroups: Self.storedCaptureGroups(stored),
+      featurePrint: Self.storedFeaturePrint(stored)
     )
   }
 }

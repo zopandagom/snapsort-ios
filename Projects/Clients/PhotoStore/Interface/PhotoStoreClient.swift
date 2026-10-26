@@ -9,6 +9,8 @@ public protocol PhotoStoreClient: Sendable {
   /// 새 결과로 바꾼다(추출 값이 nil 이면 지운다). 영수증 추출 값(`IndexedImage.receipt`)도 새 결과로 바꾼다(nil 이면 지운다).
   /// 캡처 묶음 값(`IndexedImage.captureGroups`)도 새 결과로 바꾼다(nil 이면 지운다).
   /// 사용 여부는 넘긴 값이 아니라 저장된 값을 둔다: 새 카테고리에 기프티콘이 있으면 유지, 없으면 지운다(새 행은 미사용).
+  /// 특징 벡터(`IndexedImage.featurePrint`)는 넘긴 값이 있으면 지금 버전(`ImageFeaturePrint.version`)으로 쓰고, nil 이면 저장된 값을 둔다
+  /// (분류·OCR 을 다시 저장하는 경로가 벡터를 지우지 않게).
   func save(_ images: [IndexedImage]) async throws(PhotoStoreError)
 
   /// 보관함에서 지워진 이미지의 결과를 지운다. 없는 식별자는 무시한다.
@@ -58,6 +60,18 @@ public protocol PhotoStoreClient: Sendable {
   /// 겹친 지난 실행이 새 값을 덮지 않는다. 넘긴 값은 그 행의 카테고리로 `restricted(to:)` 해 쓴다.
   /// 기프티콘·영수증 추출 값과 사용 여부는 건드리지 않는다. 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
   func saveCaptureGroups(_ groups: [ImageAsset.ID: CaptureGroups]) async throws(PhotoStoreError)
+
+  /// 특징 벡터 대상(`ImageFeaturePrint.isTarget`: 스크린샷 아님·생성일 있음·OCR 대상 아님)인데 지금 버전(`ImageFeaturePrint.version`)
+  /// 벡터가 없는 이미지 식별자. 인덱서가 썸네일을 다시 읽어 소급 계산할 대상을 고른다.
+  func featurePrintPendingIDs() async throws(PhotoStoreError) -> Set<ImageAsset.ID>
+
+  /// 특징 벡터만 쓴다. `featurePrintPendingIDs` 와 같은 조건인 행만 바꾸고 없는 식별자와 그 밖의 행은 무시해,
+  /// 겹친 지난 실행이 이미 쓴 행을 덮지 않는다. 다른 값은 건드리지 않는다. 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
+  func saveFeaturePrints(_ prints: [ImageAsset.ID: ImageFeaturePrint]) async throws(PhotoStoreError)
+
+  /// 정리 화면의 비슷한 사진 묶기 입력 (docs/ARCHITECTURE.md §4 정리 도우미). `SimilarPhotoEntries` 문서대로 담는다.
+  /// 벡터를 해석하지 못한 행은 던지지 않고 뺀다. 벡터는 사진에서 만든 값이라 로그에 남기지 않는다.
+  func similarPhotoEntries() async throws(PhotoStoreError) -> SimilarPhotoEntries
 
   /// 식별자로 저장된 이미지를 읽는다. 없는 식별자는 빠지고 순서는 정하지 않는다. 인덱서 2단계가 한 배치의 라벨을 읽고
   /// 소급 추출이 저장된 줄을 읽는 데 쓰므로, 부르는 쪽이 식별자 수를 배치 크기로 묶는다.
