@@ -189,6 +189,10 @@
     func imageChanges() async -> AsyncStream<ImageChange> {
       await self.base.imageChanges()
     }
+
+    func deleteImages(ids: Set<ImageAsset.ID>) async throws(ImageDeletionError) -> ImageDeletionResult {
+      try await self.base.deleteImages(ids: ids)
+    }
   }
 
   /// 여러 Task 의 Fake 가 함께 쓰는 호출 기록.

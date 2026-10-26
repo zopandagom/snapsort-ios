@@ -175,6 +175,10 @@ struct LargestFailingPhotoLibrary: PhotoLibraryClient {
     await self.base.presentLimitedLibraryPicker()
   }
 
+  func deleteImages(ids: Set<ImageAsset.ID>) async throws(ImageDeletionError) -> ImageDeletionResult {
+    try await self.base.deleteImages(ids: ids)
+  }
+
   /// 인덱서의 변경 받기 Task 는 받은 변경을 수신함에 넣은 뒤에 다음 변경을 요청한다.
   /// 그래서 요청 횟수가 (보낸 변경 수 + 1) 이 되면 보낸 변경이 모두 수신함에 들어갔다.
   func imageChanges() async -> AsyncStream<ImageChange> {

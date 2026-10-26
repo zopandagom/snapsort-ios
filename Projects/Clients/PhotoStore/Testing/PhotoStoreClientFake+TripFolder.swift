@@ -4,6 +4,11 @@ import PhotoStoreInterface
 
 // 여행·여행 폴더: 여행 교체·읽기, 식별자·기간 조회와 장소 캐시 (docs/ARCHITECTURE.md §4 저장소).
 public extension PhotoStoreClientFake {
+  /// `replaceTrips` 가 성공한 횟수.
+  var replaceTripsCount: Int {
+    self.state.withLock { $0.replaceTripsCount }
+  }
+
   /// `trips()` 를 부른 횟수. `tripsErrors` 로 실패한 호출은 포함하고, `error` 로 던진 호출은 세지 않는다.
   var tripsCallCount: Int {
     self.state.withLock { $0.tripFolder.tripsCallCount }

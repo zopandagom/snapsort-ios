@@ -16,7 +16,8 @@ import Synchronization
 /// 늦은 결과 훅(`onTrips`·`onTripAssets`·`onPeriodAssets`), 장소 캐시 읽기·쓰기만의 실패(`placeError`)도 정할 수 있다.
 /// 영수증 추출 값 소급·목록 읽기의 실패와 훅은 `ReceiptOptions`(PhotoStoreClientFake+Receipt.swift)에,
 /// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에,
-/// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에 있다.
+/// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에,
+/// 캡처 인박스 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -38,6 +39,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let receiptOptions: ReceiptOptions
   let captureGroupOptions: CaptureGroupOptions
   let searchOptions: SearchOptions
+  let captureInboxOptions: CaptureInboxOptions
   let state: Mutex<State>
 
   struct State {
@@ -59,6 +61,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var receipt = ReceiptState()
     var captureGroup = CaptureGroupState()
     var search = SearchState()
+    var captureInbox = CaptureInboxState()
   }
 
   /// - Parameters:
@@ -104,6 +107,9 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - captureGroupError·captureGroupSaveLimit·onSaveCaptureGroups·captureGroupItemsErrors·onCaptureGroupItems:
   ///     캡처 묶음용 실패·훅. `CaptureGroupOptions` 문서 참고.
   ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기용 실패·훅. `SearchOptions` 문서 참고.
+  ///   - captureInboxErrors·onCaptureInboxScreenshots·captureInboxKeepError·onKeepInCaptureInbox:
+  ///     캡처 인박스용 실패·훅. `CaptureInboxOptions` 문서 참고.
+  ///   - keptInCaptureInbox: 처음 캡처 인박스에서 보관한 이미지. 들어간 이미지 중 있는 것만 남긴다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],
@@ -144,7 +150,12 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     captureGroupItemsErrors: [Int: PhotoStoreError] = [:],
     onCaptureGroupItems: @escaping @Sendable (Int) async -> Void = { _ in },
     searchEntriesErrors: [Int: PhotoStoreError] = [:],
-    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in }
+    onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in },
+    captureInboxErrors: [Int: PhotoStoreError] = [:],
+    onCaptureInboxScreenshots: @escaping @Sendable (Int) async -> Void = { _ in },
+    captureInboxKeepError: PhotoStoreError? = nil,
+    onKeepInCaptureInbox: @escaping @Sendable (Int) async -> Void = { _ in },
+    keptInCaptureInbox: Set<ImageAsset.ID> = []
   ) {
     self.error = error
     self.saveLimit = saveLimit
@@ -185,14 +196,16 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
       onItems: onCaptureGroupItems
     )
     self.searchOptions = SearchOptions(entriesErrors: searchEntriesErrors, onEntries: onSearchEntries)
-    let byID = Dictionary(images.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    self.state = Mutex(State(
-      images: byID,
-      trips: trips,
-      missingOnIDRead: missingOnIDRead,
-      usedIDs: usedIDs.filter { byID[$0]?.categories.contains(.gifticon) ?? false },
-      tripFolder: TripFolderState(places: Self.storedPlaces(places, localeIdentifier: placesLocaleIdentifier))
-    ))
+    self.captureInboxOptions = CaptureInboxOptions(
+      errors: captureInboxErrors,
+      onScreenshots: onCaptureInboxScreenshots,
+      keepError: captureInboxKeepError,
+      onKeep: onKeepInCaptureInbox
+    )
+    let seeded = Self.seed(images, trips, missingOnIDRead, usedIDs, keptInCaptureInbox)
+    let storedPlaces = Self.storedPlaces(places, localeIdentifier: placesLocaleIdentifier)
+    seeded.withLock { $0.tripFolder = TripFolderState(places: storedPlaces) }
+    self.state = seeded
   }
 
   /// `missingOnIDRead` 를 비워 `images(ids:)` 가 다시 모두 돌려주게 한다.
@@ -218,16 +231,6 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   /// `saveGifticonModelFills` 에 넘긴 보강 결과를 부른 순서대로. 실패한 호출은 빠진다.
   public var savedModelFillBatches: [[ImageAsset.ID: GifticonModelFillResult]] {
     self.state.withLock { $0.savedModelFillBatches }
-  }
-
-  /// `replaceTrips` 가 성공한 횟수.
-  public var replaceTripsCount: Int {
-    self.state.withLock { $0.replaceTripsCount }
-  }
-
-  /// `delete` 에 넘긴 식별자를 부른 순서대로.
-  public var deletedBatches: [Set<ImageAsset.ID>] {
-    self.state.withLock { $0.deletedBatches }
   }
 
   /// 지금까지 `assets(in:)` 을 부른 횟수. `assetsErrors` 로 실패한 호출은 포함하고, `error`(모든 호출 실패)로 던진 호출은 세지 않는다
@@ -267,6 +270,7 @@ public extension PhotoStoreClientFake {
       for id in ids {
         state.images[id] = nil
         state.usedIDs.remove(id)
+        state.captureInbox.keptIDs.remove(id)
       }
     }
   }

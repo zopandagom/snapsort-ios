@@ -109,6 +109,14 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     return await SearchEntries(entries: Self.searchEntries(from: rows), pendingTextCount: pendingTextCount)
   }
 
+  public func captureInboxScreenshots(createdSince: Date) async throws(PhotoStoreError) -> [ImageAsset] {
+    try await Self.perform { try await self.store.value.captureInboxScreenshots(createdSince: createdSince) }
+  }
+
+  public func keepInCaptureInbox(id: ImageAsset.ID) async throws(PhotoStoreError) -> Bool {
+    try await Self.perform { try await self.store.value.keepInCaptureInbox(id: id) }
+  }
+
   public func images(ids: Set<ImageAsset.ID>) async throws(PhotoStoreError) -> [IndexedImage] {
     try await Self.perform { try await self.store.value.images(ids: ids) }
   }
