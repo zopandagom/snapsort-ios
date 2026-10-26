@@ -68,6 +68,14 @@ enum CleanupText {
     return formatter.string(fromByteCount: bytes)
   }
 
+  /// 비슷한 사진의 촬영 시각(초까지). 기기 달력(`CleanupModel.calendar`)의 달력 체계·시간대로 쓴다. 로캘은 화면 환경 로캘이다.
+  static func photoTimeStyle(calendar: Calendar) -> Date.FormatStyle {
+    var style = Date.FormatStyle.dateTime.year().month().day().hour().minute().second()
+    style.calendar = calendar
+    style.timeZone = calendar.timeZone
+    return style
+  }
+
   static let sizeEstimateNote = "확보 용량은 사진 크기로 셈한 추정치입니다. iCloud 사진 최적화를 쓰면 실제로 확보되는 공간이 다를 수 있습니다."
 }
 
@@ -76,6 +84,7 @@ extension CleanupSection.Kind {
     switch self {
     case .expiredGifticons: "만료된 기프티콘"
     case .usedGifticons: "사용한 기프티콘"
+    case .similarPhotos: "비슷한 사진"
     }
   }
 }

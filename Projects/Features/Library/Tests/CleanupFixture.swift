@@ -20,9 +20,16 @@ enum CleanupFixture {
   static func model(
     library: PhotoLibraryClientFake = CleanupFixture.library(),
     photoStore: PhotoStoreClientFake?,
+    findsSimilarPhotos: Bool = false,
     clock: TestClock = CleanupFixture.clock()
   ) -> CleanupModel {
-    CleanupModel(photoLibrary: library, photoStore: photoStore, calendar: { clock.calendar }, now: { clock.now })
+    CleanupModel(
+      photoLibrary: library,
+      photoStore: photoStore,
+      findsSimilarPhotos: findsSimilarPhotos,
+      calendar: { clock.calendar },
+      now: { clock.now }
+    )
   }
 
   static func inboxModel(
@@ -85,13 +92,17 @@ enum CleanupFixture {
     captureInboxErrors: [Int: PhotoStoreError] = [:],
     onCaptureInboxScreenshots: @escaping @Sendable (Int) async -> Void = { _ in },
     captureInboxKeepError: PhotoStoreError? = nil,
-    onKeepInCaptureInbox: @escaping @Sendable (Int) async -> Void = { _ in }
+    onKeepInCaptureInbox: @escaping @Sendable (Int) async -> Void = { _ in },
+    similarPhotoEntriesErrors: [Int: PhotoStoreError] = [:],
+    onSimilarPhotoEntries: @escaping @Sendable (Int) async -> Void = { _ in }
   ) -> PhotoStoreClientFake {
     PhotoStoreClientFake(
       images: CleanupFixture.gifticons() + CleanupFixture.screenshots() + extra,
       usedIDs: ["used"],
       gifticonsErrors: gifticonsErrors,
       onGifticons: onGifticons,
+      similarPhotoEntriesErrors: similarPhotoEntriesErrors,
+      onSimilarPhotoEntries: onSimilarPhotoEntries,
       captureInboxErrors: captureInboxErrors,
       onCaptureInboxScreenshots: onCaptureInboxScreenshots,
       captureInboxKeepError: captureInboxKeepError,
