@@ -9,7 +9,7 @@
 | View 는 이벤트 메서드(`onAppear()`, `xxxTapped()`, `xxxChanged(_:)`)만 호출 | `$model.x` 양방향 바인딩 | `no_two_way_model_binding` |
 | 외부 시스템은 Client 로 감싸고 Interface / Impl / Testing 으로 나눈다 | Feature·App·Extension 에서 `import Photos`, `import Vision`, `import SwiftData` 등 | `system_framework_only_in_impl` |
 | Impl 은 조립 지점(App·위젯 Extension)에서만 만들어 주입 | Feature·Interface·Testing 이나 다른 Client 의 Impl 에서 `import …Impl` (Impl 이 다른 Client 를 조합할 때는 그 Interface 만) | `impl_import_only_in_assembly` |
-| 위젯 갱신 요청은 WidgetTimeline Client 로 (값이 바뀔 때만 요청하는 중복 제거와 테스트를 거친다, ARCHITECTURE §4 만료 임박 위젯) | Client Impl 밖(App·Extension·Feature·Shared·Interface·Testing)에서 `WidgetCenter` 를 직접 부르기 | `widget_center_only_in_impl` |
+| 위젯 갱신 요청은 WidgetTimeline Client 로 (보관함은 값이 바뀔 때만 요청하는 중복 제거와 테스트를 거친다. App init 의 실행마다 1회 요청은 예외, ARCHITECTURE §4 만료 임박 위젯) | Client Impl 밖(App·Extension·Feature·Shared·Interface·Testing)에서 `WidgetCenter` 를 직접 부르기 | `widget_center_only_in_impl` |
 | Fake 는 Testing 모듈에 두고 Tests·Example 에서만 사용 | 프로덕션 코드(App·Extension·Feature Sources·Interface·Impl)에서 `import …Testing` | `testing_import_not_in_production` |
 | `#Preview` 는 Feature 의 Example 타깃에 | Feature Sources 에 Fake 를 만들어 Preview 작성 | |
 | Feature 끼리 필요한 공유는 Client 나 Shared(Core) 로 | Feature 가 다른 Feature 에 의존 | 템플릿 |
