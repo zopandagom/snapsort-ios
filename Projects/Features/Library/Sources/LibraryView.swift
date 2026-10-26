@@ -59,7 +59,7 @@ public struct LibraryView: View {
       ) {
         self.categoryList
       }
-      .navigationTitle("SnapSort")
+      .navigationTitle("간직함")
       .safeAreaInset(edge: .top) {
         if self.model.isLimited {
           self.limitedAccessBanner
