@@ -36,6 +36,8 @@
     ///     줄인 이미지는 폭이 바뀌어 기본 규칙으로 찾지 못하기 때문이다. 설정하면 OCR 기록은 `ocr:<폭>x<높이>` 다.
     ///   - fetchGate: 보관함·앨범 조회가 결과를 주기 전에 부른다.
     ///   - loadGate: 이미지 읽기가 결과를 주기 전에 식별자를 넘겨 부른다.
+    ///   - isFeaturePrintAvailable: 특징 벡터를 만들 수 있는 기기인지(기본은 시뮬레이터처럼 쓸 수 없음).
+    ///   - featurePrintFailures: 특징 벡터 요청이 실패하는 이미지. 그 밖은 모두 0 인 벡터를 준다.
     init(
       access: PhotoAccessState = .authorized,
       album: [ImageAsset]? = nil,
@@ -52,6 +54,8 @@
       recognizeBySize: (@Sendable (Int, Int) async -> Result<[String], ImageAnalysisError>?)? = nil,
       fetchGate: (@Sendable () async -> Void)? = nil,
       loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil,
+      isFeaturePrintAvailable: Bool = false,
+      featurePrintFailures: Set<ImageAsset.ID> = [],
       deviceConditions: @escaping @Sendable () -> DeviceConditions = { normalConditions },
       now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) }
     ) {
@@ -86,7 +90,9 @@
           failures: recognizeFailures,
           bySize: recognizeBySize,
           log: log
-        )
+        ),
+        isFeaturePrintAvailable: isFeaturePrintAvailable,
+        featurePrint: Self.featurePrinter(idsByWidth: idsByWidth, failures: featurePrintFailures, log: log)
       )
       let library = SizedPhotoLibrary(
         base: self.photoLibrary,
@@ -103,6 +109,22 @@
         now: now,
         calendar: calendar
       )
+    }
+
+    /// 특징 벡터 Fake. 실패 목록이 아닌 이미지는 모두 0 인 벡터를 준다.
+    nonisolated static func featurePrinter(
+      idsByWidth: [Int: ImageAsset.ID],
+      failures: Set<ImageAsset.ID>,
+      log: EventLog
+    ) -> @Sendable (AnalysisImage) async -> Result<ImageFeaturePrint, ImageAnalysisError> {
+      { image in
+        let id = idsByWidth[image.cgImage.width] ?? ""
+        log.append("featurePrint:\(id)")
+        guard !failures.contains(id),
+              let featurePrint = ImageFeaturePrint(values: Array(repeating: 0, count: ImageFeaturePrint.elementCount))
+        else { return .failure(.failed) }
+        return .success(featurePrint)
+      }
     }
 
     /// OCR Fake 의 결과. `bySize` 가 있으면 입력 크기로 고르고, 없거나 nil 을 주면 폭으로 이미지를 찾아 `text`·`failures` 로 고른다.

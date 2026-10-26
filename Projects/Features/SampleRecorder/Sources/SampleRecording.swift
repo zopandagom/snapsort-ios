@@ -23,7 +23,8 @@
     case cancelled
   }
 
-  /// 인덱서의 두 단계와 같은 내용으로 한 장씩 분석하며 단계별 시간을 잰다: 1단계 `IndexingRun.classify(_:)`(썸네일 로드 → 분류 → 대상 판정),
+  /// 인덱서의 두 단계와 같은 내용으로 한 장씩 분석하며 단계별 시간을 잰다: 1단계 `IndexingRun.classify(_:)`(썸네일 로드 → 분류 → 대상 판정
+  /// → 비슷한 사진 대상이면 같은 썸네일로 특징 벡터),
   /// 2단계 `IndexingRun.recognize(_:asset:)`(원본 로드 → OCR)(IndexingRun+Stages.swift). 인덱서는 단계별로 모아 돌리고
   /// 이 도구는 한 장에서 두 단계를 이어 잰다. 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다.
   /// 단, 인덱서 2단계의 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 이 도구가 재지 않는다. 인덱서 2단계의 언어 모델 보강
@@ -115,11 +116,12 @@
       var measurement = ImageMeasurement(index: index, asset: asset)
       var stage = SkippedImage.Stage.thumbnailLoad
       do throws(MeasureStop) {
-        let labels = try await self.classify(asset, measurement: &measurement, stage: &stage, clock: clock)
+        let (thumbnail, labels) = try await self.classify(asset, measurement: &measurement, stage: &stage, clock: clock)
         // 운영과 같은 기준으로 거른 라벨로 OCR 대상을 판정한다. 시간은 재지 않는다.
         let ruleLabels = labels.filter { $0.confidence >= ClassificationRules.minimumLabelConfidence }
         let needsText = TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: ruleLabels)
         measurement.needsTextRecognition = needsText
+        try await self.measureFeaturePrint(thumbnail, asset: asset, needsText: needsText, measurement: &measurement)
 
         var textLines: [RecognizedTextLine] = []
         if case .ocrResolution = mode, needsText {
@@ -162,42 +164,18 @@
       }
     }
 
-    /// 운영 인덱서가 하는 단계만 더한다: 썸네일 로드 + 분류, OCR 대상이면 원본 로드 + OCR.
+    /// 운영 인덱서가 하는 단계만 더한다: 썸네일 로드 + 분류(+ 잰 특징 벡터), OCR 대상이면 원본 로드 + OCR.
     static func pipelineMs(of measurement: ImageMeasurement, needsText: Bool) -> Double? {
       guard let thumbnailLoadMs = measurement.thumbnailLoadMs, let classifyMs = measurement.classifyMs else {
         return nil
       }
-      guard needsText else { return thumbnailLoadMs + classifyMs }
+      let firstStageMs = thumbnailLoadMs + classifyMs + (measurement.featurePrintMs ?? 0)
+      guard needsText else { return firstStageMs }
       guard let largestLoadMs = measurement.largestLoadMs, let ocrMs = measurement.ocrMs else { return nil }
-      return thumbnailLoadMs + classifyMs + largestLoadMs + ocrMs
+      return firstStageMs + largestLoadMs + ocrMs
     }
 
     // MARK: - Private
-
-    /// 썸네일을 읽어 기록 하한으로 분류한다.
-    private func classify(
-      _ asset: ImageAsset,
-      measurement: inout ImageMeasurement,
-      stage: inout SkippedImage.Stage,
-      clock: ContinuousClock
-    ) async throws(MeasureStop) -> [ImageLabel] {
-      stage = .thumbnailLoad
-      var stepStart = clock.now
-      let thumbnail = try await self.loadImage(asset.id, size: .thumbnail)
-      measurement.thumbnailLoadMs = stepStart.duration(to: clock.now).milliseconds
-      measurement.thumbnailPixelWidth = thumbnail.cgImage.width
-      measurement.thumbnailPixelHeight = thumbnail.cgImage.height
-      measurement.thumbnailFallback = thumbnail.isLocalFallback
-
-      stage = .classify
-      stepStart = clock.now
-      let labels = try await self.analysis { () async throws(ImageAnalysisError) in
-        try await self.imageAnalysis.classify(thumbnail, minimumConfidence: Self.labelRecordingFloor)
-      }
-      measurement.classifyMs = stepStart.duration(to: clock.now).milliseconds
-      measurement.labelCount = labels.count
-      return labels
-    }
 
     /// 기기에 있는 가장 큰 버전을 읽어 OCR 한다.
     private func recognizeText(
