@@ -31,6 +31,7 @@ struct SnapColorTests {
     TextPair("라일락 글자 / 카드", SnapColor.lilacText, SnapColor.card),
     TextPair("삭제 보조 버튼: 경고 / 경고 면", SnapColor.danger, SnapColor.dangerSoft),
     TextPair("삭제 채운 버튼: onAccent / 경고", SnapColor.onAccent, SnapColor.danger),
+    TextPair("막대 삭제 버튼: 경고 / 바탕", SnapColor.danger, SnapColor.background),
   ]
 
   @Test("글자 조합은 라이트·다크 모두 대비 4.5:1 이상이다", arguments: Self.textPairs.map(\.name))
