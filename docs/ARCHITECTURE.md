@@ -200,7 +200,7 @@ Extension 에는 App 만 의존한다(`TargetDependency.appExtension(_:)`, 임�
 1. `Module.swift` 의 `AppExtension` 에 `case widget = "Widget"` 추가(타깃 `SnapSortWidget`).
 2. `Projects/Extensions/Widget/Sources` + `Project.swift`:
    ```swift
-   let project = Project.appExtension(.widget, dependencies: [.feature(.expiryWidget), .client(impl: .photoStore), .shared(.core)])
+   let project = Project.appExtension(.widget, dependencies: [.feature(.expiryWidget), .client(impl: .photoStore), .shared(.core), .shared(.designSystem)])
    ```
    템플릿이 번들 id(`com.zopandagom.snapsort.widget`), `NSExtensionPointIdentifier`, App Group entitlements·Info.plist 키를 넣는다(§2 빌드 설정).
 3. Extension 은 조립 지점이라 Impl 을 만들어 Feature 에 넘기는 코드만 둔다. 화면·타임라인은 Feature, 규칙은 Core 에 둔다(`Widget`·`WidgetBundle` 은 인자 없는 `init()` 이 필요해 Feature 가 Impl 을 받는 Widget 을 줄 수 없으므로 Extension 에 둔다).
