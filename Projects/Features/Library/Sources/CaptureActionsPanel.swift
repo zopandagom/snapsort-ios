@@ -30,14 +30,14 @@ struct CaptureActionsPanel: View {
     }
     .padding()
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.bar)
+    .background(SnapColor.card)
     .overlay(alignment: .top) {
       if self.isShowingCopied {
         Label("복사했습니다", systemImage: "doc.on.doc")
           .font(.subheadline)
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
-          .background(.thinMaterial, in: .capsule)
+          .background(SnapColor.card, in: .capsule)
           .offset(y: -48)
           .transition(.opacity)
       }
