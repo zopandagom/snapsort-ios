@@ -1,3 +1,4 @@
+import DesignSystem
 import Foundation
 import OnboardingFeature
 import PhotoLibraryTesting
@@ -53,11 +54,15 @@ struct OnboardingFeatureExampleApp: App {
   var body: some Scene {
     WindowGroup {
       // App 의 화면 전환을 흉내 낸다: 읽을 수 있는 권한이 생기면 보관함 화면 대신 결과를 보여준다.
-      if self.model.access.canRead {
-        ContentUnavailableView("보관함 화면으로 이동", systemImage: "checkmark.circle")
-      } else {
-        OnboardingView(model: self.model)
+      Group {
+        if self.model.access.canRead {
+          ContentUnavailableView("보관함 화면으로 이동", systemImage: "checkmark.circle")
+        } else {
+          OnboardingView(model: self.model)
+        }
       }
+      // App 루트와 같은 색·글꼴 기준값.
+      .snapTheme()
     }
     // `denied`: 설정 앱에서 허용하고 돌아오는 흐름을 흉내 낸다. 앞으로 돌아오면 OnboardingView 가 다시 읽는다.
     .onChange(of: self.scenePhase) { _, phase in

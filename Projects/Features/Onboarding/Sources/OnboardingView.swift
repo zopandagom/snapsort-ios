@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 import UIKit
 
@@ -16,6 +17,8 @@ public struct OnboardingView: View {
 
   public var body: some View {
     self.content
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(SnapColor.background)
       // 설정 앱에서 권한을 바꾸고 돌아오면 다시 읽는다. 시작 직후의 첫 값은 부르지 않는다(init 이 이미 읽었다).
       .onChange(of: self.scenePhase) { _, phase in
         guard phase == .active else { return }
@@ -39,7 +42,7 @@ public struct OnboardingView: View {
             self.openURL(url)
           }
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.snapPrimary)
       }
     case .restricted:
       // 사용자가 이 앱 설정에서 바꿀 수 없는 상태라 설정 버튼 없이 이유만 알린다.
@@ -104,13 +107,13 @@ public struct OnboardingView: View {
         Text("정리 시작하기")
           .frame(maxWidth: .infinity)
       }
-      .buttonStyle(.borderedProminent)
+      .buttonStyle(.snapPrimary)
       .controlSize(.large)
       // 요청 중 복귀로 거부 화면이 돼도 "설정 열기"는 눌려야 하므로 이 버튼에만 건다.
       .disabled(self.model.isRequestingAccess)
       .padding(.horizontal, 24)
       .padding(.vertical, 12)
-      .background(.bar)
+      .background(SnapColor.background)
     }
   }
 }
