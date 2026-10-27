@@ -52,11 +52,9 @@ private struct WidgetFrame: View {
     ExpiryWidgetEntryView(entry: self.entry, family: self.family)
       .padding(self.family == .systemSmall ? 16 : 4)
       .frame(width: self.size.width, height: self.size.height)
-      // 앱 안에서는 `containerBackground` 가 그려지지 않아 위젯 바탕을 흉내 낸다(작은 위젯은 `SnapColor.background`).
+      // 앱 안에서는 `containerBackground` 가 그려지지 않아 위젯 바탕을 흉내 낸다(작은 위젯은 `SnapColor.background`, 잠금 화면 위젯은 카드색).
       .background(
-        self
-          .family == .systemSmall ? AnyShapeStyle(SnapColor.background) :
-          AnyShapeStyle(Color(.secondarySystemBackground)),
+        self.family == .systemSmall ? SnapColor.background : SnapColor.card,
         in: .rect(cornerRadius: self.family == .systemSmall ? 22 : 12)
       )
   }
