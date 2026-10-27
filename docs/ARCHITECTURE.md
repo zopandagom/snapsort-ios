@@ -117,12 +117,13 @@ flowchart TD
     App --> PImpl
     Library --> PI
     Library --> DS
+    App --> DS
     PImpl --> PI
     PT --> PI
     Library & PI & PImpl --> Core
 ```
 
-위젯 Extension 은 ExpiryWidgetFeature 와 PhotoStoreImpl(읽기 전용으로 연다)·Core 에 의존한다. 그림의 PhotoLibrary 는 Client 의 예다.
+위젯 Extension 은 ExpiryWidgetFeature 와 PhotoStoreImpl(읽기 전용으로 연다)·Core·DesignSystem 에 의존한다. 화면이 있는 Feature(Library·Onboarding·ExpiryWidget)와 App(루트 테마·내비게이션 바 글꼴)이 DesignSystem 을 쓴다. 그림의 PhotoLibrary 는 Client 의 예다.
 
 ### 모듈 종류와 타깃
 | 종류 | 위치 | 타깃 | 역할 |
@@ -131,14 +132,14 @@ flowchart TD
 | Extension | `Projects/Extensions/<Name>` | `SnapSort<Name>` | 앱 확장(위젯)의 조립 지점. Impl 을 생성해 Feature 에 주입. App 이 의존해 `SnapSort.app/PlugIns/` 에 임베드 |
 | Feature | `Projects/Features/<Name>` | `<Name>Feature` · `<Name>FeatureTests` · `<Name>FeatureExample` | 화면 하나 또는 흐름 하나. Model + View |
 | Client | `Projects/Clients/<Name>` | `<Name>Interface` · `<Name>Impl` · `<Name>Testing` · `<Name>Tests` | 외부 시스템 경계 |
-| Shared | `Projects/Shared/<Name>` | `<Name>` · `<Name>Tests` | 여러 모듈이 함께 쓰는 코드. `Core`(도메인 값 타입·규칙), `DesignSystem`(공용 UI: 썸네일 칸·격자 열·상태 안내·CGImage 방향 변환) |
+| Shared | `Projects/Shared/<Name>` | `<Name>` · `<Name>Tests` | 여러 모듈이 함께 쓰는 코드. `Core`(도메인 값 타입·규칙), `DesignSystem`(공용 UI: 색·글꼴 기준값(`SnapColor`·`snapTheme()`)·알약 버튼·목록·화면 바탕, 직접 그린 카테고리 아이콘(`SnapGlyph`·`IconTile`), 썸네일 칸·격자 열·상태 안내·CGImage 방향 변환) |
 
 - **Interface**: 프로토콜과 값 타입(`PhotoAccessState` 등)만. Apple 데이터 프레임워크와 CoreLocation·MapKit 을 import 하지 않는다.
 - **Impl**: 프로토콜 구현. 구현 타입 이름은 `<Name>ClientImpl`. Apple 데이터 프레임워크(Photos·Vision·FoundationModels·SwiftData·StoreKit·UserNotifications) import 는 여기서만. 위젯 갱신 요청(WidgetKit `WidgetCenter`)도 Impl 에서만 부른다(위젯 Feature 는 `TimelineProvider` 때문에 WidgetKit 을 import 하므로 lint `widget_center_only_in_impl` 가 이름을 막는다). 예외: Feature View 의 MapKit `Map` 렌더링(§4). 이 목록과 CoreLocation·MapKit(§4 경계) 밖의 iOS 프레임워크(CoreGraphics·ImageIO 등)는 Core 를 포함한 모든 레이어에서 쓸 수 있다. 제한은 권한·저장·외부 서비스 같은 부수효과를 Impl 에 가두기 위한 것이므로, 부수효과 없는 프레임워크를 피하려고 실행 비용을 들이지 않는다.
 - **Testing**: `<Name>ClientFake`. 고정 값을 돌려주는 `struct` 로 시작하고, 호출 기록이 필요하거나 호출 사이에 상태가 남아야 하면(저장 결과, 바뀐 권한) 그때 상태를 `Mutex` 로 보호하는 `final class` 로 확장한다.
 - **Example**: Fake 로 Feature 를 단독 실행하는 데모 앱. **`#Preview` 도 여기에 둔다** (Feature 모듈이 Testing 에 의존하지 않도록).
 - **Debug 전용 Feature**(SampleRecorder): Sources 의 모든 파일을 `#if DEBUG` 로 감싸고 App 도 `#if DEBUG` 에서만 연결해 Release 에 들어가지 않는다(Tuist 의존성은 구성별로 나눌 수 없어 Release 에서는 빈 모듈을 링크한다). 확인은 `SnapSort` 스킴을 Release 구성으로 빌드해 앱 바이너리에 `SampleRecorder` 심볼이 없는지 본다(`make project` 뒤 `xcodebuild build -workspace SnapSort.xcworkspace -scheme SnapSort -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath build/ReleaseDD CODE_SIGNING_ALLOWED=NO -quiet && nm build/ReleaseDD/Build/Products/Release-iphonesimulator/SnapSort.app/SnapSort > build/release-symbols.txt && ! grep -q SampleRecorder build/release-symbols.txt && echo "기록 도구 없음"` 이 "기록 도구 없음"을 출력하면 통과. 빌드·`nm` 중 하나라도 실패하면 출력이 없도록 `&&` 로 잇고 개수가 아니라 이 문구로 판정한다). 기록 도구 Sources(`Projects/Features/SampleRecorder/Sources`)나 App(`Projects/App`)을 바꾼 작업에서 Claude 가 수용 확인(CONVENTIONS §6)으로 실행한다. Example 앱은 Debug 로만 빌드하므로 모든 타깃을 담은 `SnapSort-Workspace` 스킴은 Release 로 빌드되지 않는다.
-- **Shared**: Apple 데이터 프레임워크, CoreLocation·MapKit, Client 모듈을 import 하지 않는다. Core 는 부수효과 없는 순수 코드이고(SwiftUI·UIKit 도 쓰지 않는다. lint `core_no_ui_framework`), 좌표·분석 이미지처럼 여러 Client 의 Interface 가 함께 쓰는 값 타입을 둔다. DesignSystem 은 SwiftUI 까지 쓴다. 다른 Shared(Core)에 의존하지 않으므로 이미지는 CoreGraphics 값(CGImage·방향)으로 받는다.
+- **Shared**: Apple 데이터 프레임워크, CoreLocation·MapKit, Client 모듈을 import 하지 않는다. Core 는 부수효과 없는 순수 코드이고(SwiftUI·UIKit 도 쓰지 않는다. lint `core_no_ui_framework`), 좌표·분석 이미지처럼 여러 Client 의 Interface 가 함께 쓰는 값 타입을 둔다. DesignSystem 은 SwiftUI 와 UIKit(내비게이션 바 글꼴 appearance)까지 쓴다. 다른 Shared(Core)에 의존하지 않으므로 이미지는 CoreGraphics 값(CGImage·방향)으로 받고, 카테고리 아이콘은 그린 모양 이름(`SnapGlyph`)으로 두어 카테고리와의 연결(`ImageCategory.glyph`)은 Feature 가 정한다. 색은 라이트·다크 sRGB 값 한 쌍(`ColorToken`, `ShapeStyle`)이라 위젯에서도 같은 값을 쓴다(앱 강조색은 UIKit 화면을 위해 App `AccentColor` 에셋에도 같은 값을 둔다).
 
 ### 의존 규칙
 | from ↓ / to → | Feature | Interface | Impl | Testing | Shared |
