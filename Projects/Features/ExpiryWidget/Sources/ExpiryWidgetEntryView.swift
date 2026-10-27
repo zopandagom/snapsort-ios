@@ -88,7 +88,9 @@ private struct SmallView: View {
           Text("\(summary.count)개")
             .font(.system(size: 44, weight: .bold, design: .rounded))
             .minimumScaleFactor(0.5)
-            .foregroundStyle(SnapColor.accent)
+            // 아래 본문 글자처럼 색을 쓰는 홈 화면에서만 기준값 색을 쓴다(vibrant 에서 밝기가 불투명도로 바뀌어 흐려지지 않게).
+            .foregroundStyle(self
+              .renderingMode == .fullColor ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.primary))
             .widgetAccentable()
           Text(Copy.nearest(nearest))
             .font(.subheadline)
