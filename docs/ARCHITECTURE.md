@@ -185,7 +185,7 @@ Extension 에는 App 만 의존한다(`TargetDependency.appExtension(_:)`, 임�
    let project = Project.shared(.core)
    ```
 3. 쓰는 모듈의 매니페스트에 연결한다: Feature 는 `Project.feature(_, clients:, shared: [.core])`, Client 는 `Project.client(_, shared: [.core])`, App 은 `dependencies` 에 `.shared(.core)`.
-   DesignSystem 같은 공용 UI 모듈은 Feature 와 App 에서만 쓴다 (Interface 는 프로토콜과 값 타입만).
+   DesignSystem 같은 공용 UI 모듈은 Feature 와 조립 지점(App·위젯 Extension)에서만 쓴다 (Interface 는 프로토콜과 값 타입만). 위젯 Extension 은 Core 와 같이 그 Feature 가 쓰는 Shared 를 의존성에 둔다.
 
 ### Feature 추가 (예: Onboarding)
 1. `Feature` 에 `case onboarding = "Onboarding"` 추가.
