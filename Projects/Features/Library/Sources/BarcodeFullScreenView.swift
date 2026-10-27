@@ -33,7 +33,7 @@ struct BarcodeFullScreenView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
       Button("닫기", action: self.onClose)
-        .buttonStyle(.bordered)
+        .buttonStyle(.snapSecondary)
         .padding()
     }
     .foregroundStyle(.black)

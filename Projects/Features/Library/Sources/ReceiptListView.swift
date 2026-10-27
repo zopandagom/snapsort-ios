@@ -24,6 +24,7 @@ public struct ReceiptListView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle(ImageCategory.receipt.title)
+      .snapScreenBackground()
       // 위쪽 inset 막대를 두지 않고 툴바 메뉴로 고른다(큰 제목이 처음부터 선명하게).
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -53,7 +54,7 @@ public struct ReceiptListView: View {
     case let .loaded(items):
       let sections = ReceiptListSections.sections(of: items, grouping: self.grouping, calendar: self.model.calendar)
       if sections.isEmpty {
-        StatusMessageView("영수증이 없습니다", systemImage: "receipt")
+        StatusMessageView("영수증이 없습니다", glyph: ImageCategory.receipt.glyph)
       } else if self.categoryModel.category != .receipt {
         // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
         ProgressView()
@@ -64,7 +65,7 @@ public struct ReceiptListView: View {
   }
 
   private func list(_ sections: ReceiptListSections) -> some View {
-    List {
+    SnapList {
       switch sections {
       case let .byMonth(sections):
         ForEach(sections) { section in
@@ -237,7 +238,7 @@ private struct ReceiptCancelledBadge: View {
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .foregroundStyle(.secondary)
-      .background(.secondary.opacity(0.15), in: .capsule)
+      .background(SnapColor.neutral, in: .capsule)
       .accessibilityLabel(Text("취소한 결제"))
   }
 }

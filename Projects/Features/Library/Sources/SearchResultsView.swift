@@ -34,7 +34,7 @@ struct SearchResultsView: View {
         self.model.retryButtonTapped()
       }
     } else if !self.model.hasQuery {
-      List {
+      SnapList {
         Section {
           Text("사진 속 글자, 쇼핑몰·브랜드·대화 앱·지역, 카테고리, 여행 장소 이름으로 찾습니다.")
             .foregroundStyle(.secondary)
@@ -43,7 +43,7 @@ struct SearchResultsView: View {
       }
     } else if let results = self.model.results {
       if results.isEmpty {
-        List {
+        SnapList {
           Section {
             ContentUnavailableView.search(text: results.query)
           }
@@ -61,7 +61,7 @@ struct SearchResultsView: View {
   }
 
   private func list(_ results: SearchResults) -> some View {
-    List {
+    SnapList {
       if !results.categories.isEmpty {
         Section("카테고리") {
           ForEach(results.categories) { hit in
@@ -69,7 +69,7 @@ struct SearchResultsView: View {
               LabeledContent {
                 Text(hit.category.countText(hit.count))
               } label: {
-                Label(hit.category.title, systemImage: hit.category.systemImage)
+                CategoryLabel(category: hit.category)
               }
             }
           }

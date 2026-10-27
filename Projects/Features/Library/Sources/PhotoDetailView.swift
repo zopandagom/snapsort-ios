@@ -39,6 +39,7 @@ public struct PhotoDetailView: View {
         CaptureActionsPanel(model: self.captureModel, assetID: self.asset.id)
       }
       .navigationTitle(self.title)
+      .snapScreenBackground()
       .navigationBarTitleDisplayMode(.inline)
       .task { await self.model.detailAppeared(id: self.asset.id) }
       .task { await self.captureModel.detailAppeared(id: self.asset.id, gifticon: self.route.gifticon) }

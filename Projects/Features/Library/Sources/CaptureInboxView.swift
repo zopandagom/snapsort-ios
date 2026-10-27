@@ -22,6 +22,7 @@ public struct CaptureInboxView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("캡처 인박스")
+      .snapScreenBackground()
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         if self.isLoaded {
@@ -68,7 +69,7 @@ public struct CaptureInboxView: View {
       ProgressView()
     case .failed:
       // 실패해도 제한 접근 안내와 "사진 더 선택"이 첫 섹션에 남게 목록 안에 그린다(정리 화면과 같다).
-      List {
+      SnapList {
         if self.model.isLimited {
           CleanupLimitedSection {
             Task { await self.model.selectMorePhotosTapped() }
@@ -93,7 +94,7 @@ public struct CaptureInboxView: View {
 
   /// 대상이 없을 때도 이 목록 안에 그려, 제한 접근 안내와 "사진 더 선택"이 늘 첫 섹션에 남게 한다(정리 화면과 같다).
   private func list(_ assets: [ImageAsset]) -> some View {
-    List {
+    SnapList {
       if self.model.isLimited {
         CleanupLimitedSection {
           Task { await self.model.selectMorePhotosTapped() }
@@ -158,7 +159,7 @@ public struct CaptureInboxView: View {
         }
         .disabled(self.model.keepingID != nil)
       }
-      .buttonStyle(.bordered)
+      .buttonStyle(.snapSecondary)
     }
   }
 

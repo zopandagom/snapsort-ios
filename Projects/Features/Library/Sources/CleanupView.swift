@@ -25,6 +25,7 @@ public struct CleanupView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("정리 도우미")
+      .snapScreenBackground()
       .toolbar {
         if self.isLoaded {
           ToolbarItemGroup(placement: .bottomBar) {
@@ -58,7 +59,7 @@ public struct CleanupView: View {
       ProgressView()
     case .failed:
       // 실패해도 제한 접근 안내와 "사진 더 선택"이 첫 섹션에 남게 목록 안에 그린다.
-      List {
+      SnapList {
         if self.model.isLimited {
           CleanupLimitedSection {
             Task { await self.model.selectMorePhotosTapped() }
@@ -82,7 +83,7 @@ public struct CleanupView: View {
   }
 
   private func list(_ sections: CleanupSections) -> some View {
-    List {
+    SnapList {
       if self.model.isLimited {
         CleanupLimitedSection {
           Task { await self.model.selectMorePhotosTapped() }
@@ -198,7 +199,7 @@ public struct CleanupView: View {
       } label: {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
           .font(.title3)
-          .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+          .foregroundStyle(isSelected ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.secondary))
       }
       .buttonStyle(.borderless)
       .accessibilityLabel(isSelected ? "선택 해제" : "선택")
@@ -299,7 +300,7 @@ private struct CleanupSimilarPhotoRow: View {
           .font(.caption.weight(.semibold))
           .padding(.horizontal, 8)
           .padding(.vertical, 2)
-          .background(.secondary.opacity(0.15), in: .capsule)
+          .background(SnapColor.neutral, in: .capsule)
           .foregroundStyle(.secondary)
       }
     }

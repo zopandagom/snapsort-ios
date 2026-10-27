@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import SwiftUI
 
 // MARK: - 인덱싱 안내
@@ -20,7 +21,7 @@ extension LibraryView {
           Button("다시 시도") {
             self.model.retryIndexingTapped()
           }
-          .buttonStyle(.bordered)
+          .buttonStyle(.snapSecondary)
           .font(.subheadline)
         }
       }
