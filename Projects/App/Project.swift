@@ -13,6 +13,8 @@ let project = Project.app(
     .feature(.onboarding),
     // Debug 빌드 전용 기록 도구. 모듈 소스가 모두 `#if DEBUG` 라 Release 에서는 빈 모듈이다 (docs/ARCHITECTURE.md §2).
     .feature(.sampleRecorder),
+    // 루트 화면의 색·글꼴 기준값과 내비게이션 바 글꼴.
+    .shared(.designSystem),
     .client(impl: .photoLibrary),
     .client(impl: .imageAnalysis),
     .client(impl: .photoStore),
