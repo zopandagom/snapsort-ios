@@ -58,7 +58,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 |---|---|---|
 | Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☑ |
 | App ID `com.zopandagom.snapsort`(+ 위젯 `com.zopandagom.snapsort.widget`) + App Group `group.com.zopandagom.snapsort` 등록 | W4 (위젯과 SwiftData 저장소 공유. App Group 은 등록함, App ID 연결은 첫 실기기 빌드 서명에서 확인한 뒤 ☑) | ☐ |
-| App Store Connect 앱 생성, 앱 이름 선점 ("SnapSort" / 한국어 이름) | 가능한 빨리 | ☐ |
+| App Store Connect 앱 생성, 앱 이름 선점 ("간직함" / 영어 "Ganjik") | 가능한 빨리 | ☐ |
 | 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
 | 가격 정책 결정: 무료(인앱 결제 없음), 2026-10-26 결정 | W5 전 | ☑ |
 | `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시) | W6 | ☐ |
