@@ -123,7 +123,7 @@ flowchart TD
     Library & PI & PImpl --> Core
 ```
 
-위젯 Extension 은 ExpiryWidgetFeature 와 PhotoStoreImpl(읽기 전용으로 연다)·Core·DesignSystem 에 의존한다. 화면이 있는 Feature(Library·Onboarding·ExpiryWidget)와 App(루트 테마·내비게이션 바 글꼴)이 DesignSystem 을 쓴다. 그림의 PhotoLibrary 는 Client 의 예다.
+위젯 Extension 은 ExpiryWidgetFeature 와 PhotoStoreImpl(읽기 전용으로 연다)·Core·DesignSystem 에 의존한다. DesignSystem 을 쓰는 Feature 는 Library·Onboarding·ExpiryWidget 이고(Debug 기록 도구 SampleRecorder 는 쓰지 않는다), App 도 루트 테마·내비게이션 바 글꼴에 쓴다. 그림의 PhotoLibrary 는 Client 의 예다.
 
 ### 모듈 종류와 타깃
 | 종류 | 위치 | 타깃 | 역할 |
