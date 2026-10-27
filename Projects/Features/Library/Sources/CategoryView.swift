@@ -61,7 +61,7 @@ public struct CategoryView: View {
     case let .loaded(sections) where sections.isEmpty:
       StatusMessageView(
         "이미지 없음",
-        systemImage: "photo.on.rectangle.angled",
+        glyph: self.category.glyph,
         description: "이 카테고리에 분류된 이미지가 없습니다."
       )
     case let .loaded(sections):
