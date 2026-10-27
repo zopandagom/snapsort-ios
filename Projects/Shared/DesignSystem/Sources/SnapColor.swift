@@ -25,7 +25,7 @@ public struct ColorToken: ShapeStyle, Hashable {
 public enum SnapColor {
   /// 강조색. 글자·선택 표시·채운 버튼 바탕. App 의 `AccentColor` 에셋과 같은 값이다.
   public static let accent = ColorToken(light: 0xC42854, dark: 0xFF7A9C)
-  /// `accent` 위의 글자.
+  /// `accent`·`danger` 채운 면 위의 글자.
   public static let onAccent = ColorToken(light: 0xFFFFFF, dark: 0x1C1719)
   /// 면·아이콘용 로즈. 글자에는 쓰지 않는다(바탕 위 대비 3.96).
   public static let rose = ColorToken(light: 0xD9466F, dark: 0xFF7A9C)
