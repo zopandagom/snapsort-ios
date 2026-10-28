@@ -566,5 +566,19 @@
     "text": [],
     "ocrSkipped": true,
     "expected": ["food", "people"]
+  },
+  {
+    "name": "실기기 · 문서+기프티콘 · 저장한 음료 기프티콘 이미지",
+    "asset": { "hasLocation": false, "isScreenshot": false, "pixelHeight": 2160, "pixelWidth": 1440 },
+    "labels": [{ "identifier": "liquid", "confidence": 0.568 }, { "identifier": "frozen", "confidence": 0.513 }, { "identifier": "ice", "confidence": 0.513 }, { "identifier": "water", "confidence": 0.513 }, { "identifier": "drink", "confidence": 0.438 }, { "identifier": "soda", "confidence": 0.438 }, { "identifier": "tableware", "confidence": 0.4 }, { "identifier": "utensil", "confidence": 0.4 }, { "identifier": "drinking_glass", "confidence": 0.4 }, { "identifier": "document", "confidence": 0.109 }, { "identifier": "screenshot", "confidence": 0.109 }, { "identifier": "cup", "confidence": 0.1 }, { "identifier": "straw_drinking", "confidence": 0.095 }, { "identifier": "printed_page", "confidence": 0.03 }, { "identifier": "food", "confidence": 0.027 }, { "identifier": "popcorn", "confidence": 0.027 }, { "identifier": "structure", "confidence": 0.02 }, { "identifier": "sign", "confidence": 0.02 }, { "identifier": "juice", "confidence": 0.012 }, { "identifier": "art", "confidence": 0.01 }, { "identifier": "illustrations", "confidence": 0.01 }],
+    "text": ["○○○○○○○", "○○○○○○ ○○○○○", "○○○○○○○○○○", "유효기간 ○ ○○○○○○○○○○ ○ ○○○○○○○○○○", "0000- 0000- 0000"],
+    "expected": ["document", "gifticon"]
+  },
+  {
+    "name": "실기기 · 문서+기프티콘 · 메신저 안 쿠폰 만료 안내 캡처",
+    "asset": { "hasLocation": false, "isScreenshot": true, "pixelHeight": 2556, "pixelWidth": 1179 },
+    "labels": [{ "identifier": "document", "confidence": 0.942 }, { "identifier": "screenshot", "confidence": 0.942 }, { "identifier": "liquid", "confidence": 0.585 }, { "identifier": "drink", "confidence": 0.585 }, { "identifier": "soda", "confidence": 0.585 }, { "identifier": "tableware", "confidence": 0.566 }, { "identifier": "utensil", "confidence": 0.566 }, { "identifier": "drinking_glass", "confidence": 0.566 }, { "identifier": "frozen", "confidence": 0.062 }, { "identifier": "ice", "confidence": 0.062 }, { "identifier": "water", "confidence": 0.062 }, { "identifier": "cup", "confidence": 0.061 }, { "identifier": "structure", "confidence": 0.05 }, { "identifier": "sign", "confidence": 0.05 }, { "identifier": "printed_page", "confidence": 0.05 }, { "identifier": "container", "confidence": 0.035 }, { "identifier": "bottle", "confidence": 0.035 }, { "identifier": "juice", "confidence": 0.023 }, { "identifier": "straw_drinking", "confidence": 0.023 }, { "identifier": "mug", "confidence": 0.017 }, { "identifier": "food", "confidence": 0.014 }, { "identifier": "popcorn", "confidence": 0.014 }, { "identifier": "beer", "confidence": 0.014 }, { "identifier": "art", "confidence": 0.01 }, { "identifier": "illustrations", "confidence": 0.01 }],
+    "text": ["○○○○", "○○○○", "○", "○○○○ ○ ○○○ ○○", "○○○○○○○○○○○○○○○○○", "○○○○○○○○○○ 유효기간 ○○ ○○", "○○○○○○○", "○○○○○○ ○○○○○ ○○○○○○○○○○", "0000-0000-0000 ○", "○○○○○○", "유효기간", "○○○○○", "○○○○○○○○○○○ ○○○○○○○○○○"],
+    "expected": ["document", "gifticon"]
   }
 ]

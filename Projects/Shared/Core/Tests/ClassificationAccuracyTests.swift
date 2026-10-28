@@ -12,7 +12,8 @@ import Testing
 /// 시드 샘플 이름은 `시드 · ` 로 시작하고, 실기기 샘플이 카테고리마다 모이면 지운다.
 /// 실기기 샘플 이름은 `실기기 · ` 로 시작하고, OCR 줄은 공백과 분류 키워드(`ClassificationRules` 키워드 표)만 남기고 모든 글자를 `○` 로
 /// 가렸다(글자 수는 유지된다). 키워드를 남겨야 기프티콘·영수증처럼 키워드로 정하는 샘플을 확인할 수 있다.
-/// 한 줄 전체가 말풍선 시각인 줄은 대화 캡처 판정에 쓰여 그대로 둔다. 가리기는 `scripts/mask-samples.py` 로 한다.
+/// 한 줄 전체가 말풍선 시각인 줄은 대화 캡처 판정에 쓰여 그대로 두고, 한 줄 전체가 쿠폰 번호인 줄은 기프티콘 판정에 쓰여 숫자만 `0` 으로 바꾼다. 가리기는 `scripts/mask-samples.py`
+/// 로 한다.
 struct ClassificationAccuracyTests {
   @Test("샘플 이미지를 기대 카테고리로 분류한다", arguments: ClassificationSample.all)
   func classifiesSample(_ sample: ClassificationSample) {
@@ -79,6 +80,27 @@ struct ClassificationAccuracyTests {
     }
   }
 
+  @Test("바코드를 찾은 위치 없는 샘플은 음식 라벨만 있어도 OCR 대상이다")
+  func barcodeSampleNeedsTextRecognition() throws {
+    let json = Data("""
+    {
+      "name": "바코드",
+      "asset": {
+        "hasBarcode": true, "hasLocation": false, "isScreenshot": false,
+        "pixelHeight": 1280, "pixelWidth": 720
+      },
+      "labels": [{"identifier": "food", "confidence": 0.8}],
+      "text": ["교환처", "유효기간 2026.12.31"],
+      "expected": ["food", "gifticon"]
+    }
+    """.utf8)
+
+    let sample = try JSONDecoder().decode(ClassificationSample.self, from: json)
+
+    #expect(sample.needsTextRecognition)
+    #expect(sample.classify().contains(.gifticon))
+  }
+
   @Test("샘플 이름은 겹치지 않는다")
   func sampleNamesAreUnique() {
     let names = ClassificationSample.all.map(\.name)
@@ -90,13 +112,15 @@ struct ClassificationAccuracyTests {
 /// 이미지 한 장의 분류 입력과 기대 결과. OCR 줄(`text`)은 OCR 대상 판정과 관계없이 기록해 두어, 판정 규칙을 바꿔도 다시 기록하지 않는다.
 /// 예외로 기록 도구의 보관함 전체 정확도 모드는 OCR 대상만 OCR 해, 나머지 샘플은 `ocrSkipped` 가 true 이고 `text` 가 비어 있다.
 /// 라벨도 같은 이유로 신뢰도 기준보다 낮은 것까지 기록해 두고, 분류할 때 기준으로 거른다.
-/// 위치는 좌표 대신 있는지만 남긴다.
+/// 위치는 좌표 대신 있는지만 남긴다. 바코드는 내용 없이 1단계 바코드 확인에서 찾았을 때만 `hasBarcode: true` 를 남긴다.
 struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
   struct Asset: Decodable, Sendable {
     let isScreenshot: Bool
     let hasLocation: Bool
     let pixelWidth: Int
     let pixelHeight: Int
+    /// 기록 도구가 바코드 확인 대상(`TextRecognitionPolicy.needsBarcodeCheck`)에서 바코드를 찾았는지. 찾았을 때만 true, 그 밖에는 키가 없다.
+    var hasBarcode: Bool?
   }
 
   let name: String
@@ -121,9 +145,13 @@ struct ClassificationSample: Decodable, Sendable, CustomTestStringConvertible {
     return RuleClassifier.classify(asset: self.imageAsset, labels: self.ruleLabels, textLines: textLines)
   }
 
-  /// 운영 기준으로 OCR 대상인지.
+  /// 운영 기준으로 OCR 대상인지(기록한 바코드 확인 결과까지 본다).
   var needsTextRecognition: Bool {
-    TextRecognitionPolicy.needsTextRecognition(asset: self.imageAsset, labels: self.ruleLabels)
+    TextRecognitionPolicy.needsTextRecognition(
+      asset: self.imageAsset,
+      labels: self.ruleLabels,
+      hasBarcode: self.asset.hasBarcode ?? false
+    )
   }
 
   private var ruleLabels: [ImageLabel] {
