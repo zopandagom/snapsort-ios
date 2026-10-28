@@ -14,7 +14,7 @@ struct BarcodeOptions {
   var onDetect: @Sendable (ImageAsset.ID) async -> Void = { _ in }
 }
 
-/// 바코드 Fake 가 돌려주는 내용. 저장·기록되지 않는지 확인할 때 찾는다(지어낸 값이다).
+/// 바코드 Fake 결과로 쓰는 지어낸 내용. 인덱서는 바코드 유무만 쓰고 저장 모델에 내용을 담을 자리가 없다.
 let fixtureBarcodePayload = "FIXTURE-BARCODE-0000"
 
 extension Fixture {
