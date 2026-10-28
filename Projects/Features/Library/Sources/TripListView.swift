@@ -19,6 +19,7 @@ public struct TripListView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle(ImageCategory.travel.title)
+      .snapScreenBackground()
       .task { await self.model.onAppear() }
       .task { await self.categoryModel.thumbnailScreenAppeared(category: .travel) }
   }
@@ -35,7 +36,7 @@ public struct TripListView: View {
     case let .loaded(items) where items.isEmpty:
       StatusMessageView(
         "여행 없음",
-        systemImage: ImageCategory.travel.systemImage,
+        glyph: ImageCategory.travel.glyph,
         description: self.model.isLimited ? Self.limitedNotice : "자주 가는 지역 밖에서 찍은 사진을 여행으로 묶습니다."
       )
     case .loaded where self.categoryModel.category != .travel:
@@ -47,7 +48,7 @@ public struct TripListView: View {
   }
 
   private func list(_ items: [TripFolderItem]) -> some View {
-    List {
+    SnapList {
       if self.model.isLimited {
         Section {
           Label(Self.limitedNotice, systemImage: "photo.badge.checkmark")

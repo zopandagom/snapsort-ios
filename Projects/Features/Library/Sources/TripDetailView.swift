@@ -29,6 +29,7 @@ public struct TripDetailView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle(ImageCategory.travel.title)
+      .snapScreenBackground()
       .navigationBarTitleDisplayMode(.inline)
       .task { await self.model.onAppear(trip: self.route.trip, visit: self.visit) }
       .task { await self.categoryModel.thumbnailScreenAppeared(category: .travel) }
@@ -51,7 +52,7 @@ public struct TripDetailView: View {
     case .notFound:
       StatusMessageView(
         "여행을 찾을 수 없습니다",
-        systemImage: ImageCategory.travel.systemImage,
+        glyph: ImageCategory.travel.glyph,
         description: "사진이 바뀌어 여행을 다시 찾았습니다. 여행 목록에서 다시 열어 주세요."
       )
     case .loaded where self.categoryModel.category != .travel:

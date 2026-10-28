@@ -25,6 +25,7 @@ public struct CategoryView: View {
   public var body: some View {
     self.contentView
       .navigationTitle(self.category.title)
+      .snapScreenBackground()
       // 위쪽 inset 막대를 두지 않고 툴바 메뉴로 고른다(영수증 목록과 같다).
       .toolbar {
         let groupings = CaptureGrouping.groupings(for: self.category)
@@ -60,7 +61,7 @@ public struct CategoryView: View {
     case let .loaded(sections) where sections.isEmpty:
       StatusMessageView(
         "이미지 없음",
-        systemImage: "photo.on.rectangle.angled",
+        glyph: self.category.glyph,
         description: "이 카테고리에 분류된 이미지가 없습니다."
       )
     case let .loaded(sections):
@@ -140,7 +141,8 @@ public struct CategoryView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal)
       .padding(.vertical, 8)
-      .background(.bar)
+      // 고정 머리글이 지나가는 썸네일을 가리도록 화면 바탕과 같은 불투명 색을 쓴다.
+      .background(SnapColor.background)
   }
 }
 

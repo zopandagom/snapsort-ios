@@ -1,4 +1,5 @@
 import ClassifierImpl
+import DesignSystem
 import Foundation
 import ImageAnalysisImpl
 import IndexingImpl
@@ -37,6 +38,8 @@ struct SnapSortApp: App {
     // 앱이 앞에 있을 때도 만료 알림이 보이게 한다. 알림이 울리기 전에 등록돼 있어야 하므로 가장 먼저 한다
     // (docs/ARCHITECTURE.md §4 만료 알림).
     NotificationClientImpl.registerForegroundPresentation()
+    // 내비게이션 바 제목은 UIKit 이라 화면 루트의 `snapTheme()` 이 닿지 않는다.
+    SnapNavigationBar.applyRoundedTitles()
     let photoLibrary = PhotoLibraryClientImpl()
     let imageAnalysis = ImageAnalysisClientImpl()
     self._onboardingModel = State(initialValue: OnboardingModel(photoLibrary: photoLibrary))
@@ -108,39 +111,46 @@ struct SnapSortApp: App {
 
   var body: some Scene {
     WindowGroup {
-      // 화면 간 흐름은 App 이 정한다. 읽을 수 있는 권한이 생기면 보관함으로 넘어간다.
-      if self.onboardingModel.access.canRead {
-        #if DEBUG
-          SampleRecorderEntry(
-            libraryModel: self.libraryModel,
-            categoryModel: self.categoryModel,
-            gifticonListModel: self.gifticonListModel,
-            receiptListModel: self.receiptListModel,
-            captureActionsModel: self.captureActionsModel,
-            tripListModel: self.tripListModel,
-            tripDetailModel: self.tripDetailModel,
-            searchModel: self.searchModel,
-            cleanupModel: self.cleanupModel,
-            captureInboxModel: self.captureInboxModel,
-            sampleRecorderModel: self.sampleRecorderModel
-          )
-        #else
-          LibraryView(
-            model: self.libraryModel,
-            categoryModel: self.categoryModel,
-            gifticonListModel: self.gifticonListModel,
-            receiptListModel: self.receiptListModel,
-            captureActionsModel: self.captureActionsModel,
-            tripListModel: self.tripListModel,
-            tripDetailModel: self.tripDetailModel,
-            searchModel: self.searchModel,
-            cleanupModel: self.cleanupModel,
-            captureInboxModel: self.captureInboxModel
-          )
-        #endif
-      } else {
-        OnboardingView(model: self.onboardingModel)
-      }
+      self.root
+        // 색·글꼴 기준값(DesignSystem `SnapColor`). 강조색은 UIKit 화면을 위해 `AccentColor` 에셋에도 같은 값이 있다.
+        .snapTheme()
+    }
+  }
+
+  @ViewBuilder
+  private var root: some View {
+    // 화면 간 흐름은 App 이 정한다. 읽을 수 있는 권한이 생기면 보관함으로 넘어간다.
+    if self.onboardingModel.access.canRead {
+      #if DEBUG
+        SampleRecorderEntry(
+          libraryModel: self.libraryModel,
+          categoryModel: self.categoryModel,
+          gifticonListModel: self.gifticonListModel,
+          receiptListModel: self.receiptListModel,
+          captureActionsModel: self.captureActionsModel,
+          tripListModel: self.tripListModel,
+          tripDetailModel: self.tripDetailModel,
+          searchModel: self.searchModel,
+          cleanupModel: self.cleanupModel,
+          captureInboxModel: self.captureInboxModel,
+          sampleRecorderModel: self.sampleRecorderModel
+        )
+      #else
+        LibraryView(
+          model: self.libraryModel,
+          categoryModel: self.categoryModel,
+          gifticonListModel: self.gifticonListModel,
+          receiptListModel: self.receiptListModel,
+          captureActionsModel: self.captureActionsModel,
+          tripListModel: self.tripListModel,
+          tripDetailModel: self.tripDetailModel,
+          searchModel: self.searchModel,
+          cleanupModel: self.cleanupModel,
+          captureInboxModel: self.captureInboxModel
+        )
+      #endif
+    } else {
+      OnboardingView(model: self.onboardingModel)
     }
   }
 }

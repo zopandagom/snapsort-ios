@@ -33,6 +33,7 @@ public struct GifticonListView: View {
         .background(.bar)
       }
       .navigationTitle(ImageCategory.gifticon.title)
+      .snapScreenBackground()
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
@@ -69,7 +70,7 @@ public struct GifticonListView: View {
       if sections.isEmpty {
         StatusMessageView(
           self.tab == .unused ? "사용하지 않은 기프티콘이 없습니다" : "사용한 기프티콘이 없습니다",
-          systemImage: "gift"
+          glyph: ImageCategory.gifticon.glyph
         )
       } else if self.categoryModel.category != .gifticon {
         // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
@@ -81,7 +82,7 @@ public struct GifticonListView: View {
   }
 
   private func list(_ sections: GifticonListSections) -> some View {
-    List {
+    SnapList {
       switch sections {
       case let .byExpiry(sections):
         ForEach(sections) { section in
@@ -203,8 +204,8 @@ struct EstimatedBadge: View {
       .font(.caption2.weight(.semibold))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
-      .foregroundStyle(.orange)
-      .background(.orange.opacity(0.15), in: .capsule)
+      .foregroundStyle(SnapColor.lilacText)
+      .background(SnapColor.lilacSoft, in: .capsule)
       .accessibilityLabel(Text("추정한 값"))
   }
 }
@@ -218,8 +219,8 @@ struct GifticonDueBadge: View {
       .font(.subheadline.weight(.semibold).monospacedDigit())
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
-      .foregroundStyle(self.color)
-      .background(self.color.opacity(0.12), in: .capsule)
+      .foregroundStyle(self.style.text)
+      .background(self.style.fill, in: .capsule)
   }
 
   private var title: String {
@@ -230,11 +231,12 @@ struct GifticonDueBadge: View {
     }
   }
 
-  private var color: Color {
+  /// 7일 안이면 채운 강조색, 남으면 블러시, 지나면 중립 면. 모두 글자 대비 4.5:1 이상이다(`SnapColorTests`).
+  private var style: (text: ColorToken, fill: ColorToken) {
     switch self.due {
-    case let .remaining(days) where days <= 7: .red
-    case .remaining: .accentColor
-    case .expired: .secondary
+    case let .remaining(days) where days <= 7: (SnapColor.onAccent, SnapColor.accent)
+    case .remaining: (SnapColor.accent, SnapColor.blush)
+    case .expired: (SnapColor.inkSecondary, SnapColor.neutral)
     }
   }
 }

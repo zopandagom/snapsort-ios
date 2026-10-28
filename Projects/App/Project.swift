@@ -3,7 +3,7 @@ import ProjectDescriptionHelpers
 
 let project = Project.app(
   infoPlist: [
-    "CFBundleDisplayName": "SnapSort",
+    "CFBundleDisplayName": .string(Env.displayName),
     "NSPhotoLibraryUsageDescription": "보관함의 이미지를 기기 안에서 분석해 자동으로 분류하고, 필요 없는 사진을 골라 삭제할 수 있게 돕습니다. 사진은 외부로 전송되지 않습니다.",
     // 제한 접근일 때 iOS 가 앱 실행마다 띄우는 "사진 더 선택" 알림을 끈다. 보관함 화면의 배너가 그 역할을 한다.
     "PHPhotoLibraryPreventAutomaticLimitedAccessAlert": true,
@@ -13,6 +13,8 @@ let project = Project.app(
     .feature(.onboarding),
     // Debug 빌드 전용 기록 도구. 모듈 소스가 모두 `#if DEBUG` 라 Release 에서는 빈 모듈이다 (docs/ARCHITECTURE.md §2).
     .feature(.sampleRecorder),
+    // 루트 화면의 색·글꼴 기준값과 내비게이션 바 글꼴.
+    .shared(.designSystem),
     .client(impl: .photoLibrary),
     .client(impl: .imageAnalysis),
     .client(impl: .photoStore),

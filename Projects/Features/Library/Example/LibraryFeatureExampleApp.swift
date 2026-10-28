@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import Foundation
 import ImageAnalysisTesting
 import IndexingInterface
@@ -107,24 +108,33 @@ struct LibraryFeatureExampleApp: App {
   /// 지금까지 더한 글자 사진 수.
   @State private var addedTextCount = 0
 
+  init() {
+    // App 과 같은 내비게이션 바 글꼴.
+    SnapNavigationBar.applyRoundedTitles()
+  }
+
   var body: some Scene {
     WindowGroup {
-      if Self.scenario == .receiptEmpty {
-        // 보관함은 영수증이 없으면 영수증 줄을 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
-        NavigationStack {
-          ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
-        }
-      } else {
-        self.library
-          // 정리 삭제가 보관함 변경 → 저장소 삭제 → 진행률로 이어지는 것을 흉내 낸다(실제는 인덱서가 한다).
-          .task {
-            await simulateIndexerDeletions(
-              photoLibrary: Self.photoLibrary,
-              photoStore: Self.photoStore,
-              indexing: Self.indexing
-            )
+      Group {
+        if Self.scenario == .receiptEmpty {
+          // 보관함은 영수증이 없으면 영수증 줄을 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
+          NavigationStack {
+            ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
           }
+        } else {
+          self.library
+            // 정리 삭제가 보관함 변경 → 저장소 삭제 → 진행률로 이어지는 것을 흉내 낸다(실제는 인덱서가 한다).
+            .task {
+              await simulateIndexerDeletions(
+                photoLibrary: Self.photoLibrary,
+                photoStore: Self.photoStore,
+                indexing: Self.indexing
+              )
+            }
+        }
       }
+      // App 루트와 같은 색·글꼴 기준값.
+      .snapTheme()
     }
   }
 

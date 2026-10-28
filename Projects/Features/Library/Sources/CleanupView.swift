@@ -25,6 +25,7 @@ public struct CleanupView: View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("정리 도우미")
+      .snapScreenBackground()
       .toolbar {
         if self.isLoaded {
           ToolbarItemGroup(placement: .bottomBar) {
@@ -58,7 +59,7 @@ public struct CleanupView: View {
       ProgressView()
     case .failed:
       // 실패해도 제한 접근 안내와 "사진 더 선택"이 첫 섹션에 남게 목록 안에 그린다.
-      List {
+      SnapList {
         if self.model.isLimited {
           CleanupLimitedSection {
             Task { await self.model.selectMorePhotosTapped() }
@@ -82,7 +83,7 @@ public struct CleanupView: View {
   }
 
   private func list(_ sections: CleanupSections) -> some View {
-    List {
+    SnapList {
       if self.model.isLimited {
         CleanupLimitedSection {
           Task { await self.model.selectMorePhotosTapped() }
@@ -179,6 +180,8 @@ public struct CleanupView: View {
         self.model.sectionSelectionToggled(section.kind)
       }
       .buttonStyle(.borderless)
+      // 루트 `snapTheme()` 의 본문 글자색이 버튼 tint 를 덮지 않게 강조색을 직접 준다.
+      .foregroundStyle(.tint)
       .textCase(nil)
     }
   }
@@ -198,7 +201,7 @@ public struct CleanupView: View {
       } label: {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
           .font(.title3)
-          .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+          .foregroundStyle(isSelected ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.secondary))
       }
       .buttonStyle(.borderless)
       .accessibilityLabel(isSelected ? "선택 해제" : "선택")
@@ -232,6 +235,11 @@ public struct CleanupView: View {
       ) {
         Task { await self.model.deleteButtonTapped() }
       }
+      // 알약 버튼의 삭제와 같은 경고색 (`SnapButtonStyle`). 루트 `snapTheme()` 의 본문 글자색이 tint 를 덮어 글자색을 직접 주고,
+      // 그래서 시스템이 흐리게 하지 않는 비활성 상태는 보조 글자색으로 그린다.
+      .foregroundStyle(
+        self.model.selectionCount == 0 ? AnyShapeStyle(SnapColor.inkSecondary) : AnyShapeStyle(SnapColor.danger)
+      )
       .disabled(self.model.selectionCount == 0)
     }
   }
@@ -299,7 +307,7 @@ private struct CleanupSimilarPhotoRow: View {
           .font(.caption.weight(.semibold))
           .padding(.horizontal, 8)
           .padding(.vertical, 2)
-          .background(.secondary.opacity(0.15), in: .capsule)
+          .background(SnapColor.neutral, in: .capsule)
           .foregroundStyle(.secondary)
       }
     }

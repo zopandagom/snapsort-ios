@@ -1,4 +1,4 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let project = Project.feature(.onboarding, clients: [.photoLibrary])
+let project = Project.feature(.onboarding, clients: [.photoLibrary], shared: [.designSystem])

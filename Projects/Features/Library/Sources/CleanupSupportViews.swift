@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import SwiftUI
 
 /// 정리 화면과 캡처 인박스가 함께 쓰는 조각 (docs/ARCHITECTURE.md §4 정리 도우미).
@@ -14,7 +15,7 @@ struct CleanupLimitedSection: View {
           .font(.subheadline)
         Spacer()
         Button("사진 더 선택", action: self.selectMore)
-          .buttonStyle(.bordered)
+          .buttonStyle(.snapSecondary)
           .font(.subheadline)
       }
     }
@@ -37,6 +38,7 @@ struct CleanupNoticeSection: View {
         }
         Button("닫기", action: self.dismiss)
           .buttonStyle(.borderless)
+          .foregroundStyle(.tint)
       }
       .font(.subheadline)
     }

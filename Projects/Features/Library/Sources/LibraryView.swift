@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import SwiftUI
 
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
@@ -59,7 +60,8 @@ public struct LibraryView: View {
       ) {
         self.categoryList
       }
-      .navigationTitle("SnapSort")
+      .navigationTitle("간직함")
+      .snapScreenBackground()
       .safeAreaInset(edge: .top) {
         if self.model.isLimited {
           self.limitedAccessBanner
@@ -156,7 +158,7 @@ public struct LibraryView: View {
 
   /// 카테고리 줄 목록. 검색 중에는 `SearchResultsView` 가 대신 보인다.
   private var categoryList: some View {
-    List {
+    SnapList {
       self.indexingSection
       if self.model.showsExpiryReminderButton {
         self.expiryReminderSection
@@ -234,7 +236,7 @@ public struct LibraryView: View {
     LabeledContent {
       Text(category.countText(count))
     } label: {
-      Label(category.title, systemImage: category.systemImage)
+      CategoryLabel(category: category)
     }
   }
 
@@ -246,11 +248,12 @@ public struct LibraryView: View {
       Button("사진 더 선택") {
         Task { await self.model.selectMorePhotosTapped() }
       }
-      .buttonStyle(.bordered)
+      .buttonStyle(.snapSecondary)
+      .controlSize(.small)
       .font(.subheadline)
     }
     .padding()
-    .background(.thinMaterial, in: .rect(cornerRadius: 12))
+    .background(SnapColor.card, in: .rect(cornerRadius: 20))
     .padding(.horizontal)
   }
 }
@@ -299,7 +302,8 @@ extension LibraryView {
         Button("만료 알림 받기") {
           Task { await self.model.notificationsTapped() }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.snapSecondary)
+        .controlSize(.small)
         .font(.subheadline)
       }
     }
@@ -315,51 +319,25 @@ extension LibraryView {
         Button("설정에서 알림 켜기") {
           Task { await self.model.notificationSettingsTapped() }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.snapSecondary)
+        .controlSize(.small)
         .font(.subheadline)
       }
     }
   }
 }
 
-/// 화면에 보이는 이름과 아이콘. Core 는 SwiftUI·문구를 갖지 않으므로 화면 쪽에 둔다.
-extension ImageCategory {
-  var title: String {
-    switch self {
-    case .gifticon: "기프티콘"
-    case .receipt: "영수증"
-    case .chat: "대화 캡처"
-    case .shopping: "쇼핑"
-    case .map: "지도"
-    case .document: "문서·메모"
-    case .travel: "여행"
-    case .food: "음식"
-    case .people: "인물"
-    case .pet: "반려동물"
-    case .landscape: "풍경"
-    case .other: "기타"
-    }
-  }
+/// 카테고리 이름과 색 칸 아이콘. 칸은 큰 글씨를 따라 커진다.
+struct CategoryLabel: View {
+  let category: ImageCategory
 
-  var systemImage: String {
-    switch self {
-    case .gifticon: "gift"
-    case .receipt: "receipt"
-    case .chat: "bubble.left.and.bubble.right"
-    case .shopping: "bag"
-    case .map: "map"
-    case .document: "doc.text"
-    case .travel: "airplane"
-    case .food: "fork.knife"
-    case .people: "person.2"
-    case .pet: "pawprint"
-    case .landscape: "mountain.2"
-    case .other: "square.grid.2x2"
-    }
-  }
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 30
 
-  /// 여행은 이미지 수가 아니라 여행 수를 센다 (`LibraryModel.categoryCounts`).
-  func countText(_ count: Int) -> String {
-    self == .travel ? "\(count)번" : "\(count)장"
+  var body: some View {
+    Label {
+      Text(self.category.title)
+    } icon: {
+      IconTile(self.category.glyph, size: self.iconSize, scale: .compact)
+    }
   }
 }

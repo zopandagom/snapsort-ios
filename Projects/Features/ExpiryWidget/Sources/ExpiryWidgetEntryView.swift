@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import SwiftUI
 import WidgetKit
 
@@ -14,6 +15,12 @@ public struct ExpiryWidgetEntryView: View {
   }
 
   public var body: some View {
+    self.content
+      .fontDesign(.rounded)
+  }
+
+  @ViewBuilder
+  private var content: some View {
     switch self.family {
     case .accessoryCircular:
       CircularView(content: self.entry.content)
@@ -23,7 +30,7 @@ public struct ExpiryWidgetEntryView: View {
         .containerBackground(for: .widget) { Color.clear }
     default:
       SmallView(content: self.entry.content)
-        .containerBackground(for: .widget) { Color(.systemBackground) }
+        .containerBackground(SnapColor.background, for: .widget)
     }
   }
 }
@@ -40,14 +47,36 @@ private enum Copy {
   }
 }
 
+/// 선물 아이콘. 색을 쓰는 홈 화면(fullColor)에서만 시안 색이고, tinted·clear·잠금 화면에서는 단색이다.
+/// 그림은 고유 크기가 없어 Label 안에서 늘어나지 않게 크기를 정한다(큰 글씨를 따라 커진다).
+private struct GiftIcon: View {
+  @Environment(\.widgetRenderingMode) private var renderingMode
+  @ScaledMetric private var size: CGFloat
+
+  init(size: CGFloat, relativeTo textStyle: Font.TextStyle) {
+    self._size = ScaledMetric(wrappedValue: size, relativeTo: textStyle)
+  }
+
+  var body: some View {
+    SnapIcon(.gift, style: self.renderingMode == .fullColor ? .color : .monochrome)
+      .frame(width: self.size, height: self.size)
+  }
+}
+
 private struct SmallView: View {
   let content: ExpiryWidgetEntry.Content
 
+  @Environment(\.widgetRenderingMode) private var renderingMode
+
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Label(Copy.title, systemImage: "gift")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
+      Label {
+        Text(Copy.title)
+      } icon: {
+        GiftIcon(size: 14, relativeTo: .caption)
+      }
+      .font(.caption.weight(.semibold))
+      .foregroundStyle(.secondary)
       Spacer(minLength: 0)
       switch self.content {
       case .unavailable:
@@ -59,6 +88,10 @@ private struct SmallView: View {
           Text("\(summary.count)개")
             .font(.system(size: 44, weight: .bold, design: .rounded))
             .minimumScaleFactor(0.5)
+            // 아래 본문 글자처럼 색을 쓰는 홈 화면에서만 기준값 색을 쓴다(vibrant 에서 밝기가 불투명도로 바뀌어 흐려지지 않게).
+            .foregroundStyle(self
+              .renderingMode == .fullColor ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.primary))
+            .widgetAccentable()
           Text(Copy.nearest(nearest))
             .font(.subheadline)
         } else if summary.isChecking {
@@ -76,6 +109,11 @@ private struct SmallView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    // 색을 쓰는 홈 화면에서만 기준값 글자색을 쓴다. 나머지 모드는 시스템이 단색으로 칠한다.
+    .foregroundStyle(
+      self.renderingMode == .fullColor ? AnyShapeStyle(SnapColor.ink) : AnyShapeStyle(.primary),
+      self.renderingMode == .fullColor ? AnyShapeStyle(SnapColor.inkSecondary) : AnyShapeStyle(.secondary)
+    )
   }
 }
 
@@ -88,7 +126,7 @@ private struct CircularView: View {
       VStack(spacing: 0) {
         switch self.content {
         case .unavailable:
-          Image(systemName: "gift")
+          GiftIcon(size: 18, relativeTo: .body)
           Text("앱 열기")
             .font(.system(size: 9))
         case let .summary(summary):
@@ -103,8 +141,7 @@ private struct CircularView: View {
             Text("개")
               .font(.system(size: 10))
           } else {
-            Image(systemName: "gift")
-              .font(.system(size: 10))
+            GiftIcon(size: 12, relativeTo: .caption2)
           }
         }
       }
@@ -117,9 +154,13 @@ private struct RectangularView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 1) {
-      Label(Copy.title, systemImage: "gift")
-        .font(.headline)
-        .widgetAccentable()
+      Label {
+        Text(Copy.title)
+      } icon: {
+        GiftIcon(size: 17, relativeTo: .headline)
+      }
+      .font(.headline)
+      .widgetAccentable()
       switch self.content {
       case .unavailable:
         Text(Copy.unavailable)

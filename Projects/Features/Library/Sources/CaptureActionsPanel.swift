@@ -1,4 +1,5 @@
 import Core
+import DesignSystem
 import SwiftUI
 
 /// 사진 상세 아래의 캡처 행동 (docs/ARCHITECTURE.md §4 캡처 정보 추출).
@@ -29,14 +30,14 @@ struct CaptureActionsPanel: View {
     }
     .padding()
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.bar)
+    .background(SnapColor.card)
     .overlay(alignment: .top) {
       if self.isShowingCopied {
         Label("복사했습니다", systemImage: "doc.on.doc")
           .font(.subheadline)
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
-          .background(.thinMaterial, in: .capsule)
+          .background(SnapColor.card, in: .capsule)
           .offset(y: -48)
           .transition(.opacity)
       }
@@ -108,7 +109,7 @@ struct CaptureActionsPanel: View {
       Button(gifticon.isUsed ? "미사용으로 되돌리기" : "사용함으로 표시") {
         Task { await self.model.usedButtonTapped() }
       }
-      .buttonStyle(.bordered)
+      .buttonStyle(.snapSecondary)
       .disabled(self.model.isUpdatingUsage)
     }
   }
@@ -133,7 +134,7 @@ struct CaptureActionsPanel: View {
       } label: {
         Label("바코드 크게 보기", systemImage: "barcode.viewfinder")
       }
-      .buttonStyle(.borderedProminent)
+      .buttonStyle(.snapPrimary)
     case let .notFound(isLocalFallback):
       VStack(alignment: .leading, spacing: 2) {
         Text("바코드를 찾지 못했습니다")
@@ -188,7 +189,7 @@ struct CaptureActionsPanel: View {
         .lineLimit(2)
       Spacer()
       Button(buttonTitle, action: action)
-        .buttonStyle(.bordered)
+        .buttonStyle(.snapSecondary)
         .font(.subheadline)
     }
   }
