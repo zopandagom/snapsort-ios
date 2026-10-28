@@ -18,6 +18,7 @@ public protocol ImageAnalysisClient: Sendable {
   /// 이미지에서 글자로 읽을 수 있는 바코드를 큰 것부터 돌려준다. 바코드가 없으면 빈 배열이다.
   /// 기프티콘 바코드를 크게 보이려고(다시 그리거나 영역을 확대) 사용자가 기프티콘 목록·정리 화면에서 연 상세에서 부른다(결과는 저장하지 않는다).
   /// OCR 과 같이 기기에 있는 가장 큰 버전(`ImageSize.largestAvailable`)을 넘긴다.
+  /// 인덱서 1단계(`IndexingRun.classify`)도 OCR 대상 판정에 썸네일로 부르고 바코드가 있는지만 쓴다(내용은 버린다).
   /// 호출한 Task 가 취소되면 `.cancelled` 를 던진다.
   func detectBarcodes(_ image: AnalysisImage) async throws(ImageAnalysisError) -> [DetectedBarcode]
 

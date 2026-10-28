@@ -25,6 +25,7 @@
       #expect(fixture.log.all == [
         "load:photo:thumbnail",
         "classify:photo",
+        "barcode:photo",
         "featurePrint:photo",
         "load:photo:largest",
         "ocr:photo",

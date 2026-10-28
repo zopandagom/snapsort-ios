@@ -62,20 +62,21 @@ extension Fixture {
   static func analysis(
     classify: @escaping @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>,
     recognizeText: @escaping @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>,
-    featurePrint: FeaturePrintOptions,
-    featurePrintFailures: FailingIDs,
+    detectBarcodes: @escaping @Sendable (AnalysisImage) async -> Result<[DetectedBarcode], ImageAnalysisError>,
+    featurePrint: (options: FeaturePrintOptions, failures: FailingIDs),
     idsByWidth: [Int: ImageAsset.ID]
   ) -> ImageAnalysisClientFake {
     let later = Later<ImageAnalysisClientFake>()
     let analysis = ImageAnalysisClientFake(
       classify: classify,
       recognizeText: recognizeText,
-      isFeaturePrintAvailable: featurePrint.isAvailable,
+      detectBarcodes: detectBarcodes,
+      isFeaturePrintAvailable: featurePrint.options.isAvailable,
       featurePrint: Self.featurePrinter(
         idsByWidth: idsByWidth,
-        failures: featurePrintFailures,
+        failures: featurePrint.failures,
         analysis: later,
-        onFeaturePrint: featurePrint.onFeaturePrint
+        onFeaturePrint: featurePrint.options.onFeaturePrint
       )
     )
     later.set(analysis)

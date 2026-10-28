@@ -3,7 +3,8 @@
 /// 키워드는 공백 없이 소문자로 적는다. OCR 이 글자 사이를 띄워 읽어도 맞도록 대조할 때 텍스트의 공백을 무시한다.
 /// 단, 공백을 넘어 걸린 키워드는 단어 시작에서 시작할 때만 인정한다(`RuleClassifier`).
 /// 표의 값은 임시이며 샘플 이미지 정확도 측정 작업에서 조정한다.
-/// `scripts/mask-samples.py` 가 이 파일의 `InformationRule` 마다 `keywords:` 문자열 리터럴 배열과 `chatTimestampPattern` 정규식 리터럴을 읽어
+/// `scripts/mask-samples.py` 가 이 파일의 `InformationRule` 마다 `keywords:` 문자열 리터럴 배열과
+/// `chatTimestampPattern`·`couponNumberPattern` 정규식 리터럴을 읽어
 /// 샘플을 가린다(리터럴이 아니면 실패한다).
 /// 형식을 바꾸면 `make test-scripts` 로 확인한다(이 파일이 바뀌면 `/pr` 이 실행한다).
 public enum ClassificationRules {
@@ -74,6 +75,14 @@ public enum ClassificationRules {
   /// `Regex` 가 `Sendable` 이 아니어서 정적 저장 프로퍼티 대신 계산 프로퍼티로 둔다. 쓰는 쪽은 한 번 만들어 재사용한다.
   static var chatTimestampPattern: Regex<Substring> { #/\d{0,2}오[전후]\d{1,2}:\d{2}\d{0,2}/# }
 
+  /// 기프티콘 쿠폰 번호만 있는 줄(예: "1234 - 5678 - 9012", "123456789012"). 정규화한 줄 전체에 대조하고, 있으면 기프티콘 키워드 하나로 센다.
+  /// 저장한 기프티콘 이미지는 상품 사진·브랜드·유효기간·번호뿐이라 키워드가 "유효기간" 하나인 경우가 있다(실기기 보관함).
+  /// 4자리씩 12·16자리이고 묶음 사이는 줄표만 허용한다(공백은 정규화로 지워진다). 전화·사업자·계좌 번호는 묶음 자리가 달라 걸리지 않고,
+  /// 가린 카드 번호("1234-****-…")도 걸리지 않는다. 번호 옆 복사 아이콘을 OCR 이 글자 하나로 붙여 읽어(사용자 기기) 끝의 숫자 아닌 글자 하나는 허용한다.
+  /// 멤버십 카드 번호와 "유효기간"이 함께 있는 화면은 기프티콘이 된다(한계).
+  /// `scripts/mask-samples.py` 가 이 정규식 리터럴을 읽어, 이 줄은 숫자를 0 으로 바꾸고 줄표·공백을 남긴다.
+  static var couponNumberPattern: Regex<Substring> { #/\d{4}(?:[-–]?\d{4}){2,3}\D?/# }
+
   /// 대화 캡처로 보는 말풍선 시각 줄 수. 시각은 대체로 오름차순이어야 한다(`RuleClassifier`).
   /// 최신순으로 쌓이는 통화 기록·알림 센터와 시각이 뒤섞인 항공권을 거른다.
   static let minimumChatTimestampLines = 2
@@ -116,7 +125,7 @@ public enum ClassificationRules {
   /// `screenshot` 밖의 라벨은 `textLabelMinimumConfidence` 이상이어야 한다(`TextRecognitionPolicy`).
   static let textLabels: Set<String> = informationRules.reduce(into: textHeavyLabels) { $0.formUnion($1.labels) }
 
-  /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각 패턴 대조와 키워드 표 형식 검사에 쓴다.
+  /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각·쿠폰 번호 패턴 대조와 키워드 표 형식 검사에 쓴다.
   static func normalize(_ text: String) -> String {
     String(text.lowercased().filter { !$0.isWhitespace })
   }

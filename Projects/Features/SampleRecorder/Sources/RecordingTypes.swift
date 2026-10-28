@@ -232,6 +232,10 @@
     var classifyMs: Double?
     var labelCount: Int?
     var needsTextRecognition: Bool?
+    /// 1단계 바코드 확인 시간. 위치가 없고 라벨로는 OCR 대상이 아닌 이미지만 재고, 대상이 아니거나 인식에 실패하면 nil.
+    var barcodeMs: Double?
+    /// 1단계 바코드 확인에서 읽을 수 있는 바코드를 찾았는지. 확인해서 성공했을 때만 true/false, 대상이 아니거나 실패하면 nil. 바코드 내용은 남기지 않는다.
+    var hasBarcode: Bool?
     /// 비슷한 사진 대상의 특징 벡터 시간. 대상이 아니거나 벡터를 만들 수 없는 기기·대체 버전 썸네일이면 부르지 않아 nil, 실패해도 nil.
     var featurePrintMs: Double?
     var largestLoadMs: Double?
@@ -242,7 +246,7 @@
     var textLineCount: Int?
     /// 썸네일 로드 시작부터 마지막 단계 끝까지.
     var totalMs: Double = 0
-    /// 운영 인덱서가 하는 단계만 더한 시간: 썸네일 로드 + 분류(+ 특징 벡터), OCR 대상이면 원본 로드 + OCR. 건너뛴 이미지는 nil.
+    /// 운영 인덱서가 하는 단계만 더한 시간: 썸네일 로드 + 분류(+ 바코드 확인 + 특징 벡터), OCR 대상이면 원본 로드 + OCR. 건너뛴 이미지는 nil.
     var pipelineMs: Double?
     /// OCR 해상도 비교 모드에서 OCR 대상을 기록했을 때만 있다.
     var ocrComparison: OCRComparisonRecord?

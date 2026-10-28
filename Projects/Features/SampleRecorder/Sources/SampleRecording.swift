@@ -24,7 +24,7 @@
   }
 
   /// 인덱서의 두 단계와 같은 내용으로 한 장씩 분석하며 단계별 시간을 잰다: 1단계 `IndexingRun.classify(_:)`(썸네일 로드 → 분류 → 대상 판정
-  /// → 비슷한 사진 대상이면 같은 썸네일로 특징 벡터),
+  /// (위치 없고 라벨로는 대상이 아니면 같은 썸네일로 바코드 확인) → 비슷한 사진 대상이면 같은 썸네일로 특징 벡터),
   /// 2단계 `IndexingRun.recognize(_:asset:)`(원본 로드 → OCR)(IndexingRun+Stages.swift). 인덱서는 단계별로 모아 돌리고
   /// 이 도구는 한 장에서 두 단계를 이어 잰다. 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다.
   /// 단, 인덱서 2단계의 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 이 도구가 재지 않는다. 인덱서 2단계의 언어 모델 보강
@@ -102,7 +102,8 @@
       return wasCancelled ? .cancelled(result) : .completed(result)
     }
 
-    /// 이미지 한 장을 운영 인덱서와 같은 순서로 분석하며 단계마다 시간을 잰다.
+    /// 이미지 한 장을 운영 인덱서와 같은 순서(썸네일 → 분류 → 바코드 확인 → 벡터 → 원본·OCR)로 분석하며 단계마다 시간을 잰다.
+    /// 바코드 확인에 실패해도 건너뛰지 않는다(운영은 바코드 없음으로 보고 분류를 이어 간다).
     /// 정확도 모드와 번호로 기록 모드(`recognizesAllText`)는 OCR 대상이 아니어도 원본을 읽어 OCR 한다(판정 규칙을 바꿔도 다시 기록하지 않도록).
     /// 그래서 원본 로드나 OCR 에 실패하면 OCR 대상이 아니어도 건너뛴다. OCR 줄 없이 기록하면 OCR 대상 조건을 바꾸는 실험에서
     /// 그 샘플이 틀린 입력이 되기 때문이다. 보관함 전체 정확도 모드는 시간 때문에 OCR 대상만 OCR 하고, 나머지 샘플에 `ocrSkipped` 를 단다.
@@ -117,10 +118,14 @@
       var stage = SkippedImage.Stage.thumbnailLoad
       do throws(MeasureStop) {
         let (thumbnail, labels) = try await self.classify(asset, measurement: &measurement, stage: &stage, clock: clock)
-        // 운영과 같은 기준으로 거른 라벨로 OCR 대상을 판정한다. 시간은 재지 않는다.
+        // 운영과 같은 기준으로 거른 라벨과 바코드 확인 결과로 OCR 대상을 판정한다. 판정 자체의 시간은 재지 않는다.
         let ruleLabels = labels.filter { $0.confidence >= ClassificationRules.minimumLabelConfidence }
-        let needsText = TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: ruleLabels)
-        measurement.needsTextRecognition = needsText
+        let (hasBarcode, needsText) = try await self.measureOCRTarget(
+          thumbnail,
+          asset: asset,
+          ruleLabels: ruleLabels,
+          measurement: &measurement
+        )
         try await self.measureFeaturePrint(thumbnail, asset: asset, needsText: needsText, measurement: &measurement)
 
         var textLines: [RecognizedTextLine] = []
@@ -147,29 +152,48 @@
           labels: labels,
           ruleLabels: ruleLabels,
           textLines: textLines,
-          needsText: needsText
+          needsText: needsText,
+          hasBarcode: hasBarcode
         )
         return .recorded(measurement, draft)
       } catch {
-        switch error {
-        case .cancelled:
-          return .cancelled
-        case let .skipped(reason):
-          measurement.outcome = .skipped
-          measurement.skipReason = reason
-          measurement.failedStage = stage
-          measurement.totalMs = start.duration(to: clock.now).milliseconds
-          return .skipped(measurement, SkippedImage(index: index, reason: reason, stage: stage))
-        }
+        return Self.stopOutcome(
+          error,
+          measurement: measurement,
+          index: index,
+          stage: stage,
+          totalMs: start.duration(to: clock.now).milliseconds
+        )
       }
     }
 
-    /// 운영 인덱서가 하는 단계만 더한다: 썸네일 로드 + 분류(+ 잰 특징 벡터), OCR 대상이면 원본 로드 + OCR.
+    /// 건너뛴 이미지(측정에 사유·실패 단계·총 시간을 적는다)나 취소를 측정 결과로 바꾼다.
+    private static func stopOutcome(
+      _ stop: MeasureStop,
+      measurement: ImageMeasurement,
+      index: Int,
+      stage: SkippedImage.Stage,
+      totalMs: Double
+    ) -> MeasureOutcome {
+      switch stop {
+      case .cancelled:
+        return .cancelled
+      case let .skipped(reason):
+        var measurement = measurement
+        measurement.outcome = .skipped
+        measurement.skipReason = reason
+        measurement.failedStage = stage
+        measurement.totalMs = totalMs
+        return .skipped(measurement, SkippedImage(index: index, reason: reason, stage: stage))
+      }
+    }
+
+    /// 운영 인덱서가 하는 단계만 더한다: 썸네일 로드 + 분류(+ 잰 바코드 확인·특징 벡터), OCR 대상이면 원본 로드 + OCR.
     static func pipelineMs(of measurement: ImageMeasurement, needsText: Bool) -> Double? {
       guard let thumbnailLoadMs = measurement.thumbnailLoadMs, let classifyMs = measurement.classifyMs else {
         return nil
       }
-      let firstStageMs = thumbnailLoadMs + classifyMs + (measurement.featurePrintMs ?? 0)
+      let firstStageMs = thumbnailLoadMs + classifyMs + (measurement.barcodeMs ?? 0) + (measurement.featurePrintMs ?? 0)
       guard needsText else { return firstStageMs }
       guard let largestLoadMs = measurement.largestLoadMs, let ocrMs = measurement.ocrMs else { return nil }
       return firstStageMs + largestLoadMs + ocrMs

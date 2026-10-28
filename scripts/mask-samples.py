@@ -6,9 +6,11 @@
 
 가리는 규칙: 공백과 분류 키워드(Core `ClassificationRules` 키워드 표)만 남기고 모든 글자를 `○` 로 바꾼다. 글자 수는 유지한다.
 한 줄 전체가 말풍선 시각(`chatTimestampPattern`, 예: "오후 3:12")인 줄은 대화 캡처 판정에 쓰이므로 그대로 남긴다.
+한 줄 전체가 쿠폰 번호(`couponNumberPattern`, 예: "1234 - 5678 - 9012")인 줄은 기프티콘 판정에 쓰이므로 숫자는 0 으로 바꾸고 줄표·공백은 남긴다(끝에 붙은 글자는 가린다).
 남긴 글자와 공백 위치가 원문과 같고 `○` 는 키워드에 없으므로, 가린 뒤에도 규칙 분류기의 키워드·시각 판정은 원문과 같다.
+쿠폰 번호 줄은 숫자를 0 으로만 바꾸고 줄표·공백 자리와 끝 글자 수가 같아, 쿠폰 번호 판정도 원문과 같다.
 문서 글자 수도 같게 글자 하나를 `○` 하나로 바꾸지만, 글자 나누기는 Swift `Character` 의 근사다 (`clusters`).
-키워드와 시각 패턴은 ClassificationRules.swift 에서 읽는다. 읽지 못하면 아무것도 쓰지 않고 실패한다.
+키워드와 시각·쿠폰 번호 패턴은 ClassificationRules.swift 에서 읽는다. 읽지 못하면 아무것도 쓰지 않고 실패한다.
 """
 
 import argparse
@@ -25,7 +27,7 @@ RULES_PATH = Path(__file__).resolve().parent.parent / "Projects/Shared/Core/Sour
 # 픽스처 실기기 샘플의 키 순서. 초안은 키를 정렬해 쓰므로 샘플·라벨 키는 픽스처 순서로 바꾸고 asset 은 정렬 순서 그대로 둔다.
 # 여기 없는 키는 뒤에 붙인다.
 SAMPLE_KEYS = ["name", "asset", "labels", "text", "ocrSkipped", "predicted", "expected", "knownIssue"]
-ASSET_KEYS = ["hasLocation", "isScreenshot", "pixelHeight", "pixelWidth"]
+ASSET_KEYS = ["hasBarcode", "hasLocation", "isScreenshot", "pixelHeight", "pixelWidth"]
 LABEL_KEYS = ["identifier", "confidence"]
 
 
@@ -34,7 +36,7 @@ class RulesError(Exception):
 
 
 def load_rules(path=RULES_PATH):
-    """ClassificationRules.swift 에서 키워드 목록과 말풍선 시각 패턴을 읽는다."""
+    """ClassificationRules.swift 에서 키워드 목록과 말풍선 시각·쿠폰 번호 패턴을 읽는다."""
     # 주석(문서 주석 포함)과 `let keywords: [String]` 선언이 키워드 블록으로 세지지 않도록, 주석을 지우고 규칙 호출 안에서만 찾는다.
     code = re.sub(r"//.*", "", path.read_text(encoding="utf-8"))
     calls = re.findall(r"InformationRule\((.*?)\n\s*\)", code, re.S)
@@ -52,10 +54,13 @@ def load_rules(path=RULES_PATH):
     if not keywords:
         raise RulesError(f"키워드를 하나도 읽지 못했습니다: {path}")
     keywords = sorted(keywords)
-    pattern = re.search(r"chatTimestampPattern:.*?#/(.*?)/#", code)
-    if not pattern:
-        raise RulesError(f"chatTimestampPattern 을 읽지 못했습니다: {path}")
-    return keywords, re.compile(pattern.group(1))
+    patterns = []
+    for name in ["chatTimestampPattern", "couponNumberPattern"]:
+        pattern = re.search(name + r":.*?#/(.*?)/#", code)
+        if not pattern:
+            raise RulesError(f"{name} 을 읽지 못했습니다: {path}")
+        patterns.append(re.compile(pattern.group(1)))
+    return keywords, *patterns
 
 
 def clusters(text):
@@ -91,9 +96,12 @@ def normalize(text):
     return "".join(c for c in clusters(text.lower()) if not c.isspace())
 
 
-def mask_line(line, keywords, timestamp):
+def mask_line(line, keywords, timestamp, coupon):
     if timestamp.fullmatch(normalize(line)):
         return line, True
+    if coupon.fullmatch(normalize(line)):
+        # 숫자는 0, 줄표·공백은 그대로, 끝에 붙어 읽힌 아이콘 같은 글자는 가린다.
+        return "".join("0" if c.isdigit() else c if c.isspace() or c in "-–" else MASK for c in clusters(line)), False
     chars = clusters(line)
     # 공백을 지운 글자열과 원래 위치. 키워드는 공백을 무시하고 찾되, 분류기(`RuleClassifier` 의 `KeywordLine`)와 같게
     # 공백을 넘어 걸린 것은 단어 시작에서 시작할 때만 남긴다("몇 시까지 도착해"의 "지도"는 키워드가 아니라 원문이다).
@@ -113,7 +121,7 @@ def mask_line(line, keywords, timestamp):
     return masked, False
 
 
-def mask_samples(samples, keywords, timestamp):
+def mask_samples(samples, keywords, timestamp, coupon):
     """`text` 를 가린 샘플 목록과 남긴 시각 줄 수를 돌려준다."""
     kept_timestamps = 0
     result = []
@@ -121,7 +129,7 @@ def mask_samples(samples, keywords, timestamp):
         sample = dict(sample)
         lines = []
         for line in sample.get("text", []):
-            masked, is_timestamp = mask_line(line, keywords, timestamp)
+            masked, is_timestamp = mask_line(line, keywords, timestamp, coupon)
             kept_timestamps += is_timestamp
             lines.append(masked)
         if "text" in sample:
@@ -166,7 +174,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
-        keywords, timestamp = load_rules()
+        keywords, timestamp, coupon = load_rules()
     except RulesError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -175,7 +183,7 @@ def main(argv=None):
         print("error: 샘플 배열이 아닙니다", file=sys.stderr)
         return 1
 
-    masked, kept_timestamps = mask_samples(samples, keywords, timestamp)
+    masked, kept_timestamps = mask_samples(samples, keywords, timestamp, coupon)
     output = args.output or args.input.with_name(f"{args.input.stem}-masked.json")
     # macOS 기본 파일시스템은 대소문자를 구분하지 않아 경로 문자열로는 같은 파일인지 알 수 없으므로, 있으면 파일 자체로 비교한다.
     if output.resolve() == args.input.resolve() or (output.exists() and os.path.samefile(output, args.input)):

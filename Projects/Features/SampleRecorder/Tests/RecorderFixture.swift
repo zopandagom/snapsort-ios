@@ -14,6 +14,8 @@
 
   let seoul = Coordinate(latitude: 37.5665, longitude: 126.978)
   let normalConditions = DeviceConditions(thermalState: .nominal, isLowPowerModeEnabled: false)
+  /// 바코드 Fake 가 돌려주는 내용. 측정 파일·초안에 나오지 않는지 확인할 때 찾는다(지어낸 값이다).
+  let fixtureBarcodePayload = "FIXTURE-BARCODE-0000"
 
   /// 분석 Fake 는 이미지 픽셀만 받으므로, 이미지마다 썸네일 폭을 달리해 어떤 이미지인지 알게 한다.
   /// 이미지 읽기·분석 호출을 한 기록(`log`)에 남겨 단계 순서를 확인한다.
@@ -38,6 +40,9 @@
     ///   - loadGate: 이미지 읽기가 결과를 주기 전에 식별자를 넘겨 부른다.
     ///   - isFeaturePrintAvailable: 특징 벡터를 만들 수 있는 기기인지(기본은 시뮬레이터처럼 쓸 수 없음).
     ///   - featurePrintFailures: 특징 벡터 요청이 실패하는 이미지. 그 밖은 모두 0 인 벡터를 준다.
+    ///   - barcodeIDs: 읽을 수 있는 바코드가 있는 이미지. 그 밖은 바코드가 없다.
+    ///   - barcodeFailures: 바코드 인식이 실패하는 이미지.
+    ///   - barcodeGate: 바코드 결과를 주기 전에 부른다. 인식 도중의 취소를 흉내 낸다.
     init(
       access: PhotoAccessState = .authorized,
       album: [ImageAsset]? = nil,
@@ -56,17 +61,14 @@
       loadGate: (@Sendable (ImageAsset.ID) async -> Void)? = nil,
       isFeaturePrintAvailable: Bool = false,
       featurePrintFailures: Set<ImageAsset.ID> = [],
+      barcodeIDs: Set<ImageAsset.ID> = [],
+      barcodeFailures: Set<ImageAsset.ID> = [],
+      barcodeGate: @escaping @Sendable (ImageAsset.ID) async -> Void = { _ in },
       deviceConditions: @escaping @Sendable () -> DeviceConditions = { normalConditions },
       now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) }
     ) {
-      let ids = ((album ?? []) + library).map(\.id)
-      let widths = Dictionary(ids.enumerated().map { ($1, $0 + 1) }, uniquingKeysWith: { first, _ in first })
-      let idsByWidth = Dictionary(widths.map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-      var loadResults: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
-      for (id, width) in widths {
-        loadResults[id] = loadErrors[id].map { .failure($0) }
-          ?? .success(.stub(width: width, height: 1, isLocalFallback: fallbackIDs.contains(id)))
-      }
+      let (widths, idsByWidth) = Self.widthMaps(for: (album ?? []) + library)
+      let loadResults = Self.loadResults(widths: widths, loadErrors: loadErrors, fallbackIDs: fallbackIDs)
       let log = EventLog()
       self.log = log
       self.photoLibrary = PhotoLibraryClientFake(
@@ -91,6 +93,13 @@
           bySize: recognizeBySize,
           log: log
         ),
+        detectBarcodes: Self.barcodeDetector(
+          idsByWidth: idsByWidth,
+          found: barcodeIDs,
+          failures: barcodeFailures,
+          gate: barcodeGate,
+          log: log
+        ),
         isFeaturePrintAvailable: isFeaturePrintAvailable,
         featurePrint: Self.featurePrinter(idsByWidth: idsByWidth, failures: featurePrintFailures, log: log)
       )
@@ -100,15 +109,41 @@
         largestImages: largestImages,
         log: log
       )
-      var calendar = Calendar(identifier: .gregorian)
-      calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .gmt
       self.model = SampleRecorderModel(
         photoLibrary: library,
         imageAnalysis: self.imageAnalysis,
         deviceConditions: deviceConditions,
         now: now,
-        calendar: calendar
+        calendar: Self.seoulCalendar
       )
+    }
+
+    /// 이미지 식별자 → 폭(1부터)과 그 역방향 맵. 폭으로 이미지를 알아본다.
+    private static func widthMaps(for assets: [ImageAsset]) -> ([ImageAsset.ID: Int], [Int: ImageAsset.ID]) {
+      let ids = assets.map(\.id)
+      let widths = Dictionary(ids.enumerated().map { ($1, $0 + 1) }, uniquingKeysWith: { first, _ in first })
+      let idsByWidth = Dictionary(widths.map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+      return (widths, idsByWidth)
+    }
+
+    /// 이미지별 읽기 결과. 읽기 실패가 정해진 이미지는 그 실패, 나머지는 폭이 다른 썸네일이다.
+    private static func loadResults(
+      widths: [ImageAsset.ID: Int],
+      loadErrors: [ImageAsset.ID: ImageLoadError],
+      fallbackIDs: Set<ImageAsset.ID>
+    ) -> [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] {
+      var results: [ImageAsset.ID: Result<AnalysisImage, ImageLoadError>] = [:]
+      for (id, width) in widths {
+        results[id] = loadErrors[id].map { .failure($0) }
+          ?? .success(.stub(width: width, height: 1, isLocalFallback: fallbackIDs.contains(id)))
+      }
+      return results
+    }
+
+    private static var seoulCalendar: Calendar {
+      var calendar = Calendar(identifier: .gregorian)
+      calendar.timeZone = TimeZone(identifier: "Asia/Seoul") ?? .gmt
+      return calendar
     }
 
     /// 특징 벡터 Fake. 실패 목록이 아닌 이미지는 모두 0 인 벡터를 준다.
@@ -124,6 +159,30 @@
               let featurePrint = ImageFeaturePrint(values: Array(repeating: 0, count: ImageFeaturePrint.elementCount))
         else { return .failure(.failed) }
         return .success(featurePrint)
+      }
+    }
+
+    /// 바코드 Fake. `found` 이미지에는 지어낸 내용(`fixtureBarcodePayload`)의 바코드 하나를 준다.
+    nonisolated static func barcodeDetector(
+      idsByWidth: [Int: ImageAsset.ID],
+      found: Set<ImageAsset.ID>,
+      failures: Set<ImageAsset.ID>,
+      gate: @escaping @Sendable (ImageAsset.ID) async -> Void,
+      log: EventLog
+    ) -> @Sendable (AnalysisImage) async -> Result<[DetectedBarcode], ImageAnalysisError> {
+      { image in
+        let id = idsByWidth[image.cgImage.width] ?? ""
+        log.append("barcode:\(id)")
+        await gate(id)
+        if failures.contains(id) {
+          return .failure(.failed)
+        }
+        guard found.contains(id) else { return .success([]) }
+        return .success([DetectedBarcode(
+          payload: fixtureBarcodePayload,
+          symbology: .code128,
+          boundingBox: CGRect(x: 0.1, y: 0.7, width: 0.8, height: 0.1)
+        )])
       }
     }
 
