@@ -7,7 +7,7 @@ import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
-/// 캡처 인박스의 삭제 흐름: 성공·건너뜀·취소·실패·재진입·화면을 떠난 뒤 결과·재조회와 겹침.
+/// 최근 스크린샷 화면의 삭제 흐름: 성공·건너뜀·취소·실패·재진입·화면을 떠난 뒤 결과·재조회와 겹침.
 @MainActor
 struct CaptureInboxModelDeletionTests {
   /// 첫 두 장을 삭제 표시한 모델.

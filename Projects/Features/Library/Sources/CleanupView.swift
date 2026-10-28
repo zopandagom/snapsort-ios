@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 정리 화면: 만료된 기프티콘과 사용한 기프티콘, 비슷한 사진 묶음을 후보로 보이고, 고른 것을 지운다 (docs/ARCHITECTURE.md §4 정리 도우미).
 /// 비슷한 사진은 묶음마다 목록 섹션 하나로 그리고, 첫 묶음 머리에 섹션 제목과 "모두 선택"을, 마지막 묶음 바닥에 섹션 바닥글을 둔다.
-/// 맨 위에서 캡처 인박스(`CaptureInboxView`)로 간다. 후보 줄은 체크 원(선택)과 나머지(사진 상세로 가는 링크)로 나뉜다:
+/// 맨 위에서 최근 스크린샷 화면(`CaptureInboxView`)으로 간다. 후보 줄은 체크 원(선택)과 나머지(사진 상세로 가는 링크)로 나뉜다:
 /// 사진을 보고 고르게 하려는 것이라 체크 원이 아닌 곳을 누르면 선택이 바뀌지 않는다.
 /// 큰 제목이 흐려지지 않게 안내는 목록 첫 섹션으로 두고, 선택 수·확보 용량을 담은 삭제 버튼은 아래 도구 막대에 둔다
 /// (iOS 26 도구 막대는 글자만 있는 항목을 작은 원으로 줄여, 요약을 따로 두면 잘린다).
@@ -96,8 +96,8 @@ public struct CleanupView: View {
         NavigationLink(value: CleanupRoute.captureInbox) {
           Label {
             VStack(alignment: .leading, spacing: 2) {
-              Text("캡처 인박스")
-              Text("최근 30일 스크린샷을 한 장씩 정리")
+              Text("최근 스크린샷")
+              Text("30일 안에 찍은 것을 한 장씩 보관·삭제")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             }

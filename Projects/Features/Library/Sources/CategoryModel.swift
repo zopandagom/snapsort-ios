@@ -11,10 +11,10 @@ import PhotoStoreInterface
 /// 기프티콘·영수증 목록(`GifticonListView`·`ReceiptListView`)은 격자 대신 `GifticonListModel`·`ReceiptListModel` 이,
 /// 여행 폴더 목록·상세(`TripListView`·`TripDetailView`)는 `TripListModel`·`TripDetailModel` 이 내용을 읽고,
 /// 보관함 검색 결과(`SearchResultsView`, `SearchModel`)도 썸네일 칸을 `thumbnailScreenAppeared(scope: .search)` 로 빌리고,
-/// 정리 화면·캡처 인박스(`CleanupView`·`CaptureInboxView`)는 `thumbnailScreenAppeared(scope: .cleanup)` 로 빌린다.
+/// 정리 화면·최근 스크린샷 화면(`CleanupView`·`CaptureInboxView`)은 `thumbnailScreenAppeared(scope: .cleanup)` 로 빌린다.
 /// 썸네일 칸은 `thumbnailScreenAppeared(category:)` 로 이 Model 의 보관 규칙을 그대로 쓴다.
 /// 상세는 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 상세·정리 화면 위에서만 열리므로 상세 이미지도 여기서 갖는다
-/// (캡처 인박스는 상세를 push 하지 않고 지금 장을 같은 읽기 `detailAppeared(id:)` 로 크게 보인다)
+/// (최근 스크린샷 화면은 상세를 push 하지 않고 지금 장을 같은 읽기 `detailAppeared(id:)` 로 크게 보인다)
 /// (상세의 캡처 행동은 `CaptureActionsModel`).
 /// 저장소 변경 신호는 LibraryView 가 `LibraryModel.storeRevision` 변화를 `libraryStoreChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
 @MainActor

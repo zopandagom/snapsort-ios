@@ -19,7 +19,7 @@ import Synchronization
 /// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에,
 /// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에,
 /// 특징 벡터 소급·비슷한 사진 읽기의 실패와 훅은 `SimilarPhotoOptions`(`similar`, PhotoStoreClientFake+SimilarPhoto.swift)에,
-/// 캡처 인박스 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에,
+/// 최근 스크린샷 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에,
 /// 대표 사진 조회의 실패와 훅은 `CoverOptions`(PhotoStoreClientFake+Cover.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
@@ -117,9 +117,9 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///   - similarPhotoEntriesErrors·onSimilarPhotoEntries·featurePrintError·featurePrintSaveLimit:
   ///     특징 벡터 소급·비슷한 사진 읽기용 실패·훅. `SimilarPhotoOptions` 문서 참고.
   ///   - captureInboxErrors·onCaptureInboxScreenshots·captureInboxKeepError·onKeepInCaptureInbox:
-  ///     캡처 인박스용 실패·훅. `CaptureInboxOptions` 문서 참고.
+  ///     최근 스크린샷 화면용 실패·훅. `CaptureInboxOptions` 문서 참고.
   ///   - categoryCoversErrors·onCategoryCovers: 대표 조회용 실패·훅. `CoverOptions` 문서 참고.
-  ///   - keptInCaptureInbox: 처음 캡처 인박스에서 보관한 이미지. 들어간 이미지 중 있는 것만 남긴다.
+  ///   - keptInCaptureInbox: 처음에 최근 스크린샷 화면에서 보관해 둔 이미지. 들어간 이미지 중 있는 것만 남긴다.
   public init(
     images: [IndexedImage] = [],
     trips: [Trip] = [],

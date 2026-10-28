@@ -40,7 +40,7 @@ enum ExampleScenario: String {
   case searchFailing
   /// 검색 목록 읽기가 1.5초 걸린다. 열자마자 입력하거나 읽는 중에 "글자 사진 추가"를 눌러 겹침을 본다.
   case searchSlow
-  /// 정리 도우미: 보관함 "정리 도우미" 카드에서 만료됨·사용함 후보(추정 만료일은 기본 해제)와 캡처 인박스를 본다.
+  /// 정리 도우미: 보관함 "정리 도우미" 카드에서 만료됨·사용함 후보(추정 만료일은 기본 해제)와 최근 스크린샷 화면을 본다.
   /// 삭제하면 보관함 대역이 증분 변경을 보내 저장소 반영과 진행률이 이어진다. CU 한 장은 보관함에 없어 "건너뜀" 안내가 뜬다.
   case cleanup
   /// 정리 삭제의 첫 요청이 실패한다(알림 창, 선택 유지). 다시 누르면 성공한다.
@@ -81,7 +81,7 @@ struct FakeRecordView: View {
         Text("복사한 값: \(self.pasteboard.copiedTexts.last ?? "없음")")
         Text("장소 이름 요청 \(self.map.placeNameRequests.count)번")
         if let photoStore = self.photoStore, let photoLibrary = self.photoLibrary {
-          let reads = "gifticons() \(photoStore.gifticonsCallCount)번 · 인박스 읽기 \(photoStore.captureInboxCallCount)번"
+          let reads = "gifticons() \(photoStore.gifticonsCallCount)번 · 최근 스크린샷 읽기 \(photoStore.captureInboxCallCount)번"
           Text("\(reads) · 삭제 요청 \(photoLibrary.deletionRequests.count)번")
         }
       }

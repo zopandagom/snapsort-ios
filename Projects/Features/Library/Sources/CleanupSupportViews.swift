@@ -2,7 +2,7 @@ import Core
 import DesignSystem
 import SwiftUI
 
-/// 정리 화면과 캡처 인박스가 함께 쓰는 조각 (docs/ARCHITECTURE.md §4 정리 도우미).
+/// 정리 화면과 최근 스크린샷 화면이 함께 쓰는 조각 (docs/ARCHITECTURE.md §4 정리 도우미).
 
 /// 제한 접근 안내. 화면 위에 덧대지 않고 목록 첫 섹션으로 둔다.
 struct CleanupLimitedSection: View {

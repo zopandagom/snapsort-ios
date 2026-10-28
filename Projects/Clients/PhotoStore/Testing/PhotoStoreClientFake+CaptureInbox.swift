@@ -3,7 +3,7 @@ import Foundation
 import PhotoStoreInterface
 import Synchronization
 
-// 캡처 인박스 (docs/ARCHITECTURE.md §4 정리 도우미).
+// 최근 스크린샷 화면 (docs/ARCHITECTURE.md §4 정리 도우미).
 public extension PhotoStoreClientFake {
   /// `captureInboxScreenshots(createdSince:)` 를 부른 횟수. `captureInboxErrors` 로 실패한 호출은 포함하고, `error` 로 던진 호출은 세지 않는다.
   var captureInboxCallCount: Int {
@@ -15,7 +15,7 @@ public extension PhotoStoreClientFake {
     self.state.withLock { $0.captureInbox.sinceArguments }
   }
 
-  /// 캡처 인박스에서 보관한 이미지. 행이 지워지면(`delete`) 함께 빠진다.
+  /// 최근 스크린샷 화면에서 보관한 이미지. 행이 지워지면(`delete`) 함께 빠진다.
   var keptInCaptureInboxIDs: Set<ImageAsset.ID> {
     self.state.withLock { $0.captureInbox.keptIDs }
   }
@@ -71,7 +71,7 @@ public extension PhotoStoreClientFake {
 }
 
 extension PhotoStoreClientFake {
-  /// 캡처 인박스 읽기·쓰기용 실패·훅.
+  /// 최근 스크린샷 읽기·쓰기용 실패·훅.
   struct CaptureInboxOptions {
     /// `captureInboxScreenshots` 의 호출 번호(0부터)별 실패. 그 번째 호출만 이 실패를 던지고 다른 호출은 성공한다.
     /// `error`(모든 호출)가 정해져 있으면 그것이 먼저다.
@@ -86,7 +86,7 @@ extension PhotoStoreClientFake {
     let onKeep: @Sendable (Int) async -> Void
   }
 
-  /// 캡처 인박스용 기록.
+  /// 최근 스크린샷 화면용 기록.
   struct CaptureInboxState {
     var keptIDs: Set<ImageAsset.ID> = []
     var callCount = 0
@@ -98,7 +98,7 @@ extension PhotoStoreClientFake {
 }
 
 extension PhotoStoreClientFake {
-  /// `init` 이 쓰는 처음 상태(장소 캐시는 `init` 이 따로 채운다). 사용 여부는 기프티콘에만, 캡처 인박스 보관은 들어간 이미지에만 남긴다.
+  /// `init` 이 쓰는 처음 상태(장소 캐시는 `init` 이 따로 채운다). 사용 여부는 기프티콘에만, 최근 스크린샷 보관은 들어간 이미지에만 남긴다.
   static func seed(
     _ images: [IndexedImage],
     _ trips: [Trip],

@@ -6,7 +6,7 @@ import PhotoStoreInterface
 import PhotoStoreTesting
 @testable import LibraryFeature
 
-/// 정리 화면·캡처 인박스 테스트의 공통 준비. 지금 시각은 Asia/Seoul 2026-10-24 09:00 으로 고정한다.
+/// 정리 화면·최근 스크린샷 테스트의 공통 준비. 지금 시각은 Asia/Seoul 2026-10-24 09:00 으로 고정한다.
 /// 기프티콘 기본 데이터: 어제 만료(`expired`)·열흘 전 만료이지만 만료일이 추정(`estimated`)·오늘 만료(`today`)·내일 만료(`soon`)·
 /// 추출 대기(`pending`)·사용함(`used`). 스크린샷 기본 데이터: 기간 안 셋(`s1` 최신 → `s3`), 기간 밖 하나(`old`), 스크린샷이 아닌 사진(`photo`).
 @MainActor

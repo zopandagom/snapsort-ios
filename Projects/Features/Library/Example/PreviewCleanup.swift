@@ -10,13 +10,13 @@ import SwiftUI
 
 /// Example 의 정리 도우미 데모 (docs/ARCHITECTURE.md §4 정리 도우미).
 /// 기프티콘 데모(`PreviewGifticons`)가 만료됨(CU·메가커피, 추정 만료일 파스쿠찌)·사용함(버거킹·맘스터치)·확인 중 후보를 이미 갖고 있고,
-/// 그 이미지는 모두 스크린샷이라 캡처 인박스에도 든다. 여기에 인박스 기간 안팎의 스크린샷을 더한다.
+/// 그 이미지는 모두 스크린샷이라 최근 스크린샷 화면에도 든다. 여기에 최근 스크린샷 기간 안팎의 스크린샷을 더한다.
 /// 보관함 대역은 데모 이미지를 갖고 있어 삭제가 실제처럼 증분 변경을 보낸다. CU 한 장은 일부러 보관함에서 빼, "이미 없어 건너뜀" 안내를 본다.
 /// 비슷한 사진(`similarPhotos`)은 Fake 벡터를 단 카메라 사진이다: 묶음 A(3장, 2초 간격, 가운데 장이 가장 커서 남김),
 /// 묶음 B(2장, 크기가 같아 최신이 남김), 묶음 A 바로 뒤에 찍었지만 거리가 먼 1장(묶이지 않음), 같은 시각의 스크린샷 1장(대상 아님),
 /// 벡터가 없는 대상 사진 3장(아직 비교하지 않은 3장). 벡터는 원소 하나만 바꿔 거리를 그 차이로 맞춘다.
 enum PreviewCleanup {
-  /// 오늘부터 며칠 전에 찍은 스크린샷. 30일(오늘 포함) 밖은 인박스에 나오지 않는다.
+  /// 오늘부터 며칠 전에 찍은 스크린샷. 30일(오늘 포함) 밖은 최근 스크린샷 화면에 나오지 않는다.
   static let screenshotDaysAgo = [0, 2, 5, 9, 14, 21, 29, 35, 60]
   /// 보관함 대역에서 뺀 기프티콘 데모 번호(CU, 만료됨·기본 선택).
   static let missingGifticonIndex = 4
@@ -60,7 +60,7 @@ enum PreviewCleanup {
     self.screenshotDaysAgo.indices.map { self.id($0) } + self.similarPhotoSamples.indices.map { self.similarID($0) }
   }
 
-  /// 정리 데모가 저장소에 더하는 이미지: 인박스 스크린샷과 비슷한 사진.
+  /// 정리 데모가 저장소에 더하는 이미지: 최근 스크린샷 화면의 스크린샷과 비슷한 사진.
   static func images(now: Date) -> [IndexedImage] {
     self.screenshots(now: now) + self.similarPhotos(now: now)
   }
@@ -216,19 +216,19 @@ private func cleanupPreviewStore(
   cleanupPreview(photoLibrary: PhotoLibraryClientFake.previewLimitedClassified)
 }
 
-#Preview("캡처 인박스 - 스크린샷") {
+#Preview("최근 스크린샷 - 스크린샷") {
   captureInboxPreview()
 }
 
-#Preview("캡처 인박스 - 비어 있음") {
+#Preview("최근 스크린샷 - 비어 있음") {
   captureInboxPreview(photoStore: PhotoStoreClientFake())
 }
 
-#Preview("캡처 인박스 - 실패") {
+#Preview("최근 스크린샷 - 실패") {
   // 처음 읽기만 실패해, 다시 시도하면 목록이 보인다.
   captureInboxPreview(photoStore: cleanupPreviewStore(captureInboxErrors: [0: .failed]))
 }
 
-#Preview("캡처 인박스 - 제한 접근") {
+#Preview("최근 스크린샷 - 제한 접근") {
   captureInboxPreview(photoLibrary: PhotoLibraryClientFake.previewLimitedClassified)
 }

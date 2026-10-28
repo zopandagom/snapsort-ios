@@ -41,7 +41,7 @@ public final class LibraryModel {
   public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
   /// 인덱싱이 멈출 때. 그때마다 이 Model 은 개수와 대표 사진(`coverIDs`)을 다시 읽는다. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색
-  /// 결과·정리 화면·캡처 인박스가
+  /// 결과·정리 화면·최근 스크린샷 화면이
   /// 이 변화로 다시 읽는다(LibraryView 가 CategoryModel·GifticonListModel·ReceiptListModel·CaptureActionsModel·TripListModel·
   /// TripDetailModel·SearchModel·CleanupModel·CaptureInboxModel 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.

@@ -5,7 +5,7 @@ import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
-/// 캡처 인박스의 보관 저장이 늦게 끝날 때: 저장 중 다시 누름, 결과(성공·실패)가 다음 방문 뒤 도착.
+/// 최근 스크린샷 화면의 보관 저장이 늦게 끝날 때: 저장 중 다시 누름, 결과(성공·실패)가 다음 방문 뒤 도착.
 @MainActor
 struct CaptureInboxModelKeepTests {
   @Test("보관을 저장하는 중에 다시 누르면 무시해, 저장은 한 번이고 끝난 뒤 다음 장으로 넘어간다")

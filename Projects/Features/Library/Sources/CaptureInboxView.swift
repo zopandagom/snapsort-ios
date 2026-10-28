@@ -2,7 +2,7 @@ import Core
 import DesignSystem
 import SwiftUI
 
-/// 캡처 인박스: 최근 30일의 보관하지 않은 스크린샷을 한 장씩 크게 보며 "보관"하거나 "삭제 표시"하고,
+/// 최근 스크린샷 화면: 최근 30일의 보관하지 않은 스크린샷을 한 장씩 크게 보며 "보관"하거나 "삭제 표시"하고,
 /// 표시한 것을 모아 한 번에 지운다 (docs/ARCHITECTURE.md §4 정리 도우미). 보관은 바로 저장되고, 삭제 표시는 화면을 나가면 사라진다.
 /// 이 화면은 다른 화면을 push 하지 않는다. 큰 이미지는 사진 상세와 같은 읽기(`CategoryModel.detailAppeared`)를 쓰고,
 /// 표시한 사진의 썸네일은 정리 화면과 같은 칸(`.cleanup`)을 쓴다.
@@ -21,7 +21,7 @@ public struct CaptureInboxView: View {
   public var body: some View {
     self.contentView
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .navigationTitle("캡처 인박스")
+      .navigationTitle("최근 스크린샷")
       .snapScreenBackground()
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

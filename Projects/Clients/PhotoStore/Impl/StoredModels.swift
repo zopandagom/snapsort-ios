@@ -67,7 +67,7 @@ final class StoredImage {
   /// `KoreanRegion.id` 를 정렬해 ","로 이은 값. 지역이 없거나 추출 안 함이면 nil.
   /// 배열 속성 대신 문자열로 둔 것은 기존 엔티티에 배열 속성을 더할 때의 경량 이전을 확인하지 않았고, 기본값·옵셔널 스칼라는 확인한 방식이어서다.
   var mapRegionIDs: String?
-  /// 캡처 인박스에서 보관했는지. 사용자만 바꾸고(`keepInCaptureInbox`), 인덱서 `save` 는 넘긴 값이 없어 덮지 않는다.
+  /// 최근 스크린샷 화면에서 보관했는지. 사용자만 바꾸고(`keepInCaptureInbox`), 인덱서 `save` 는 넘긴 값이 없어 덮지 않는다.
   /// 행이 지워지면 함께 사라진다(보관함에서 빠졌다 돌아오면 새 행이라 보관하지 않은 것으로 돌아온다).
   /// 기본값이 있어 경량 이전으로 보관하지 않음이 된다.
   var isKeptInCaptureInbox = false
