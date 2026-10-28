@@ -74,14 +74,14 @@
       #expect(sample["predicted"] as? [String] == ["food"])
     }
 
-    @Test("이미지마다 썸네일 로드 → 분류 → 원본 로드 → OCR 순서로 분석한다")
+    @Test("이미지마다 썸네일 로드 → 분류 → (바코드 확인 대상이면 바코드) → 원본 로드 → OCR 순서로 분석한다")
     func analyzesStagesInOrder() async {
       let fixture = RecorderFixture(album: [.stub(id: "a"), .stub(id: "b", isScreenshot: true)])
 
       await fixture.record(.accuracy)
 
       #expect(fixture.log.all == [
-        "load:a:thumbnail", "classify:a", "load:a:largest", "ocr:a",
+        "load:a:thumbnail", "classify:a", "barcode:a", "load:a:largest", "ocr:a",
         "load:b:thumbnail", "classify:b", "load:b:largest", "ocr:b",
       ])
     }

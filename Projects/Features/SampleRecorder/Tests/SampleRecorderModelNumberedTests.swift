@@ -21,8 +21,8 @@
       #expect(fixture.model.phase == .finished(result))
       #expect(try jsonArray(result.samplesFile).map { $0["name"] as? String } == ["보관함 00003", "보관함 00001"])
       #expect(fixture.log.all == [
-        "load:image-2:thumbnail", "classify:image-2", "load:image-2:largest", "ocr:image-2",
-        "load:image-0:thumbnail", "classify:image-0", "load:image-0:largest", "ocr:image-0",
+        "load:image-2:thumbnail", "classify:image-2", "barcode:image-2", "load:image-2:largest", "ocr:image-2",
+        "load:image-0:thumbnail", "classify:image-0", "barcode:image-0", "load:image-0:largest", "ocr:image-0",
       ])
       #expect(try jsonObject(result.timingFile)["processedCount"] as? Int == 2)
       #expect(result.recordedSampleCount == 2)

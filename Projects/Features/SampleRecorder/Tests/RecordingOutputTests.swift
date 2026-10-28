@@ -69,7 +69,8 @@
         labels: [],
         ruleLabels: [],
         textLines: [],
-        needsText: false
+        needsText: false,
+        hasBarcode: false
       )
 
       #expect(draft.name == expected)

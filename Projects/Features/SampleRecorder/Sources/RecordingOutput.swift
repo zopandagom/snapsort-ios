@@ -28,6 +28,8 @@
       let hasLocation: Bool
       let pixelWidth: Int
       let pixelHeight: Int
+      /// 1단계 바코드 확인에서 읽을 수 있는 바코드를 찾았으면 true, 그 밖에는 키가 빠진다. 바코드 내용은 넣지 않는다.
+      var hasBarcode: Bool?
     }
 
     struct Label: Sendable, Equatable, Encodable {
@@ -55,7 +57,8 @@
     /// `number`(1부터): 앨범 모드는 앨범 순서, 보관함 전체는 최신순 순서, 번호로 기록은 입력한 번호.
     /// 이름은 앨범 모드면 `앨범 001`, 그 밖은 `보관함 00001` 이다.
     /// 라벨은 받은 순서(신뢰도 높은 순) 그대로 두고 신뢰도를 내린다. `predicted` 는 운영 기준으로 거른 `ruleLabels` 와
-    /// OCR 대상(`needsText`)일 때만 OCR 줄로 계산한다(Core 테스트 `ClassificationSample.classify()` 와 같은 계산).
+    /// OCR 대상(`needsText`, 바코드 확인 결과까지 본 판정)일 때만 OCR 줄로 계산한다(Core 테스트 `ClassificationSample.classify()` 와 같은 계산).
+    /// `hasBarcode` 는 찾았을 때만 초안에 남겨, Core 테스트가 같은 판정을 다시 계산하게 한다.
     init(
       number: Int,
       mode: RecordingMode,
@@ -63,7 +66,8 @@
       labels: [ImageLabel],
       ruleLabels: [ImageLabel],
       textLines: [RecognizedTextLine],
-      needsText: Bool
+      needsText: Bool,
+      hasBarcode: Bool
     ) {
       let predicted = RuleClassifier.classify(asset: asset, labels: ruleLabels, textLines: needsText ? textLines : [])
       self.init(
@@ -74,7 +78,8 @@
           isScreenshot: asset.isScreenshot,
           hasLocation: asset.coordinate != nil,
           pixelWidth: asset.pixelWidth,
-          pixelHeight: asset.pixelHeight
+          pixelHeight: asset.pixelHeight,
+          hasBarcode: hasBarcode ? true : nil
         ),
         labels: labels.map {
           Label(identifier: $0.identifier, confidence: RecordingOutput.truncatedConfidence($0.confidence))
@@ -177,6 +182,7 @@
       "발열 상태는 이미지 시작 시점마다 읽어 이미지 사이의 짧은 변화는 놓칠 수 있다.",
       "인덱서는 분류와 OCR 을 두 단계로 나눠 돌리므로, 원본 로드는 실제로 썸네일 로드와 떨어진 시점에 일어난다(사진 캐시 효과가 다를 수 있다).",
       "featurePrintMs 는 비슷한 사진 대상이고 이 기기에서 벡터를 만들 수 있고 썸네일이 대체 버전이 아닐 때만 있다. 실패·시한 초과면 없고, 시한을 넘긴 뒤 이미지는 부르지 않는다.",
+      "barcodeMs·hasBarcode 는 위치가 없고 라벨로는 OCR 대상이 아닌 이미지만 있다. 인식 실패면 없다(운영은 바코드 없음으로 보고 분류를 이어 간다).",
     ]
 
     static let ocrResolutionLimitations = [
