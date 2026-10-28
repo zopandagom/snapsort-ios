@@ -6,6 +6,9 @@ import SwiftUI
 /// 비슷한 사진은 묶음마다 목록 섹션 하나로 그리고, 첫 묶음 머리에 섹션 제목과 "모두 선택"을, 마지막 묶음 바닥에 섹션 바닥글을 둔다.
 /// 맨 위에서 최근 스크린샷 화면(`CaptureInboxView`)으로 간다. 후보 줄은 체크 원(선택)과 나머지(사진 상세로 가는 링크)로 나뉜다:
 /// 사진을 보고 고르게 하려는 것이라 체크 원이 아닌 곳을 누르면 선택이 바뀌지 않는다.
+/// 체크 원을 누른 채 끌면 범위로 고르거나 풀고(`CleanupModel.dragSelectionBegan(id:)`), 목록 위·아래 끝 영역에서는 후보 줄 단위로 자동 스크롤한다.
+/// 이 끌기는 셀이 아니라 List 위에 덧댄 체크 원 열 오버레이(`CleanupCheckColumnOverlay`)가 받는다: 셀에 두면 자동 스크롤로 시작 줄이
+/// 화면 밖으로 나갈 때 취소된다. 손가락 위치→줄과 자동 스크롤은 `CleanupDragTracker`·`CleanupDragGeometry` 가 한다.
 /// 큰 제목이 흐려지지 않게 안내는 목록 첫 섹션으로 두고, 선택 수·확보 용량을 담은 삭제 버튼은 아래 도구 막대에 둔다
 /// (iOS 26 도구 막대는 글자만 있는 항목을 작은 원으로 줄여, 요약을 따로 두면 잘린다).
 /// 썸네일은 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(scope: .cleanup)`).
@@ -15,6 +18,8 @@ public struct CleanupView: View {
   let categoryModel: CategoryModel
 
   @State private var visit = UUID()
+  @State private var dragTracker = CleanupDragTracker()
+  @State private var checkColumn = CleanupCheckColumn()
 
   public init(model: CleanupModel, categoryModel: CategoryModel) {
     self.model = model
@@ -37,6 +42,11 @@ public struct CleanupView: View {
       .cleanupAlert(self.model.alert) { self.model.alertDismissed() }
       .task { await self.model.onAppear(visit: self.visit) }
       .task { await self.categoryModel.thumbnailScreenAppeared(scope: .cleanup) }
+      .onDisappear {
+        // 사진 상세로 가거나 화면을 닫았다. 끌기를 끝내고, 돌아온 직후 끌기가 스크롤로 오인되지 않게 막기를 푼다.
+        self.dragTracker.touchCancelled(model: self.model)
+        self.checkColumn.reset()
+      }
   }
 
   /// 이전 방문의 내용이 남아 있으면 쓰지 않고 불러오는 중으로 그린다.
@@ -83,6 +93,26 @@ public struct CleanupView: View {
   }
 
   private func list(_ sections: CleanupSections) -> some View {
+    ScrollViewReader { proxy in
+      self.listContent(sections)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { self.dragTracker.listFrame = $0 }
+        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, _ in
+          self.checkColumn.offsetChanged(isOwnScroll: self.dragTracker.ownsScroll())
+        }
+        .overlay {
+          CleanupCheckColumnOverlay(
+            model: self.model,
+            checkColumn: self.checkColumn,
+            tracker: self.dragTracker,
+            candidateIDs: sections.candidateIDs
+          )
+        }
+        .onAppear { self.dragTracker.proxy = proxy }
+        .onChange(of: sections, initial: true) { self.dragTracker.order = sections.candidates.map(\.id) }
+    }
+  }
+
+  private func listContent(_ sections: CleanupSections) -> some View {
     SnapList {
       if self.model.isLimited {
         CleanupLimitedSection {
@@ -148,7 +178,8 @@ public struct CleanupView: View {
         }
       }
     case .similarPhotos:
-      ForEach(section.groups) { group in
+      // 묶음 id 가 첫 후보 식별자와 같은 값이라 `scrollTo(후보 id)` 가 묶음 섹션을 가리키지 않게 다른 타입으로 둔다.
+      ForEach(section.groups, id: \.listID) { group in
         Section {
           ForEach(group.candidates) { candidate in
             self.row(candidate)
@@ -196,15 +227,23 @@ public struct CleanupView: View {
   private func row(_ candidate: CleanupCandidate) -> some View {
     let isSelected = self.model.selectedIDs.contains(candidate.id)
     return HStack(spacing: 12) {
+      // 터치는 위에 덧댄 체크 원 열 오버레이가 받고, 버튼 동작은 VoiceOver 등 접근성 활성화와 손 스크롤로 오버레이가 막힌 때의 탭이다.
+      // 라벨을 44pt 로 넓힌 것은 오버레이의 누름 영역이기도 하다.
       Button {
         self.model.candidateToggled(id: candidate.id)
       } label: {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
           .font(.title3)
           .foregroundStyle(isSelected ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.secondary))
+          .frame(minWidth: 44, minHeight: 44)
+          .contentShape(.rect)
       }
       .buttonStyle(.borderless)
       .accessibilityLabel(isSelected ? "선택 해제" : "선택")
+      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+        self.checkColumn.frames[candidate.id] = $0
+      }
+      .onDisappear { self.checkColumn.frames[candidate.id] = nil }
       NavigationLink(value: PhotoDetailRoute(asset: candidate.asset, gifticon: candidate.gifticon)) {
         if let item = candidate.gifticon {
           CleanupCandidateRow(
@@ -222,6 +261,10 @@ public struct CleanupView: View {
         }
       }
     }
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+      self.dragTracker.rowFrameChanged(id: candidate.id, frame: $0, model: self.model)
+    }
+    .onDisappear { self.dragTracker.rowFrames[candidate.id] = nil }
   }
 
   @ViewBuilder
@@ -311,5 +354,16 @@ private struct CleanupSimilarPhotoRow: View {
           .foregroundStyle(.secondary)
       }
     }
+  }
+}
+
+/// 비슷한 사진 묶음 `ForEach` 의 id. 값은 첫 후보 식별자라 다시 그리기 동작은 `CleanupCandidateGroup.id` 와 같다.
+private struct CleanupGroupListID: Hashable {
+  let firstID: ImageAsset.ID
+}
+
+private extension CleanupCandidateGroup {
+  var listID: CleanupGroupListID {
+    CleanupGroupListID(firstID: self.id)
   }
 }

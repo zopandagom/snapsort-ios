@@ -106,6 +106,9 @@ public struct CleanupSections: Sendable, Hashable {
     Set(self.sections.flatMap { $0.candidates.map(\.id) })
   }
 
+  /// 화면 순서(섹션 → 묶음 → 후보)로 이은 후보. `CleanupView` 가 그리는 순서와 같고, 끌어 선택의 범위가 이 순서를 따른다.
+  public var candidates: [CleanupCandidate] { self.sections.flatMap(\.candidates) }
+
   public var isEmpty: Bool { self.sections.isEmpty }
 
   public init(sections: [CleanupSection], checkingGifticonCount: Int, uncomparedPhotoCount: Int = 0) {

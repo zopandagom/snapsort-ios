@@ -9,6 +9,8 @@ import PhotoStoreInterface
 /// 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다. 화면을 새로 열 때마다 View 가 새 방문 번호(`visit`)를 넘겨
 /// 선택·안내·이번 방문에 지운 목록을 비운다. 사진 상세에서 돌아오면 같은 방문이라 그대로 둔다.
 /// 저장소 변경·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
+/// 체크 원을 누른 채 끄는 범위 선택은 `dragSelectionBegan(id:)`·`dragSelectionMoved(to:)`·`dragSelectionEnded()` 로 받는다
+/// (손가락 위치를 줄로 바꾸는 일과 자동 스크롤은 View 가 한다).
 @MainActor
 @Observable
 public final class CleanupModel {
@@ -40,6 +42,12 @@ public final class CleanupModel {
     CleanupSizeEstimate.bytes(of: self.selectedCandidates.map(\.asset))
   }
 
+  /// 체크 원 끌기가 진행 중인지. View 가 제스처·자동 스크롤에서만 읽는다(관찰하지 않는다).
+  /// 시작 줄이 사라지는 등으로 Model 이 끌기를 끝냈으면 false.
+  public var isDragSelecting: Bool {
+    self.dragSelection != nil
+  }
+
   /// 마지막으로 읽은 저장소 목록. 날짜가 바뀌면 이 목록으로 후보를 다시 가른다.
   @ObservationIgnored private var items: [GifticonListItem] = []
   /// 마지막으로 읽은 비슷한 사진 묶기 입력(시간 이웃이 있는 사진과 벡터). 사진에서 만든 값이라 로그에 남기지 않는다.
@@ -60,6 +68,8 @@ public final class CleanupModel {
   @ObservationIgnored private var generation = 0
   /// 다시 읽으라는 신호. 화면이 열려 있는 동안(`onAppear(visit:)` 가 구독하는 동안)만 있다.
   @ObservationIgnored private var reloadRequests: AsyncStream<Void>.Continuation?
+  /// 체크 원 끌기. 끌기 중에만 있다. View 가 몸체에서 읽지 않는다.
+  @ObservationIgnored private var dragSelection: CleanupDragSelection?
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let photoStore: (any PhotoStoreClient)?
@@ -99,6 +109,8 @@ public final class CleanupModel {
   public func onAppear(visit: UUID) async {
     self.generation += 1
     let generation = self.generation
+    // 화면이 새로 보였으면 지난 끌기의 손가락이 이어질 수 없다.
+    self.dragSelection = nil
     self.refreshLimited()
     if self.visit != visit {
       self.visit = visit
@@ -126,6 +138,7 @@ public final class CleanupModel {
     // 화면이 닫혔다. 이후 신호와 다시 시도는 버리고, 다음 진입이 처음 읽기를 한다.
     if self.isCurrent(generation) {
       self.reloadRequests = nil
+      self.dragSelection = nil
     }
   }
 
@@ -153,8 +166,10 @@ public final class CleanupModel {
   }
 
   /// 후보 하나를 고르거나 푼다. 목록에 없는 식별자는 무시한다. 삭제 중에도 받는다(삭제 요청은 이미 고른 목록을 보냈다).
+  /// 끌기 중이면 그 끌기를 지금 선택으로 끝낸 뒤 처리한다.
   public func candidateToggled(id: ImageAsset.ID) {
     guard case let .loaded(sections) = self.content, sections.candidateIDs.contains(id) else { return }
+    self.dragSelection = nil
     if self.selectedIDs.contains(id) {
       self.selectedIDs.remove(id)
     } else {
@@ -163,11 +178,12 @@ public final class CleanupModel {
   }
 
   /// 섹션의 "모두 선택" 대상(`bulkSelectableIDs`, 비슷한 사진은 남길 장을 뺀 것)이 모두 골라져 있으면 섹션 후보를 모두 풀고,
-  /// 아니면 그 대상을 모두 고른다.
+  /// 아니면 그 대상을 모두 고른다. 끌기 중이면 그 끌기를 지금 선택으로 끝낸 뒤 처리한다.
   public func sectionSelectionToggled(_ kind: CleanupSection.Kind) {
     guard case let .loaded(sections) = self.content,
           let section = sections.sections.first(where: { $0.kind == kind })
     else { return }
+    self.dragSelection = nil
     let selectable = section.bulkSelectableIDs
     if selectable.isSubset(of: self.selectedIDs) {
       self.selectedIDs.subtract(section.candidates.map(\.id))
@@ -297,9 +313,19 @@ public final class CleanupModel {
       self.selectedIDs = Set(defaults)
       self.hasLoadedInVisit = true
     }
-    let kept = self.selectedIDs.intersection(sections.candidateIDs)
+    let candidateIDs = sections.candidateIDs
+    let kept = self.selectedIDs.intersection(candidateIDs)
     if kept != self.selectedIDs {
       self.selectedIDs = kept
+    }
+    // 끌기 중이면 시작 줄이 사라졌을 때 끝내고, 아니면 끌기 전 선택을 보이는 후보로 줄인다(범위는 다음 이동에서 새 순서로 다시 센다).
+    if var drag = self.dragSelection {
+      if candidateIDs.contains(drag.startID) {
+        drag.restrict(to: candidateIDs)
+        self.dragSelection = drag
+      } else {
+        self.dragSelection = nil
+      }
     }
     guard self.content != .loaded(sections) else { return }
     self.content = .loaded(sections)
@@ -327,5 +353,40 @@ public final class CleanupModel {
 
   private func isCurrent(_ generation: Int) -> Bool {
     generation == self.generation
+  }
+}
+
+// MARK: - Drag selection events
+
+/// 체크 원 끌기 이벤트. 같은 파일이라 `private(set)` 상태와 `dragSelection` 을 바꿀 수 있다.
+public extension CleanupModel {
+  /// 체크 원을 누른 채 끌기 시작했다. 시작 줄이 골라져 있으면 푸는 끌기, 아니면 고르는 끌기이고 시작 줄도 그 방향이 된다.
+  /// 목록에 없는 식별자는 무시한다. 끌기 중에 다시 오면 지난 끌기를 지금 상태로 끝내고 새로 시작한다. 삭제 중에도 받는다.
+  func dragSelectionBegan(id: ImageAsset.ID) {
+    guard case let .loaded(sections) = self.content, sections.candidateIDs.contains(id) else { return }
+    var drag = CleanupDragSelection(startID: id, selection: self.selectedIDs)
+    let next = drag.selection(movingTo: id, order: sections.candidates)
+    self.dragSelection = drag
+    if let next, next != self.selectedIDs {
+      self.selectedIDs = next
+    }
+  }
+
+  /// 손가락이 `id` 후보 줄에 왔다(자동 스크롤로 줄이 지나간 때 포함). 시작~`id`(화면 순서)에 방향을 주고 범위 밖은 끌기 전 상태로 되돌린다.
+  /// 끌기 중이 아니거나 목록에 없는 식별자면 무시한다. 같은 줄이 연달아 오면 아무것도 하지 않는다.
+  func dragSelectionMoved(to id: ImageAsset.ID) {
+    guard var drag = self.dragSelection, case let .loaded(sections) = self.content, id != drag.currentID,
+          let next = drag.selection(movingTo: id, order: sections.candidates)
+    else { return }
+    self.dragSelection = drag
+    // 같으면 대입하지 않아 다시 그리지 않는다.
+    if next != self.selectedIDs {
+      self.selectedIDs = next
+    }
+  }
+
+  /// 손을 뗐거나 끌기가 취소됐다. 지금 선택을 그대로 둔다. 끌기 중이 아니면 무시한다.
+  func dragSelectionEnded() {
+    self.dragSelection = nil
   }
 }
