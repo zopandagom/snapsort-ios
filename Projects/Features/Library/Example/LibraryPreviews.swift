@@ -48,6 +48,16 @@ private func libraryPreview(
   )
 }
 
+#Preview("분류 준비 중") {
+  // 첫 진행률을 보내지 않고 계속 돌아 "준비 중" 카드가 남는다.
+  libraryPreview(
+    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
+    indexing: IndexingClientFake(progress: [], finishesAfterProgress: false),
+    photoStore: PhotoStoreClientFake.previewClassified(),
+    notification: nil
+  )
+}
+
 #Preview("분류 멈춤") {
   libraryPreview(
     photoLibrary: PhotoLibraryClientFake.previewAuthorized,

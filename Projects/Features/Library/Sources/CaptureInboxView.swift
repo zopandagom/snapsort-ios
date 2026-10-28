@@ -66,7 +66,7 @@ public struct CaptureInboxView: View {
   private var contentView: some View {
     switch self.content {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case .failed:
       // 실패해도 제한 접근 안내와 "사진 더 선택"이 첫 섹션에 남게 목록 안에 그린다(정리 화면과 같다).
       SnapList {
@@ -85,7 +85,7 @@ public struct CaptureInboxView: View {
     case let .loaded(assets):
       if self.categoryModel.thumbnailScope != .cleanup {
         // 지난 화면의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 그린다.
-        ProgressView()
+        SnapLoadingDots()
       } else {
         self.list(assets)
       }
@@ -240,7 +240,7 @@ private struct CaptureInboxPhoto: View {
   private var photo: some View {
     switch self.state {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case let .loaded(image):
       VStack(spacing: 8) {
         Image(decorative: image.cgImage, orientation: image.orientation)

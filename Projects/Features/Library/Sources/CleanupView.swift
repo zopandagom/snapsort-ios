@@ -56,7 +56,7 @@ public struct CleanupView: View {
   private var contentView: some View {
     switch self.content {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case .failed:
       // 실패해도 제한 접근 안내와 "사진 더 선택"이 첫 섹션에 남게 목록 안에 그린다.
       SnapList {
@@ -75,7 +75,7 @@ public struct CleanupView: View {
     case let .loaded(sections):
       if self.categoryModel.thumbnailScope != .cleanup {
         // 지난 화면의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`GifticonListView` 와 같은 이유).
-        ProgressView()
+        SnapLoadingDots()
       } else {
         self.list(sections)
       }

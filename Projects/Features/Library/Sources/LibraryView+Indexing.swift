@@ -8,6 +8,9 @@ extension LibraryView {
   /// 분석 중일 때와 멈췄을 때만 보인다. 정상으로 다 분석하면 숨기되, 미룬 이미지가 있으면 그 수는 남겨 안내한다.
   /// `isFinished` 는 미룬 수까지 더해 판단하므로, 숨기기만 하면 iCloud 에만 있는 사진처럼 분류되지 않은 이유가 사라진다.
   /// 분석 중이면 진행률의 `phase` 로 분류 중(1단계) 막대와 글자 읽는 중(2단계) 막대를 나눠 보인다. 모두 카드(`snapCard()`)로 보인다.
+  /// 준비 중 카드는 로딩 점(`SnapLoadingDots`, 시스템 진행 표시처럼 읽힌다)과 문구를 보인다.
+  /// 1·2단계 카드는 막대(`.snap` 스타일, 시스템 막대처럼 읽힌다) 위에 단계 그림(`SnapProgressArt`)을 둔다. 그림은 장식이라 VoiceOver 에서 읽지 않는다.
+  /// 동작 줄이기면 점·그림·줄무늬가 멈춘다.
   /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
   /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
   @ViewBuilder
@@ -27,11 +30,15 @@ extension LibraryView {
     } else if let progress = self.model.indexingProgress, progress.phase == .classifying {
       let doneCount = progress.indexedCount + progress.skippedCount
       self.indexingCard {
+        SnapProgressArt(.sorting)
+          .frame(maxWidth: .infinity)
+          .padding(.bottom, 8)
         ProgressView(value: Double(doneCount), total: Double(max(progress.totalCount, 1))) {
           Text("이미지 분류 중")
         } currentValueLabel: {
           Text("\(doneCount)/\(progress.totalCount)장")
         }
+        .progressViewStyle(.snap(.rose))
       } footer: {
         if progress.skippedCount > 0 {
           Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
@@ -42,11 +49,15 @@ extension LibraryView {
       let doneCount = progress.recognizedTextCount + progress.skippedTextCount
       let totalCount = doneCount + progress.pendingTextCount
       self.indexingCard {
+        SnapProgressArt(.reading)
+          .frame(maxWidth: .infinity)
+          .padding(.bottom, 8)
         ProgressView(value: Double(doneCount), total: Double(max(totalCount, 1))) {
           Text("글자 읽는 중")
         } currentValueLabel: {
           Text("\(doneCount)/\(totalCount)장")
         }
+        .progressViewStyle(.snap(.lilac))
       } footer: {
         Text("사진 분류는 끝났습니다. 기프티콘·영수증 같은 캡처는 글자를 읽으며 채웁니다.")
         if progress.skippedTextCount > 0 {
@@ -57,11 +68,12 @@ extension LibraryView {
         }
       }
     } else if self.model.isIndexing {
-      HStack(spacing: 12) {
-        ProgressView()
+      VStack(spacing: 14) {
+        SnapLoadingDots()
         Text("이미지 분류 준비 중")
-        Spacer(minLength: 0)
+          .font(.headline)
       }
+      .frame(maxWidth: .infinity)
       .snapCard()
     } else if let progress = self.model.indexingProgress, progress.skippedCount + progress.skippedTextCount > 0 {
       // 1단계·2단계 미룸은 이용자에게 같은 이유(iCloud 에만 있거나 읽을 수 없음)라 합쳐 센다.

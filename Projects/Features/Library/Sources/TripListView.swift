@@ -28,7 +28,7 @@ public struct TripListView: View {
   private var contentView: some View {
     switch self.model.content {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case .failed:
       StatusMessageView("여행을 불러오지 못했습니다", systemImage: "exclamationmark.triangle") {
         self.model.retryButtonTapped()
@@ -41,7 +41,7 @@ public struct TripListView: View {
       )
     case .loaded where self.categoryModel.category != .travel:
       // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
-      ProgressView()
+      SnapLoadingDots()
     case let .loaded(items):
       self.list(items)
     }

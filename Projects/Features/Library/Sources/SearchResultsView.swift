@@ -51,12 +51,12 @@ struct SearchResultsView: View {
         }
       } else if self.categoryModel.thumbnailScope != .search {
         // 다른 화면의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
-        ProgressView()
+        SnapLoadingDots()
       } else {
         self.list(results)
       }
     } else {
-      ProgressView()
+      SnapLoadingDots()
     }
   }
 

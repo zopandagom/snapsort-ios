@@ -51,4 +51,6 @@ public enum SnapColor {
   public static let ink = ColorToken(light: 0x2A2226, dark: 0xF5EDF0)
   /// 보조 글자. 시스템 `.secondary` 자리를 `snapTheme()` 가 이 값으로 바꾼다.
   public static let inkSecondary = ColorToken(light: 0x6B5D63, dark: 0xB9AAB0)
+  /// 진행 막대 줄무늬 같은 밝은 덧칠. 라이트·다크 모두 흰색이고 투명도를 낮춰 장식으로만 쓴다.
+  public static let sheen = ColorToken(light: 0xFFFFFF, dark: 0xFFFFFF)
 }

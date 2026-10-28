@@ -55,6 +55,10 @@ enum ExampleScenario: String {
   case homeInCloudOnly
   /// 썸네일 읽기가 1.5초 걸린다. 카드 칸이 중립 면(진행 표시 없음)에서 사진으로 바뀐다.
   case homeSlowThumbnails
+  /// 보관함과 저장소 비교 중이라 첫 진행률이 오지 않는다. 인덱싱 카드가 "준비 중"(로딩 점)이다.
+  case indexingPreparing
+  /// 사진 분류는 끝나고 글자를 읽는 중이다. 인덱싱 카드가 2단계(문서 스캔 그림·라일락 막대)다.
+  case indexingRecognizingText
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard
