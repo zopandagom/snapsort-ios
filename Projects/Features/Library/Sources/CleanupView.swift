@@ -100,7 +100,12 @@ public struct CleanupView: View {
           self.checkColumn.offsetChanged(isOwnScroll: self.dragTracker.ownsScroll())
         }
         .overlay {
-          CleanupCheckColumnOverlay(model: self.model, checkColumn: self.checkColumn, tracker: self.dragTracker)
+          CleanupCheckColumnOverlay(
+            model: self.model,
+            checkColumn: self.checkColumn,
+            tracker: self.dragTracker,
+            candidateIDs: sections.candidateIDs
+          )
         }
         .onAppear { self.dragTracker.proxy = proxy }
         .onChange(of: sections, initial: true) { self.dragTracker.order = sections.candidates.map(\.id) }

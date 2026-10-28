@@ -220,6 +220,8 @@ struct CleanupCheckColumnOverlay: View {
   let model: CleanupModel
   let checkColumn: CleanupCheckColumn
   let tracker: CleanupDragTracker
+  /// 화면 순서의 후보 식별자. `tracker.order` 는 관찰하지 않으므로, 새 후보의 누름 영역이 순서 갱신을 기다리지 않게 인자로 받는다.
+  let candidateIDs: Set<ImageAsset.ID>
 
   @State private var frame: CGRect = .zero
   @GestureState private var isTouching = false
@@ -229,7 +231,7 @@ struct CleanupCheckColumnOverlay: View {
       ? []
       : CleanupDragGeometry.touchRects(
         circles: self.checkColumn.frames,
-        known: self.tracker.orderIDs,
+        known: self.candidateIDs,
         overlay: self.frame
       )
     Color.clear
