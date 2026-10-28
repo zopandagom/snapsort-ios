@@ -19,4 +19,15 @@ public struct Trip: Sendable, Hashable {
     self.endDate = endDate
     self.center = center
   }
+
+  /// 대표 사진 후보: 가운데(`assetIDs.count / 2`) → 첫 → 마지막, 중복 없이. 사진이 없으면 빈 배열.
+  /// 저장소에 없는(보관함에서 지워진) 사진은 부르는 쪽이 건너뛰고 다음 후보를 쓴다. 여행 폴더 목록·보관함 여행 카드가 같은 규칙을 쓴다.
+  public var coverCandidateIDs: [String] {
+    guard let first = assetIDs.first, let last = assetIDs.last else { return [] }
+    var candidates: [String] = []
+    for id in [self.assetIDs[self.assetIDs.count / 2], first, last] where !candidates.contains(id) {
+      candidates.append(id)
+    }
+    return candidates
+  }
 }
