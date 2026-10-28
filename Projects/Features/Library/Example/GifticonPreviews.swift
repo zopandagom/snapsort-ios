@@ -14,7 +14,7 @@ import SwiftUI
 enum ExampleScenario: String {
   /// 기본. 모든 기프티콘 데모 상태와 주소·번호 캡처가 있다.
   case standard
-  /// 기프티콘이 없다. 보관함에 기프티콘 줄이 없어 빈 목록은 Preview "기프티콘 - 빈 목록"에서 본다.
+  /// 기프티콘이 없다. 보관함에 기프티콘 카드가 없어 빈 목록은 Preview "기프티콘 - 빈 목록"에서 본다.
   case gifticonEmpty
   /// 기프티콘 목록 처음 읽기만 실패한다. 다시 시도하면 목록이 보인다.
   case gifticonFailing
@@ -22,7 +22,7 @@ enum ExampleScenario: String {
   case notificationDenied
   /// 지도 앱을 열지 못한다. 주소를 누르면 실패 안내가 뜬다.
   case mapsUnavailable
-  /// 여행이 없다. 보관함에 여행 줄이 없어 빈 여행 목록은 Preview "여행 - 빈 목록"에서 본다.
+  /// 여행이 없다. 보관함에 여행 카드가 없어 빈 여행 목록은 Preview "여행 - 빈 목록"에서 본다.
   case tripEmpty
   /// 장소 이름 요청이 모두 실패한다. 캐시가 없는 여행(도쿄·태평양) 상세는 1.5초 뒤 기간을 제목으로 쓴다.
   case tripGeocodingFailing
@@ -40,7 +40,7 @@ enum ExampleScenario: String {
   case searchFailing
   /// 검색 목록 읽기가 1.5초 걸린다. 열자마자 입력하거나 읽는 중에 "글자 사진 추가"를 눌러 겹침을 본다.
   case searchSlow
-  /// 정리 도우미: 보관함 "정리 도우미" 줄에서 만료됨·사용함 후보(추정 만료일은 기본 해제)와 캡처 인박스를 본다.
+  /// 정리 도우미: 보관함 "정리 도우미" 카드에서 만료됨·사용함 후보(추정 만료일은 기본 해제)와 캡처 인박스를 본다.
   /// 삭제하면 보관함 대역이 증분 변경을 보내 저장소 반영과 진행률이 이어진다. CU 한 장은 보관함에 없어 "건너뜀" 안내가 뜬다.
   case cleanup
   /// 정리 삭제의 첫 요청이 실패한다(알림 창, 선택 유지). 다시 누르면 성공한다.
@@ -49,8 +49,12 @@ enum ExampleScenario: String {
   case cleanupDeleteCancelled
   /// 정리 삭제가 2초 걸린다(확인 창이 떠 있는 동안). 그동안 다시 누르기·뒤로 갔다 오기를 본다.
   case cleanupDeleteSlow
-  /// 앱 루트가 빈 영수증 목록이다. 보관함은 영수증이 없으면 줄을 숨겨 빈 목록에 갈 수 없어 루트를 바꾼다.
+  /// 앱 루트가 빈 영수증 목록이다. 보관함은 영수증이 없으면 카드를 숨겨 빈 목록에 갈 수 없어 루트를 바꾼다.
   case receiptEmpty
+  /// 보관함 카드의 대표 썸네일이 모두 iCloud 에만 있다. 모든 칸이 카테고리 색 면 + 아이콘이다.
+  case homeInCloudOnly
+  /// 썸네일 읽기가 1.5초 걸린다. 카드 칸이 중립 면(진행 표시 없음)에서 사진으로 바뀐다.
+  case homeSlowThumbnails
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard

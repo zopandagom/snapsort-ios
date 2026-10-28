@@ -117,7 +117,7 @@ public final class CategoryModel {
     } else if self.content == .failed {
       self.content = .loading
     }
-    // 저장소가 없으면 다시 시도할 수 없어 버튼이 반응하지 않는다. App 은 저장소가 없으면 카테고리 줄을 보이지 않아
+    // 저장소가 없으면 다시 시도할 수 없어 버튼이 반응하지 않는다. App 은 저장소가 없으면 카테고리 카드를 보이지 않아
     // (LibraryModel 의 개수가 빈다) 이 화면에 오지 않고, Example·Preview 도 저장소 없이 이 화면을 띄우지 않으므로 상태를 따로 두지 않는다.
     guard let photoStore = self.photoStore else {
       self.content = .failed
@@ -254,16 +254,7 @@ public final class CategoryModel {
 
   /// 취소되면 nil 이다. 받는 쪽은 결과를 남기지 않는다.
   private func loadState(id: ImageAsset.ID, size: ImageSize) async -> ImageLoadState? {
-    do throws(ImageLoadError) {
-      return try await .loaded(self.photoLibrary.loadImage(id: id, size: size))
-    } catch {
-      switch error {
-      case .cancelled: return nil
-      case .notAvailableLocally: return .unavailable(.inCloudOnly)
-      case .notFound: return .unavailable(.notFound)
-      case .failed: return .unavailable(.failed)
-      }
-    }
+    await ImageLoadState.load(id: id, size: size, from: self.photoLibrary)
   }
 
   /// 다른 화면의 지난 내용과 썸네일이 비치지 않게 비운다. 지난 칸의 Task 는 주인 번호를 찾지 못해 아무것도 하지 않는다.

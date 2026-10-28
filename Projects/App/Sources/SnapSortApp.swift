@@ -21,6 +21,7 @@ import WidgetTimelineImpl
 struct SnapSortApp: App {
   @State private var onboardingModel: OnboardingModel
   @State private var libraryModel: LibraryModel
+  @State private var libraryCoverModel: LibraryCoverModel
   @State private var categoryModel: CategoryModel
   @State private var gifticonListModel: GifticonListModel
   @State private var receiptListModel: ReceiptListModel
@@ -65,7 +66,9 @@ struct SnapSortApp: App {
       notification: NotificationClientImpl(),
       widgetTimeline: widgetTimeline
     ))
-    // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 줄이 없어 열리지 않는다.
+    // 보관함 카드의 대표 썸네일. App 이 소유해 보관함 화면에 다시 들어와도(온보딩·기록 도구에서) 읽은 썸네일이 남는다.
+    self._libraryCoverModel = State(initialValue: LibraryCoverModel(photoLibrary: photoLibrary))
+    // 카테고리 화면도 같은 저장소를 읽는다. 저장소가 없으면 보관함 화면에 카테고리 카드가 없어 열리지 않는다.
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._gifticonListModel = State(initialValue: GifticonListModel(photoStore: photoStore))
     self._receiptListModel = State(initialValue: ReceiptListModel(photoStore: photoStore))
@@ -124,6 +127,7 @@ struct SnapSortApp: App {
       #if DEBUG
         SampleRecorderEntry(
           libraryModel: self.libraryModel,
+          libraryCoverModel: self.libraryCoverModel,
           categoryModel: self.categoryModel,
           gifticonListModel: self.gifticonListModel,
           receiptListModel: self.receiptListModel,
@@ -138,6 +142,7 @@ struct SnapSortApp: App {
       #else
         LibraryView(
           model: self.libraryModel,
+          coverModel: self.libraryCoverModel,
           categoryModel: self.categoryModel,
           gifticonListModel: self.gifticonListModel,
           receiptListModel: self.receiptListModel,

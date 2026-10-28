@@ -24,6 +24,23 @@ extension PhotoLibraryClientFake {
     loadImageResults: PreviewPhotos.loadImageResults.mapValues { _ in .failure(.notAvailableLocally) }
   )
 
+  /// 분류 결과의 이미지가 모두 iCloud 에만 있다. `-scenario homeInCloudOnly` 에서 보관함 카드의 대체 표시를 본다.
+  static let previewHomeInCloudOnly = PhotoLibraryClientFake(
+    currentState: .authorized,
+    imageAssets: .stubs(count: 128),
+    loadImageResults: PreviewPhotos.loadImageResults.mapValues { _ in .failure(.notAvailableLocally) }
+  )
+
+  /// 이미지 읽기가 1.5초 걸린다. `-scenario homeSlowThumbnails` 에서 보관함 카드 칸이 중립 면에서 사진으로 바뀌는 것을 본다.
+  static let previewSlowThumbnails = PhotoLibraryClientFake(
+    currentState: .authorized,
+    imageAssets: .stubs(count: 128),
+    loadImageResults: PreviewPhotos.loadImageResults,
+    loadGate: { _ in
+      try? await Task.sleep(for: .seconds(1.5))
+    }
+  )
+
   /// 모든 이미지를 읽지 못한다. 상세의 실패를 확인한다.
   static let previewFailing = PhotoLibraryClientFake(
     currentState: .authorized,

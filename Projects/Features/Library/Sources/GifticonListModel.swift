@@ -4,7 +4,7 @@ import Observation
 import PhotoStoreInterface
 
 /// 기프티콘 목록 화면의 상태와 로직 (docs/ARCHITECTURE.md §4 카테고리 화면).
-/// 카테고리 화면에서 기프티콘 줄을 열면 격자 대신 이 목록을 보인다. 목록 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다.
+/// 보관함에서 기프티콘 카드를 열면 카테고리 격자 대신 이 목록을 보인다. 목록 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다.
 /// 탭(미사용/사용함)·정렬(만료 임박순/월별)은 저장하지 않는 화면 일시 상태라 View 가 갖고, 섹션은 View 가 이 Model 의
 /// `content`·`today`·`calendar` 로 Core `GifticonListSections.sections` 를 불러 만든다.
 /// 저장소 변경·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
@@ -31,7 +31,7 @@ public final class GifticonListModel {
   @ObservationIgnored private let now: @Sendable () -> Date
 
   /// - Parameters:
-  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 기프티콘 줄이 없어 이 화면에 오지 않는다).
+  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 기프티콘 카드가 없어 이 화면에 오지 않는다).
   ///   - calendar: 기기 달력. 읽을 때와 `dayChanged()` 때 부른다.
   ///   - now: 지금 시각. 읽을 때와 `dayChanged()` 때 부른다.
   public init(

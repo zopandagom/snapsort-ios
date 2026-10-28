@@ -18,7 +18,7 @@ private func receiptListPreview(photoStore: PhotoStoreClientFake) -> some View {
 }
 
 #Preview("영수증 - 빈 목록") {
-  // 보관함은 영수증이 없으면 영수증 줄을 숨기므로 여기서 본다(앱은 `-scenario receiptEmpty`).
+  // 보관함은 영수증이 없으면 영수증 카드를 숨기므로 여기서 본다(앱은 `-scenario receiptEmpty`).
   receiptListPreview(photoStore: PhotoStoreClientFake())
 }
 

@@ -8,12 +8,13 @@ import PhotoStoreTesting
 
 /// Example 의 분류 결과와 그 이미지 읽기 결과. 저장소와 보관함 대역이 같은 식별자를 쓴다.
 enum PreviewPhotos {
-  /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다. 기프티콘·영수증은 데모 줄 수(`PreviewGifticons.demos`·
+  /// 카테고리별 이미지 수. "인물"은 긴 격자를 확인하려고 1,200장이다. 기타 1장·반려동물 2장·문서 4장은 보관함 카드 모자이크의
+  /// 1·2·4칸 배치를 보인다(3칸은 여행 세 개). 기프티콘·영수증은 데모 줄 수(`PreviewGifticons.demos`·
   /// `PreviewReceipts.demos`)이고, 쇼핑·대화·지도는 묶기 데모 수(`PreviewCaptureGroups`)다.
   static let counts: [(ImageCategory, Int)] = [
     (.gifticon, PreviewGifticons.demos.count), (.receipt, PreviewReceipts.demos.count),
   ] + PreviewCaptureGroups.counts + [
-    (.document, 4), (.food, 21), (.people, 1200), (.landscape, 6), (.other, 3),
+    (.document, 4), (.food, 21), (.people, 1200), (.landscape, 6), (.other, 1), (.pet, 2),
   ]
   /// 각 카테고리 마지막 이만큼은 생성일이 없다("날짜 없음" 섹션).
   static let undatedCount = 5
@@ -107,7 +108,7 @@ extension PhotoStoreClientFake {
   ///   - includesGifticons: 거짓이면 기프티콘이 없다(빈 기프티콘 목록은 Preview 에서 본다).
   ///   - assetsErrors: 카테고리 화면 읽기(`assets(in:)`)의 호출 번호별 실패.
   ///   - gifticonsErrors: 기프티콘 목록 읽기(`gifticons()`)의 호출 번호별 실패.
-  ///   - includesTrips: 거짓이면 여행이 없다(보관함에 여행 줄이 없다. 빈 여행 목록은 Preview 에서 본다).
+  ///   - includesTrips: 거짓이면 여행이 없다(보관함에 여행 카드가 없다. 빈 여행 목록은 Preview 에서 본다).
   ///   - tripsErrors: 여행 읽기(`trips()`)의 호출 번호별 실패.
   ///   - receiptsErrors: 영수증 목록 읽기(`receipts()`)의 호출 번호별 실패.
   ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.

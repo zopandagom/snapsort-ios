@@ -94,6 +94,27 @@ public enum ImageLoadState: Sendable {
   }
 }
 
+extension ImageLoadState {
+  /// 한 장을 읽어 상태로 바꾼다. 취소되면 nil 이고, 받는 쪽은 결과를 남기지 않는다.
+  /// 카테고리 화면(`CategoryModel`)과 보관함 카드 대표(`LibraryCoverModel`)가 함께 쓴다.
+  static func load(
+    id: ImageAsset.ID,
+    size: ImageSize,
+    from photoLibrary: any PhotoLibraryClient
+  ) async -> ImageLoadState? {
+    do throws(ImageLoadError) {
+      return try await .loaded(photoLibrary.loadImage(id: id, size: size))
+    } catch {
+      switch error {
+      case .cancelled: return nil
+      case .notAvailableLocally: return .unavailable(.inCloudOnly)
+      case .notFound: return .unavailable(.notFound)
+      case .failed: return .unavailable(.failed)
+      }
+    }
+  }
+}
+
 /// 이미지를 보일 수 없는 이유. 화면은 이유마다 다른 대체 표시를 한다.
 public enum ImageUnavailableReason: Sendable, Equatable {
   /// 기기에 읽을 수 있는 버전이 없고 iCloud 에만 있다 (`ImageLoadError.notAvailableLocally`). 내려받지 않는다.

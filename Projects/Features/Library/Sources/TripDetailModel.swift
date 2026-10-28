@@ -55,7 +55,7 @@ public final class TripDetailModel {
   @ObservationIgnored private let placeNameTimeout: Duration
 
   /// - Parameters:
-  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 줄이 없어 이 화면에 오지 않는다).
+  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 카드가 없어 이 화면에 오지 않는다).
   ///   - map: 장소 이름을 묻는다. 이 화면을 열 때 여행 중심점의 반올림 좌표로만 부른다.
   ///   - calendar: 기기 달력. 읽을 때와 `dayChanged()` 때 부른다. 시간대를 모르는 여행의 기간을 이 시간대로 계산한다(`TripPeriod`).
   ///   - locale: 장소 이름의 로캘. 읽을 때마다 한 번 부른다.

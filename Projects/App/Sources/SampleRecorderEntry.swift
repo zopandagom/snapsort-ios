@@ -7,6 +7,7 @@
   /// 기록 화면은 루트를 바꿔 보여 준다. 보관함 화면이 사라지며 그 `.task` 가 취소되어 인덱서가 멈추므로 측정과 겹치지 않는다.
   struct SampleRecorderEntry: View {
     let libraryModel: LibraryModel
+    let libraryCoverModel: LibraryCoverModel
     let categoryModel: CategoryModel
     let gifticonListModel: GifticonListModel
     let receiptListModel: ReceiptListModel
@@ -29,6 +30,7 @@
       } else {
         LibraryView(
           model: self.libraryModel,
+          coverModel: self.libraryCoverModel,
           categoryModel: self.categoryModel,
           gifticonListModel: self.gifticonListModel,
           receiptListModel: self.receiptListModel,
