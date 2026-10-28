@@ -12,7 +12,8 @@ import Synchronization
 /// 규칙 분류하고, 기프티콘이면 만료일·교환처를, 영수증이면 가게·금액을, 쇼핑·대화·지도면 쇼핑몰·브랜드·대화 앱·지역을 추출해 함께 저장한다. 모델을 쓸 수 있으면 2단계가 언어 모델로 보강한다:
 /// 규칙 분류가 기타뿐인 이미지에 근거 있는 정보형 카테고리를 더하고, 기프티콘 추출 값의 빈 필드를 확인된 값으로 채운다(IndexingRun+ModelFill.swift).
 /// Debug 기록 도구의 `SampleRecording.measure`(SampleRecorderFeature)는 한 장에서 두 단계를 이어 단계별 시간을 잰다.
-/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다(기록 도구도 1단계처럼 대상 사진의 특징 벡터 시간을 잰다). 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 기록 도구가 재지 않고,
+/// 한쪽 단계 내용을 바꾸면 다른 쪽도 맞춘다(기록 도구도 1단계처럼 확인 대상의 바코드와 대상 사진의 특징 벡터 시간을 잰다). 규칙 분류와 기프티콘·영수증·캡처 묶음 규칙 추출은 순수 계산이라 기록 도구가
+/// 재지 않고,
 /// 언어 모델 보강은 기록 도구가 하지 않아 재지 않는다(기록 도구는 Classifier 를 주입받지 않는다).
 extension IndexingRun {
   // MARK: - 1단계: 분류
@@ -54,8 +55,9 @@ extension IndexingRun {
     report(self.progress)
   }
 
-  /// 1단계: ① 메타데이터 → ② 썸네일 이미지 분류 → OCR 대상 판정 → 벡터 대상이면 같은 썸네일로 특징 벡터.
-  /// OCR 대상은 대기(`.pending`)로, 카테고리는 라벨만으로 정한 것(`pendingCategories`)으로 저장한다.
+  /// 1단계: ① 메타데이터 → ② 썸네일 이미지 분류 → OCR 대상 판정(위치 없고 라벨로는 대상이 아니면 같은 썸네일로 바코드 확인,
+  /// `phaseOneHasBarcode`) → 벡터 대상이면 같은 썸네일로 특징 벡터.
+  /// OCR 대상은 대기(`.pending`)로, 카테고리는 라벨만으로 정한 것(`pendingCategories`)으로 저장한다. 바코드는 카테고리에 쓰지 않는다.
   /// 벡터를 만들지 못하면 벡터 없이 분류를 저장한다(`phaseOneFeaturePrint`, 다음 실행·전체 다시 비교가 대기로 고른다).
   mutating func classify(_ asset: ImageAsset) async throws(IndexingStop) -> Outcome {
     let thumbnail: AnalysisImage
@@ -68,7 +70,8 @@ extension IndexingRun {
     } catch let failure {
       return try failure.outcome()
     }
-    guard TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: labels) else {
+    let hasBarcode = try await self.phaseOneHasBarcode(asset: asset, labels: labels, thumbnail: thumbnail)
+    guard TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: labels, hasBarcode: hasBarcode) else {
       let categories = RuleClassifier.classify(asset: asset, labels: labels, textLines: [])
       let featurePrint = try await self.phaseOneFeaturePrint(asset: asset, thumbnail: thumbnail)
       return .indexed(IndexedImage(
