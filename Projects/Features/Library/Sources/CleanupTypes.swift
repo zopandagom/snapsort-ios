@@ -1,7 +1,7 @@
 import Core
 
 /// 보관함의 "정리 도우미" 카드가 여는 화면 (docs/ARCHITECTURE.md §4 정리 도우미).
-/// 캡처 인박스는 정리 화면의 줄로 연다.
+/// 최근 스크린샷 화면은 정리 화면의 줄로 연다.
 enum CleanupRoute: Hashable {
   case cleanup
   case captureInbox
@@ -16,7 +16,7 @@ public enum CleanupContent: Equatable, Sendable {
   case failed
 }
 
-/// 캡처 인박스 내용.
+/// 최근 스크린샷 화면 내용.
 public enum CaptureInboxContent: Equatable, Sendable {
   case loading
   /// 이번 방문에 보관했거나 지운 이미지를 뺀 대상, 최신순. 비어 있으면 대상이 없다.
@@ -42,6 +42,6 @@ public enum CleanupAlert: Equatable, Sendable {
   case deleteNotAuthorized
   /// 그 밖의 이유로 지우지 못했다.
   case deleteFailed
-  /// 캡처 인박스에서 보관을 저장하지 못했다.
+  /// 최근 스크린샷 화면에서 보관을 저장하지 못했다.
   case keepFailed
 }

@@ -5,7 +5,7 @@ import SwiftData
 import Testing
 @testable import PhotoStoreImpl
 
-/// Impl 만의 캡처 인박스 동작: 경량 이전. 같은 동작은 `PhotoStoreCaptureInboxTests` 가 Fake 와 함께 본다.
+/// Impl 만의 최근 스크린샷 동작: 경량 이전. 같은 동작은 `PhotoStoreCaptureInboxTests` 가 Fake 와 함께 본다.
 struct PhotoStoreClientImplCaptureInboxTests {
   private static let created = Date(timeIntervalSince1970: 1_700_000_000)
 

@@ -6,15 +6,16 @@ import SwiftUI
 /// 카테고리 카드를 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView`)을,
 /// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`. 여행 폴더 목록의 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
 /// 검색 필드(`.searchable`)를 누르면 카테고리 카드 대신 검색 결과(`SearchResultsView`)를 보이고, 결과의 카테고리·여행·사진 줄이 같은 화면들을 연다.
-/// 카테고리 위 "정리 도우미" 카드는 정리 화면(`CleanupView`)을, 그 안의 줄은 캡처 인박스(`CaptureInboxView`)를 연다.
+/// 카테고리 위 "정리 도우미" 카드는 정리 화면(`CleanupView`)을, 그 안의 줄은 최근 스크린샷 화면(`CaptureInboxView`)을 연다.
 /// 카드의 대표 썸네일은 `LibraryCoverModel` 이 갖는다(docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
-/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과·정리 화면·캡처 인박스의 다시 읽기
+/// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과·정리 화면·최근 스크린샷 화면의 다시
+/// 읽기
 /// - 대표 사진 변경(`LibraryModel.coverIDs`) → 카드 대표 썸네일 읽기·놓기(`LibraryCoverModel.coversChanged`)
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
-/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·캡처
-/// 인박스)
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근
+/// 스크린샷 화면)
 public struct LibraryView: View {
   let model: LibraryModel
   let coverModel: LibraryCoverModel

@@ -5,7 +5,7 @@ import PhotoStoreTesting
 import Synchronization
 import Testing
 
-/// Fake 만의 캡처 인박스 실패·훅·기록. 같은 동작은 `PhotoStoreCaptureInboxTests` 가 Impl 과 함께 본다.
+/// Fake 만의 최근 스크린샷 실패·훅·기록. 같은 동작은 `PhotoStoreCaptureInboxTests` 가 Impl 과 함께 본다.
 struct PhotoStoreClientFakeCaptureInboxTests {
   private static let since = Date(timeIntervalSince1970: 1_700_000_000)
 

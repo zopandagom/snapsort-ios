@@ -113,7 +113,7 @@ extension PhotoStoreClientFake {
   ///   - receiptsErrors: 영수증 목록 읽기(`receipts()`)의 호출 번호별 실패.
   ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.
   ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기(`searchEntries()`)의 호출 번호별 실패와 읽은 뒤 기다리는 훅.
-  ///   - captureInboxErrors: 캡처 인박스 읽기(`captureInboxScreenshots(createdSince:)`)의 호출 번호별 실패.
+  ///   - captureInboxErrors: 최근 스크린샷 읽기(`captureInboxScreenshots(createdSince:)`)의 호출 번호별 실패.
   ///   - extraImages: 분류 결과에 더하는 이미지. 정리 도우미 데모의 스크린샷·비슷한 사진(`PreviewCleanup`)을 더할 때 쓴다.
   ///   - allReceiptsChecking: 참이면 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
   static func previewClassified(

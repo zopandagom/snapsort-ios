@@ -7,7 +7,7 @@ import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
-/// 캡처 인박스의 읽기·보관·삭제 표시. 읽기 조건(스크린샷·기간·보관 안 함)은 저장소가 맡아 PhotoStore 테스트가 본다.
+/// 최근 스크린샷 화면의 읽기·보관·삭제 표시. 읽기 조건(스크린샷·기간·보관 안 함)은 저장소가 맡아 PhotoStore 테스트가 본다.
 @MainActor
 struct CaptureInboxModelTests {
   private static func screenshots(_ ids: String...) -> [ImageAsset] {

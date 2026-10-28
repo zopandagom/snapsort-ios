@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// 캡처 인박스 보관 속성(`isKeptInCaptureInbox`)이 생기기 전의 저장 스키마. 경량 이전 테스트가 이전 빌드의 저장 파일을 만드는 데 쓴다.
+/// 최근 스크린샷 보관 속성(`isKeptInCaptureInbox`)이 생기기 전의 저장 스키마. 경량 이전 테스트가 이전 빌드의 저장 파일을 만드는 데 쓴다.
 /// 검색까지 있던 시점(`feat/cleanup-helper` 이전, main 611b88f)의 Impl `StoredModels.swift` 를 그대로 옮겼다.
 /// SwiftData 엔티티 이름은 타입 이름에서 오므로 Impl 과 같은 이름으로 두고, 테스트 모듈의 다른 코드가 Impl 타입을 가리지 않게 이 enum 안에 둔다.
 enum PreCaptureInboxSchema {

@@ -3,7 +3,7 @@ import Foundation
 import PhotoStoreInterface
 import Testing
 
-/// 캡처 인박스 목록·보관: Impl·Fake 가 같은 표를 따른다.
+/// 최근 스크린샷 목록·보관: Impl·Fake 가 같은 표를 따른다.
 struct PhotoStoreCaptureInboxTests {
   private static let since = Date(timeIntervalSince1970: 1_700_000_000)
 

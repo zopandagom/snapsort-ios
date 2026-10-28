@@ -129,12 +129,12 @@ public protocol PhotoStoreClient: Sendable {
   /// 추출 값·보강 상태는 건드리지 않는다. 사용자가 상세에서 바꿀 때만 부른다.
   func setGifticonUsed(_ isUsed: Bool, id: ImageAsset.ID) async throws(PhotoStoreError) -> Bool
 
-  /// 캡처 인박스 목록: 스크린샷(`isScreenshot`)이고 생성일이 `createdSince` 이상이며 보관하지 않은 이미지의 메타데이터를
+  /// 최근 스크린샷 목록: 스크린샷(`isScreenshot`)이고 생성일이 `createdSince` 이상이며 보관하지 않은 이미지의 메타데이터를
   /// 최신순(같으면 식별자 순, `assets(in:)` 과 같은 순서)으로 돌려준다. 생성일 없는 이미지는 빠진다. 카테고리와 관계없다.
   /// 라벨·OCR 줄을 읽지 않는다 (docs/ARCHITECTURE.md §4 정리 도우미).
   func captureInboxScreenshots(createdSince: Date) async throws(PhotoStoreError) -> [ImageAsset]
 
-  /// 캡처 인박스에서 보관한다. 행이 있으면 바꾸고 true, 없으면 false. 다른 값은 건드리지 않는다. 사용자가 누를 때만 부른다.
+  /// 최근 스크린샷 화면에서 보관한다. 행이 있으면 바꾸고 true, 없으면 false. 다른 값은 건드리지 않는다. 사용자가 누를 때만 부른다.
   func keepInCaptureInbox(id: ImageAsset.ID) async throws(PhotoStoreError) -> Bool
 
   /// 카테고리별 이미지 수. 이미지가 없는 카테고리는 빠진다.

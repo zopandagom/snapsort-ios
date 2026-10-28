@@ -4,7 +4,7 @@ import Observation
 import PhotoLibraryInterface
 import PhotoStoreInterface
 
-/// 캡처 인박스 화면의 상태와 로직 (docs/ARCHITECTURE.md §4 정리 도우미). 최근 30일의 보관하지 않은 스크린샷을
+/// 최근 스크린샷 화면의 상태와 로직 (docs/ARCHITECTURE.md §4 정리 도우미). 최근 30일의 보관하지 않은 스크린샷을
 /// 한 장씩 "보관"하거나 "삭제 표시"하고, 표시한 것을 모아 한 번에 지운다.
 /// 보관은 누르는 즉시 저장소에 저장하고, 삭제 표시는 화면이 열려 있는 동안(방문)만 갖는다. 이 화면은 다른 화면을 push 하지 않으므로
 /// 새로 열 때마다 새 방문이고, 방문 번호(`visit`)를 View 가 넘겨 표시·안내·이번 방문에 처리한 목록을 비운다.
