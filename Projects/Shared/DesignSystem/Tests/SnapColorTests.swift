@@ -56,10 +56,13 @@ struct SnapColorTests {
     }
   }
 
-  @Test("진행 막대 채움은 트랙과 구분된다(그래픽 대비 3:1 이상)", arguments: SnapProgressStyle.Tint.allCases)
+  @Test("진행 막대 채움은 줄무늬를 얹어도 트랙과 구분된다(그래픽 대비 3:1 이상)", arguments: SnapProgressStyle.Tint.allCases)
   func progressFillStandsOutFromTrack(tint: SnapProgressStyle.Tint) {
-    #expect(Self.contrast(tint.fill.light, tint.track.light) >= 3, "\(tint) 라이트")
-    #expect(Self.contrast(tint.fill.dark, tint.track.dark) >= 3, "\(tint) 다크")
+    let opacity = SnapProgressStyle.stripeOpacity
+    for fill in [tint.fill, Self.blend(SnapColor.sheen, over: tint.fill, opacity: opacity)] {
+      #expect(Self.contrast(fill.light, tint.track.light) >= 3, "\(tint) 라이트 \(fill)")
+      #expect(Self.contrast(fill.dark, tint.track.dark) >= 3, "\(tint) 다크 \(fill)")
+    }
   }
 
   @Test("로딩 점은 적어도 두 개가 바탕·카드와 구분된다(그래픽 대비 3:1 이상)")
@@ -77,6 +80,19 @@ struct SnapColorTests {
   func glyphTilesAreDistinct() {
     let tiles = Set(SnapGlyph.allCases.map(\.palette.tile))
     #expect(tiles.count == SnapGlyph.allCases.count)
+  }
+
+  /// `top` 을 `opacity` 만큼 `bottom` 위에 얹은 색(sRGB 값 섞기, SwiftUI 기본 합성과 같다).
+  static func blend(_ top: ColorToken, over bottom: ColorToken, opacity: Double) -> ColorToken {
+    func mix(_ upper: UInt32, _ lower: UInt32) -> UInt32 {
+      [16, 8, 0].reduce(0) { result, shift in
+        let upperChannel = Double((upper >> UInt32(shift)) & 0xFF)
+        let lowerChannel = Double((lower >> UInt32(shift)) & 0xFF)
+        let mixed = UInt32((lowerChannel + (upperChannel - lowerChannel) * opacity).rounded())
+        return result | (mixed << UInt32(shift))
+      }
+    }
+    return ColorToken(light: mix(top.light, bottom.light), dark: mix(top.dark, bottom.dark))
   }
 
   /// WCAG 2 상대 휘도 대비.

@@ -3,16 +3,16 @@ import SwiftUI
 /// 줄무늬가 흐르는 둥근 진행 막대(시안 Home "진행 카드"). 제목·현재 값 줄 아래에 막대를 둔다.
 /// VoiceOver 에서는 시스템 막대(`.linear`)와 똑같이 읽힌다. 동작 줄이기면 줄무늬가 멈추고 값도 애니메이션 없이 바뀐다.
 public struct SnapProgressStyle: ProgressViewStyle {
-  /// 채움 / 트랙 색. 채움과 트랙은 라이트·다크 모두 그래픽 대비 3:1 이상이다(`SnapColorTests`).
+  /// 채움 / 트랙 색. 줄무늬를 얹은 채움도 트랙과 라이트·다크 모두 그래픽 대비 3:1 이상이다(`SnapColorTests`).
   public enum Tint: CaseIterable, Sendable {
-    /// 사진 분류(1단계).
+    /// 사진 분류(1단계). 면용 로즈는 줄무늬를 얹으면 라이트 트랙과 대비가 모자라 채움은 `accent` 다.
     case rose
     /// 글자 읽기(2단계). 면용 라일락은 라이트 트랙과 대비가 모자라 채움은 `lilacText` 다.
     case lilac
 
     public var fill: ColorToken {
       switch self {
-      case .rose: SnapColor.rose
+      case .rose: SnapColor.accent
       case .lilac: SnapColor.lilacText
       }
     }
@@ -24,6 +24,9 @@ public struct SnapProgressStyle: ProgressViewStyle {
       }
     }
   }
+
+  /// 채움 위 줄무늬(`SnapColor.sheen`)의 투명도.
+  public static let stripeOpacity = 0.2
 
   private let tint: Tint
 
@@ -119,7 +122,7 @@ private struct StripedBar: View {
         band.addLine(to: CGPoint(x: x + size.height + period / 2, y: 0))
         band.addLine(to: CGPoint(x: x + period / 2, y: size.height))
         band.closeSubpath()
-        context.fill(band, with: .style(SnapColor.sheen.opacity(0.25)))
+        context.fill(band, with: .style(SnapColor.sheen.opacity(SnapProgressStyle.stripeOpacity)))
         x += period
       }
     }
