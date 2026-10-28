@@ -125,7 +125,7 @@ public enum ClassificationRules {
   /// `screenshot` 밖의 라벨은 `textLabelMinimumConfidence` 이상이어야 한다(`TextRecognitionPolicy`).
   static let textLabels: Set<String> = informationRules.reduce(into: textHeavyLabels) { $0.formUnion($1.labels) }
 
-  /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각 패턴 대조와 키워드 표 형식 검사에 쓴다.
+  /// 공백을 지우고 소문자로 바꾼다. 말풍선 시각·쿠폰 번호 패턴 대조와 키워드 표 형식 검사에 쓴다.
   static func normalize(_ text: String) -> String {
     String(text.lowercased().filter { !$0.isWhitespace })
   }
