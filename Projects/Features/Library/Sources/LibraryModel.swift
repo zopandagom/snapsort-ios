@@ -28,6 +28,9 @@ public final class LibraryModel {
   /// 카테고리별 개수. 이미지가 없는 카테고리는 빠진다.
   /// `.travel` 은 여행 사진 수가 아니라 여행 판정으로 찾은 여행 수다.
   public private(set) var categoryCounts: [ImageCategory: Int] = [:]
+  /// 카테고리별 대표 사진 식별자(`PhotoStoreClient.categoryCovers(limit:)`). 개수(`categoryCounts`)와 같은 읽기·같은 세대로 바뀐다.
+  /// 저장소를 읽지 못하면 개수와 함께 지난 값을 둔다. LibraryView 가 바뀔 때마다 `LibraryCoverModel.coversChanged(_:)` 로 넘긴다.
+  public private(set) var coverIDs: [ImageCategory: [ImageAsset.ID]] = [:]
   /// 알림 권한. 아직 읽지 않았거나 알림·저장소가 없으면 nil.
   public private(set) var notificationAuthorization: NotificationAuthorization?
   /// 지금 예약할 만료 알림이 하나 이상인지(같은 `now` 로 계산한 planner 결과가 비어 있지 않음). 권한과 관계없이 계산한다.
@@ -37,11 +40,15 @@ public final class LibraryModel {
   /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
   public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
-  /// 인덱싱이 멈출 때. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색 결과·정리 화면·캡처 인박스가
+  /// 인덱싱이 멈출 때. 그때마다 이 Model 은 개수와 대표 사진(`coverIDs`)을 다시 읽는다. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색
+  /// 결과·정리 화면·캡처 인박스가
   /// 이 변화로 다시 읽는다(LibraryView 가 CategoryModel·GifticonListModel·ReceiptListModel·CaptureActionsModel·TripListModel·
   /// TripDetailModel·SearchModel·CleanupModel·CaptureInboxModel 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
   public private(set) var storeRevision = 0
+
+  /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
+  static let coverLimit = 4
 
   /// "만료 알림 받기" 버튼을 보일지.
   public var showsExpiryReminderButton: Bool {
@@ -217,7 +224,7 @@ public final class LibraryModel {
 
   /// 인덱서는 보관함 변경을 스스로 관찰하므로, 진행률만 받아 상태에 반영한다.
   /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출·소급 보강이 끝날 때 진행률을 보내므로, 그때마다 저장소 변경 번호(`storeRevision`)를 올리고
-  /// 개수를 다시 읽고 만료 알림 동기화를 요청한다.
+  /// 개수·대표 사진을 다시 읽고 만료 알림 동기화를 요청한다.
   /// 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 Task 가 새 Task 의 상태를 덮지 않게 한다.
   private func index(with indexing: any IndexingClient, generation: Int) async {
     guard self.isCurrent(generation) else { return }
@@ -227,7 +234,7 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
-      // 개수를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
+      // 개수·대표를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.requestReminderSync()
@@ -244,7 +251,8 @@ public final class LibraryModel {
     self.isIndexingStopped = true
   }
 
-  /// 저장소를 읽지 못하면 지난 개수를 그대로 둔다. 인덱싱도 같은 저장소를 쓰므로 멈춤 안내로 드러난다.
+  /// 개수와 대표 사진을 같은 읽기로 다시 읽어 한 턴에 함께 바꾼다(같은 세대).
+  /// 하나라도 읽지 못하면 지난 개수·대표를 그대로 둔다. 인덱싱도 같은 저장소를 쓰므로 멈춤 안내로 드러난다.
   private func refreshCategoryCounts(generation: Int) async {
     guard let photoStore = self.photoStore else { return }
     do throws(PhotoStoreError) {
@@ -253,8 +261,13 @@ public final class LibraryModel {
       if tripCount > 0 {
         counts[.travel] = tripCount
       }
+      let covers = try await photoStore.categoryCovers(limit: Self.coverLimit)
       guard self.isCurrent(generation) else { return }
       self.categoryCounts = counts
+      // 진행률 대부분은 대표를 바꾸지 않으므로, 같으면 대입하지 않아 카드를 다시 그리지 않는다.
+      if self.coverIDs != covers {
+        self.coverIDs = covers
+      }
     } catch {
       return
     }

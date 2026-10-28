@@ -2,7 +2,7 @@ import Core
 import DesignSystem
 import SwiftUI
 
-/// 보관함 검색 결과 (docs/ARCHITECTURE.md §4 검색). 보관함 화면의 NavigationStack 루트 내용으로, 검색 중에는 카테고리 목록 대신 보인다.
+/// 보관함 검색 결과 (docs/ARCHITECTURE.md §4 검색). 보관함 화면의 NavigationStack 루트 내용으로, 검색 중에는 카테고리 카드 대신 보인다.
 /// 위에서부터 이름이 맞은 카테고리 줄(카테고리 화면·각 목록으로), 캐시된 장소 이름이 맞은 여행 줄(여행 폴더 상세로),
 /// 사진 줄(최신순, 맞은 곳 한 줄. 주소·번호 행동만 있는 사진 상세로)이다.
 /// 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(scope: .search)`).

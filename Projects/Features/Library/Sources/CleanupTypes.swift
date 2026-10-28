@@ -1,6 +1,6 @@
 import Core
 
-/// 보관함의 "정리 도우미" 줄이 여는 화면 (docs/ARCHITECTURE.md §4 정리 도우미).
+/// 보관함의 "정리 도우미" 카드가 여는 화면 (docs/ARCHITECTURE.md §4 정리 도우미).
 /// 캡처 인박스는 정리 화면의 줄로 연다.
 enum CleanupRoute: Hashable {
   case cleanup

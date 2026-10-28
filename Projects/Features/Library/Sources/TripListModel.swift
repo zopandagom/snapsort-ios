@@ -5,7 +5,7 @@ import PhotoLibraryInterface
 import PhotoStoreInterface
 
 /// 여행 폴더 목록 화면의 상태와 로직 (docs/ARCHITECTURE.md §4 여행 폴더).
-/// 보관함의 여행 줄을 누르면 연다. 목록 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다.
+/// 보관함의 여행 카드를 누르면 연다. 목록 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다.
 /// 목록은 지오코딩하지 않는다(MapClient 를 받지 않는다). 장소 이름과 여행지 시간대는 상세를 열 때 캐시된 것만 쓴다.
 /// 썸네일 칸은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel.thumbnailScreenAppeared(category: .travel)` 로 빌린다.
 /// 저장소 변경·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
@@ -32,7 +32,7 @@ public final class TripListModel {
 
   /// - Parameters:
   ///   - photoLibrary: 제한 접근인지 읽는 데만 쓴다.
-  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 줄이 없어 이 화면에 오지 않는다).
+  ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 카드가 없어 이 화면에 오지 않는다).
   ///   - calendar: 기기 달력. 읽을 때와 `dayChanged()` 때 부른다. 시간대를 모르는 여행의 기간을 이 시간대로 계산한다(`TripPeriod`).
   ///   - locale: 캐시된 장소 이름을 고르는 기기 로캘. 읽을 때마다 한 번 부른다.
   public init(
@@ -139,7 +139,7 @@ public final class TripListModel {
       : try await photoStore.places(for: keys, localeIdentifier: locale.identifier)
     var candidateIDs: [ImageAsset.ID] = []
     for trip in trips {
-      candidateIDs.append(contentsOf: Self.coverCandidates(of: trip))
+      candidateIDs.append(contentsOf: trip.coverCandidateIDs)
     }
     let assets = try await photoStore.assets(ids: candidateIDs)
     let assetsByID = Dictionary(assets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -158,7 +158,8 @@ public final class TripListModel {
             calendar: calendar,
             knownTimeZone: cached?.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
           ),
-          cover: Self.coverCandidates(of: trip).lazy.compactMap { assetsByID[$0] }.first,
+          // 대표 사진 후보 규칙(가운데 → 첫 → 마지막)은 보관함 여행 카드와 같은 `Trip.coverCandidateIDs` 다. 지워진 사진은 저장소에 없어 다음 후보를 쓴다.
+          cover: trip.coverCandidateIDs.lazy.compactMap { assetsByID[$0] }.first,
           placeName: placeName
         )
       }
@@ -168,16 +169,6 @@ public final class TripListModel {
         }
         return lhs.trip.endDate > rhs.trip.endDate
       }
-  }
-
-  /// 대표 사진 후보: 가운데 → 첫 → 마지막. 보관함에서 지워진 사진은 저장소에 없어 다음 후보를 쓴다.
-  private static func coverCandidates(of trip: Trip) -> [ImageAsset.ID] {
-    guard let first = trip.assetIDs.first, let last = trip.assetIDs.last else { return [] }
-    var candidates: [ImageAsset.ID] = []
-    for id in [trip.assetIDs[trip.assetIDs.count / 2], first, last] where !candidates.contains(id) {
-      candidates.append(id)
-    }
-    return candidates
   }
 
   /// 같으면 대입하지 않아 다시 그리지 않는다.

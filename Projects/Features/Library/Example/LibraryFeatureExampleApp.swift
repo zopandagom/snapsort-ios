@@ -17,18 +17,21 @@ import SwiftUI
 
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 /// 카테고리를 연 채 아래 버튼으로 저장소를 바꾸면, 인덱서가 진행률을 보낸 것처럼 카테고리 화면이 다시 읽는다.
-/// 기프티콘 줄에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
-/// 여행 줄에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를, 영수증 줄에서 영수증 목록(`PreviewReceipts` 와 여행 영수증)을 본다.
+/// 기프티콘 카드에서 기프티콘 목록(`PreviewGifticons.demos` 의 상태들)을, 문서 첫 장에서 주소·번호 행동을 본다.
+/// 여행 카드에서 여행 폴더 목록·상세(`PreviewTrips` 의 세 여행)를, 영수증 카드에서 영수증 목록(`PreviewReceipts` 와 여행 영수증)을 본다.
 /// "영수증 추출" 버튼은 인덱서의 영수증 소급 추출처럼 추출 대기 영수증에 값을 쓰고 진행률을 보낸다.
-/// 쇼핑·대화·지도 줄에서 툴바 묶기 메뉴(쇼핑몰·브랜드·앱·지역별, `PreviewCaptureGroups`)를 보고, "캡처 묶음 추출" 버튼이
+/// 쇼핑·대화·지도 카드에서 툴바 묶기 메뉴(쇼핑몰·브랜드·앱·지역별, `PreviewCaptureGroups`)를 보고, "캡처 묶음 추출" 버튼이
 /// 추출 대기 캡처에 값을 쓴다(OCR 대기 캡처는 확인 중으로 남는다).
 /// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 검색 필드를 누르면 검색 결과(`PreviewSearch` 의 글자 사진, 캡처 묶음 값, 카테고리 이름, 캐시된 여행 장소 이름)를 보고,
 /// "글자 사진 추가" 버튼이 글자를 읽은 사진을 최신으로 더한다(열린 검색 화면이 다시 읽는다).
-/// 보관함 맨 아래 "정리 도우미" 줄에서 정리 화면(만료됨·사용함 기프티콘 후보, 정리 시나리오면 비슷한 사진 묶음)과
+/// 보관함 카테고리 위 "정리 도우미" 카드에서 정리 화면(만료됨·사용함 기프티콘 후보, 정리 시나리오면 비슷한 사진 묶음)과
 /// 캡처 인박스(최근 30일 스크린샷)를 본다.
 /// 정리 시나리오(`ExampleScenario.isCleanup`)는 삭제를 흉내 내는 보관함 대역을 쓰고, 지운 이미지를 인덱서처럼 저장소에서 지우고 진행률을 보낸다.
 /// 아래 디버그 줄이 Fake 가 받은 마지막 값과 장소 이름 요청 수, 정리 화면이 저장소를 읽은 횟수와 삭제 요청 수를 보인다.
+/// 카드의 대표 썸네일은 저장소 대역이 분류 결과로 고른다(기타 1장·반려동물 2장·여행 3개·문서 4장으로 모자이크 1~4칸 배치를 본다).
+/// `-scenario homeInCloudOnly` 는 모든 썸네일이 iCloud 에만 있어 카테고리 색 면 + 아이콘으로, `-scenario homeSlowThumbnails` 는
+/// 썸네일 읽기가 1.5초 걸려 중립 면 → 사진으로 바뀌는 것을 본다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
@@ -57,6 +60,10 @@ struct LibraryFeatureExampleApp: App {
 
   private static let photoLibrary = if Self.scenario == .limited {
     PhotoLibraryClientFake.previewLimitedClassified
+  } else if Self.scenario == .homeInCloudOnly {
+    PhotoLibraryClientFake.previewHomeInCloudOnly
+  } else if Self.scenario == .homeSlowThumbnails {
+    PhotoLibraryClientFake.previewSlowThumbnails
   } else if Self.scenario.isCleanup {
     PhotoLibraryClientFake.previewCleanup(scenario: Self.scenario)
   } else {
@@ -84,6 +91,7 @@ struct LibraryFeatureExampleApp: App {
       : NotificationClientFake.previewNotDetermined(),
     widgetTimeline: nil
   )
+  @State private var coverModel = LibraryCoverModel(photoLibrary: Self.photoLibrary)
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
   @State private var receiptListModel = ReceiptListModel(photoStore: Self.photoStore)
@@ -117,7 +125,7 @@ struct LibraryFeatureExampleApp: App {
     WindowGroup {
       Group {
         if Self.scenario == .receiptEmpty {
-          // 보관함은 영수증이 없으면 영수증 줄을 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
+          // 보관함은 영수증이 없으면 영수증 카드를 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
           NavigationStack {
             ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
           }
@@ -141,6 +149,7 @@ struct LibraryFeatureExampleApp: App {
   private var library: some View {
     LibraryView(
       model: self.model,
+      coverModel: self.coverModel,
       categoryModel: self.categoryModel,
       gifticonListModel: self.gifticonListModel,
       receiptListModel: self.receiptListModel,
@@ -222,177 +231,5 @@ struct LibraryFeatureExampleApp: App {
   private func extractCaptureGroups() async {
     try? await Self.photoStore.saveCaptureGroups(PreviewCaptureGroups.extractedValues)
     Self.indexing.sendProgress(IndexingClientFake.previewInProgress.progress[0])
-  }
-}
-
-/// 같은 저장소를 읽는 Model 들로 보관함 화면을 만든다. 카테고리 줄을 누르면 그 저장소로 카테고리 화면이 열린다.
-@MainActor
-private func libraryPreview(
-  photoLibrary: PhotoLibraryClientFake,
-  indexing: IndexingClientFake?,
-  photoStore: PhotoStoreClientFake?,
-  notification: NotificationClientFake?
-) -> LibraryView {
-  LibraryView(
-    model: LibraryModel(
-      photoLibrary: photoLibrary,
-      indexing: indexing,
-      photoStore: photoStore,
-      notification: notification,
-      widgetTimeline: nil
-    ),
-    categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
-    gifticonListModel: GifticonListModel(photoStore: photoStore),
-    receiptListModel: ReceiptListModel(photoStore: photoStore),
-    captureActionsModel: captureActionsPreviewModel(photoStore: photoStore),
-    tripListModel: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore),
-    tripDetailModel: TripDetailModel(photoStore: photoStore, map: PreviewTrips.map()),
-    searchModel: SearchModel(photoStore: photoStore),
-    cleanupModel: CleanupModel(photoLibrary: photoLibrary, photoStore: photoStore, findsSimilarPhotos: true),
-    captureInboxModel: CaptureInboxModel(photoLibrary: photoLibrary, photoStore: photoStore)
-  )
-}
-
-#Preview("분류 중") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewInProgress,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: nil
-  )
-}
-
-#Preview("분류 멈춤") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewStopped,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: nil
-  )
-}
-
-#Preview("글자 읽는 중") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewRecognizingText,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: nil
-  )
-}
-
-#Preview("글자 읽기 멈춤") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewTextStopped,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: nil
-  )
-}
-
-#Preview("분류 완료") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewFinished,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: nil
-  )
-}
-
-#Preview("제한 접근") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewLimited,
-    indexing: nil,
-    photoStore: nil,
-    notification: nil
-  )
-}
-
-#Preview("이미지 없음") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake(currentState: .authorized),
-    indexing: nil,
-    photoStore: nil,
-    notification: nil
-  )
-}
-
-#Preview("알림 허용됨") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewFinished,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: NotificationClientFake.previewAuthorized()
-  )
-}
-
-#Preview("보관함 - 알림 거부") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewFinished,
-    photoStore: PhotoStoreClientFake.previewClassified(),
-    notification: NotificationClientFake.previewDenied()
-  )
-}
-
-#Preview("만료 예정 없음") {
-  libraryPreview(
-    photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-    indexing: IndexingClientFake.previewFinished,
-    photoStore: PhotoStoreClientFake.previewClassified(hasUpcomingExpiry: false),
-    notification: NotificationClientFake.previewNotDetermined()
-  )
-}
-
-#Preview("카테고리 - 빈 카테고리") {
-  NavigationStack {
-    CategoryView(
-      model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized, photoStore: PhotoStoreClientFake()),
-      category: .people
-    )
-  }
-}
-
-#Preview("카테고리 - 저장소 실패") {
-  // 처음 읽기만 실패해, 다시 시도하면 격자가 보인다.
-  NavigationStack {
-    CategoryView(
-      model: CategoryModel(
-        photoLibrary: PhotoLibraryClientFake.previewAuthorized,
-        photoStore: PhotoStoreClientFake.previewClassified(assetsErrors: [0: .failed])
-      ),
-      category: .food
-    )
-  }
-}
-
-#Preview("카테고리 - iCloud 썸네일") {
-  NavigationStack {
-    CategoryView(
-      model: CategoryModel(
-        photoLibrary: PhotoLibraryClientFake.previewInCloudOnly,
-        photoStore: PhotoStoreClientFake.previewClassified()
-      ),
-      category: .food
-    )
-  }
-}
-
-#Preview("상세 - 불러오는 중") {
-  NavigationStack {
-    PhotoDetailView(
-      model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewLoadingForever, photoStore: nil),
-      captureModel: captureActionsPreviewModel(photoStore: nil),
-      asset: .stub(id: PreviewPhotos.id(.food, 0), creationDate: Date())
-    )
-  }
-}
-
-#Preview("상세 - 실패") {
-  NavigationStack {
-    PhotoDetailView(
-      model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewFailing, photoStore: nil),
-      captureModel: captureActionsPreviewModel(photoStore: nil),
-      asset: .stub(id: PreviewPhotos.id(.food, 0), creationDate: Date())
-    )
   }
 }
