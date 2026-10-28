@@ -15,7 +15,7 @@ FIXTURE = SCRIPTS.parent / "Projects/Shared/Core/Tests/Fixtures/ClassificationSa
 spec = importlib.util.spec_from_file_location("mask_samples", SCRIPTS / "mask-samples.py")
 mask = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mask)
-KEYWORDS, TIMESTAMP = mask.load_rules()
+KEYWORDS, TIMESTAMP, COUPON = mask.load_rules()
 
 
 def run_main(argv):
@@ -25,7 +25,7 @@ def run_main(argv):
 
 
 def masked(line):
-    return mask.mask_line(line, KEYWORDS, TIMESTAMP)[0]
+    return mask.mask_line(line, KEYWORDS, TIMESTAMP, COUPON)[0]
 
 
 class MaskLineTests(unittest.TestCase):
@@ -56,6 +56,18 @@ class MaskLineTests(unittest.TestCase):
         line = masked("홍길동 010-1234-5678 쿠폰번호 1234 5678 9012")
         self.assertEqual(line, "○○○ ○○○○○○○○○○○○○ 쿠폰번호 ○○○○ ○○○○ ○○○○")
 
+    def test_keeps_only_shape_of_whole_line_coupon_number(self):
+        """쿠폰 번호만 있는 줄은 숫자를 0 으로 바꿔 기프티콘 판정에 쓰이는 모양만 남긴다. 값은 남기지 않는다."""
+        self.assertEqual(masked("1234 - 5678 - 9012"), "0000 - 0000 - 0000")
+        self.assertEqual(masked("123456789012"), "000000000000")
+        self.assertEqual(masked("1234-5678-9012-3456"), "0000-0000-0000-0000")
+        self.assertEqual(masked("1234-5678-9012 D"), "0000-0000-0000 ○")
+
+    def test_masks_coupon_number_inside_sentence_and_other_numbers(self):
+        self.assertEqual(masked("123456789012 코드번호 복사"), "○○○○○○○○○○○○ 코드번호 ○○")
+        self.assertEqual(masked("010-1234-5678"), "○○○○○○○○○○○○○")
+        self.assertEqual(masked("1234-****-****-5678"), "○○○○○○○○○○○○○○○○○○○")
+
     def test_keeps_character_count_for_document_length(self):
         for line in ["Wi-Fi 설정", "👍🏻 좋아요", "e\u0301clair", "👨\u200d👩\u200d👧 가족", "🇰🇷🇯🇵 여행", "🏴\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F 런던"]:
             self.assertEqual(len(mask.clusters(masked(line))), len(mask.clusters(line)), line)
@@ -73,6 +85,7 @@ class RulesTests(unittest.TestCase):
         self.assertIn("유효기간", KEYWORDS)
         self.assertIn("메시지입력", KEYWORDS)
         self.assertTrue(TIMESTAMP.fullmatch("오후3:12"))
+        self.assertTrue(COUPON.fullmatch("1234-5678-9012"))
 
     def test_reads_every_rule_keyword(self):
         """주석·타입 선언 말고 규칙 호출마다 키워드를 읽는다 (규칙 하나를 빠뜨리면 그 키워드가 가려진다)."""
@@ -105,7 +118,7 @@ class FileTests(unittest.TestCase):
         키워드 표에서 키워드를 지워도 실패한다. 그때는 실패 메시지의 샘플만 다시 가려 `text` 를 바꾼다 (CONVENTIONS §3)."""
         text = FIXTURE.read_text(encoding="utf-8")
         real = [s for s in json.loads(text) if not s["name"].startswith("시드 · ")]
-        result, _ = mask.mask_samples(real, KEYWORDS, TIMESTAMP)
+        result, _ = mask.mask_samples(real, KEYWORDS, TIMESTAMP, COUPON)
         changed = [before["name"] for before, after in zip(real, result) if before != after]
         self.assertEqual(
             changed,
@@ -140,6 +153,19 @@ class FileTests(unittest.TestCase):
             '    "text": ["○○○○", "교환처 ○○○○", "유효기간 ○○○○○○○○○○"],\n'
             '    "predicted": ["gifticon"]\n'
             "  }\n]\n",
+        )
+
+    def test_keeps_sorted_asset_key_order_with_barcode(self):
+        sample = {
+            "name": "보관함 00001",
+            "asset": {"pixelWidth": 720, "isScreenshot": False, "hasLocation": False, "pixelHeight": 1280, "hasBarcode": True},
+            "labels": [],
+            "text": [],
+            "predicted": ["food"],
+        }
+        self.assertIn(
+            '"asset": { "hasBarcode": true, "hasLocation": false, "isScreenshot": false, "pixelHeight": 1280, "pixelWidth": 720 }',
+            mask.format_samples([sample]),
         )
 
     def test_refuses_to_overwrite_input(self):
