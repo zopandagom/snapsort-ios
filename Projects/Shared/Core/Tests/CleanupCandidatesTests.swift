@@ -164,6 +164,20 @@ struct CleanupCandidatesTests {
     #expect(result.candidateIDs == ["used", "expired", "s1", "s2", "s3", "t1", "t2"])
   }
 
+  @Test("화면 순서 후보는 만료됨 → 사용함 → 비슷한 사진 묶음 순서로 잇는다")
+  func candidatesFollowScreenOrder() {
+    let result = CleanupSections.make(
+      gifticons: [
+        extractedGifticon("used", expiry: nil, isUsed: true),
+        extractedGifticon("expired", expiry: 20_261_001),
+      ],
+      today: Self.today,
+      similarPhotoGroups: Self.similarGroups
+    )
+
+    #expect(result.candidates.map(\.id) == ["expired", "used", "s1", "s2", "s3", "t1", "t2"])
+  }
+
   @Test("비슷한 사진은 남길 장만 기본 선택하지 않고 기프티콘 정보가 없다")
   func similarPhotoDefaults() throws {
     let result = CleanupSections.make(gifticons: [], today: Self.today, similarPhotoGroups: Self.similarGroups)
