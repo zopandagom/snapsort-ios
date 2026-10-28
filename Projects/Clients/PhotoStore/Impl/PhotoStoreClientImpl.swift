@@ -172,6 +172,10 @@ public struct PhotoStoreClientImpl: PhotoStoreClient {
     try await Self.perform { try await self.store.value.categoryCounts() }
   }
 
+  public func categoryCovers(limit: Int) async throws(PhotoStoreError) -> [ImageCategory: [ImageAsset.ID]] {
+    try await Self.perform { try await self.store.value.categoryCovers(limit: limit) }
+  }
+
   public func replaceTrips(_ trips: [Trip]) async throws(PhotoStoreError) {
     try await Self.perform { try await self.store.value.replaceTrips(trips) }
   }

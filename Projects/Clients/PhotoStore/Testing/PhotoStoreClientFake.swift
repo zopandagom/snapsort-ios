@@ -19,7 +19,8 @@ import Synchronization
 /// 캡처 묶음 값 소급·목록 읽기의 실패와 훅은 `CaptureGroupOptions`(PhotoStoreClientFake+CaptureGroup.swift)에,
 /// 검색 목록 읽기의 실패와 훅은 `SearchOptions`(PhotoStoreClientFake+Search.swift)에,
 /// 특징 벡터 소급·비슷한 사진 읽기의 실패와 훅은 `SimilarPhotoOptions`(`similar`, PhotoStoreClientFake+SimilarPhoto.swift)에,
-/// 캡처 인박스 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에 있다.
+/// 캡처 인박스 읽기·쓰기의 실패와 훅은 `CaptureInboxOptions`(PhotoStoreClientFake+CaptureInbox.swift)에,
+/// 대표 사진 조회의 실패와 훅은 `CoverOptions`(PhotoStoreClientFake+Cover.swift)에 있다.
 /// 저장 결과가 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class PhotoStoreClientFake: PhotoStoreClient {
   private let error: PhotoStoreError?
@@ -43,6 +44,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   let searchOptions: SearchOptions
   let similar: SimilarPhotoOptions
   let captureInboxOptions: CaptureInboxOptions
+  let coverOptions: CoverOptions
   let state: Mutex<State>
 
   struct State {
@@ -66,6 +68,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     var search = SearchState()
     var similarPhoto = SimilarPhotoState()
     var captureInbox = CaptureInboxState()
+    var cover = CoverState()
   }
 
   /// - Parameters:
@@ -115,6 +118,7 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   ///     특징 벡터 소급·비슷한 사진 읽기용 실패·훅. `SimilarPhotoOptions` 문서 참고.
   ///   - captureInboxErrors·onCaptureInboxScreenshots·captureInboxKeepError·onKeepInCaptureInbox:
   ///     캡처 인박스용 실패·훅. `CaptureInboxOptions` 문서 참고.
+  ///   - categoryCoversErrors·onCategoryCovers: 대표 조회용 실패·훅. `CoverOptions` 문서 참고.
   ///   - keptInCaptureInbox: 처음 캡처 인박스에서 보관한 이미지. 들어간 이미지 중 있는 것만 남긴다.
   public init(
     images: [IndexedImage] = [],
@@ -165,6 +169,8 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     onCaptureInboxScreenshots: @escaping @Sendable (Int) async -> Void = { _ in },
     captureInboxKeepError: PhotoStoreError? = nil,
     onKeepInCaptureInbox: @escaping @Sendable (Int) async -> Void = { _ in },
+    categoryCoversErrors: [Int: PhotoStoreError] = [:],
+    onCategoryCovers: @escaping @Sendable (Int) async -> Void = { _ in },
     keptInCaptureInbox: Set<ImageAsset.ID> = []
   ) {
     self.error = error
@@ -208,14 +214,13 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
     self.searchOptions = SearchOptions(entriesErrors: searchEntriesErrors, onEntries: onSearchEntries)
     self.similar = .init(similarPhotoEntriesErrors, onSimilarPhotoEntries, featurePrintError, featurePrintSaveLimit)
     self.captureInboxOptions = CaptureInboxOptions(
-      errors: captureInboxErrors,
-      onScreenshots: onCaptureInboxScreenshots,
-      keepError: captureInboxKeepError,
-      onKeep: onKeepInCaptureInbox
+      errors: captureInboxErrors, onScreenshots: onCaptureInboxScreenshots,
+      keepError: captureInboxKeepError, onKeep: onKeepInCaptureInbox
     )
+    self.coverOptions = CoverOptions(errors: categoryCoversErrors, onCovers: onCategoryCovers)
     let seeded = Self.seed(images, trips, missingOnIDRead, usedIDs, keptInCaptureInbox)
-    let storedPlaces = Self.storedPlaces(places, localeIdentifier: placesLocaleIdentifier)
-    seeded.withLock { $0.tripFolder = TripFolderState(places: storedPlaces) }
+    let stored = Self.storedPlaces(places, localeIdentifier: placesLocaleIdentifier)
+    seeded.withLock { $0.tripFolder = .init(places: stored) }
     self.state = seeded
   }
 
@@ -355,29 +360,7 @@ public extension PhotoStoreClientFake {
 
   /// 그 카테고리 이미지를 최신순(생성일 없는 이미지는 맨 뒤, 같으면 식별자 순)으로.
   private func images(inCategory category: ImageCategory) -> [IndexedImage] {
-    self.images
-      // Impl 처럼 `.travel` 은 이미지 카테고리로 다루지 않는다.
-      .filter { category != .travel && $0.categories.contains(category) }
-      .sorted(by: Self.isNewer)
-  }
-
-  /// 최신순. 생성일이 없으면 맨 뒤, 같으면 식별자 순으로 고정한다.
-  internal static func isNewer(_ lhs: IndexedImage, than rhs: IndexedImage) -> Bool {
-    switch (lhs.asset.creationDate, rhs.asset.creationDate) {
-    case let (left?, right?) where left != right:
-      left > right
-    case (.some, nil):
-      true
-    case (nil, .some):
-      false
-    default:
-      lhs.id < rhs.id
-    }
-  }
-
-  /// 기프티콘으로 분류돼 글자를 읽었는데 추출 값이 없다.
-  private static func isGifticonExtractionPending(_ image: IndexedImage) -> Bool {
-    image.categories.contains(.gifticon) && image.textLines != nil && image.gifticon == nil
+    Self.sortedImages(self.images, in: category)
   }
 
   internal func throwIfNeeded() throws(PhotoStoreError) {

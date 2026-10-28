@@ -141,6 +141,15 @@ public protocol PhotoStoreClient: Sendable {
   /// 여행은 이미지 카테고리가 아니라 `tripCount()` 로 센다.
   func categoryCounts() async throws(PhotoStoreError) -> [ImageCategory: Int]
 
+  /// 보관함 화면 카드의 대표 사진 식별자 (docs/ARCHITECTURE.md §4 카테고리 화면·저장소).
+  /// 이미지 카테고리마다 `assets(in:)` 와 같은 순서(최신순, 생성일 없으면 뒤, 같으면 식별자 순)의 앞 `limit` 장.
+  /// `.travel` 은 최근 여행(시작 시각 내림차순, 같으면 끝 시각 내림차순) `limit` 개 각각의 대표 한 장
+  /// (`Trip.coverCandidateIDs` 중 저장소에 있는 첫 장)을 그 여행 순서로. 사진 식별자가 없거나 후보가 모두 저장소에 없는 여행은
+  /// 건너뛰고 더 오래된 여행으로 채우지 않는다(대표가 `limit` 보다 적을 수 있다).
+  /// 대표가 없는 카테고리(여행 포함)는 빠진다. `limit` 이 0 이하면 빈 사전. 라벨·OCR 줄을 읽지 않는다.
+  /// 진행률마다 개수와 함께 다시 읽는다. 카테고리마다 `limit` 장만 돌려주지만 조회는 카테고리마다 이미지 표를 훑는다(ARCHITECTURE §4 저장소).
+  func categoryCovers(limit: Int) async throws(PhotoStoreError) -> [ImageCategory: [ImageAsset.ID]]
+
   /// 여행 판정 결과로 저장된 여행 전체를 바꾼다. 판정은 보관함 전체를 다시 보므로 일부만 고치지 않는다.
   /// 같은 저장에서 새 여행의 중심점 키(`Trip.placeKey`) 어디에도 해당하지 않는 장소 캐시를 지운다.
   func replaceTrips(_ trips: [Trip]) async throws(PhotoStoreError)
