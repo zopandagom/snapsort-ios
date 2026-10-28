@@ -13,7 +13,8 @@ import SwiftUI
 /// 그 이미지는 모두 스크린샷이라 최근 스크린샷 화면에도 든다. 여기에 최근 스크린샷 기간 안팎의 스크린샷을 더한다.
 /// 보관함 대역은 데모 이미지를 갖고 있어 삭제가 실제처럼 증분 변경을 보낸다. CU 한 장은 일부러 보관함에서 빼, "이미 없어 건너뜀" 안내를 본다.
 /// 비슷한 사진(`similarPhotos`)은 Fake 벡터를 단 카메라 사진이다: 묶음 A(3장, 2초 간격, 가운데 장이 가장 커서 남김),
-/// 묶음 B(2장, 크기가 같아 최신이 남김), 묶음 A 바로 뒤에 찍었지만 거리가 먼 1장(묶이지 않음), 같은 시각의 스크린샷 1장(대상 아님),
+/// 묶음 B(2장, 크기가 같아 최신이 남김), 묶음 C(20장, 2초 간격, 크기가 같아 최신이 남김. 후보가 화면 여러 개 밖까지 이어져
+/// 체크 원 끌기의 장거리 자동 스크롤을 본다), 묶음 A 바로 뒤에 찍었지만 거리가 먼 1장(묶이지 않음), 같은 시각의 스크린샷 1장(대상 아님),
 /// 벡터가 없는 대상 사진 3장(아직 비교하지 않은 3장). 벡터는 원소 하나만 바꿔 거리를 그 차이로 맞춘다.
 enum PreviewCleanup {
   /// 오늘부터 며칠 전에 찍은 스크린샷. 30일(오늘 포함) 밖은 최근 스크린샷 화면에 나오지 않는다.
@@ -50,7 +51,12 @@ enum PreviewCleanup {
     SimilarPhoto(secondsAgo: 3 * 86400, featureValue: nil),
     SimilarPhoto(secondsAgo: 3 * 86400 - 1, featureValue: nil),
     SimilarPhoto(secondsAgo: 3 * 86400 - 2, featureValue: nil),
-  ]
+  ] + PreviewCleanup.longGroupSamples
+
+  /// 묶음 C: 이틀 전 2초 간격 20장. 이웃 거리 0.02, 첫 장과 최대 0.38. 크기가 같아 최신이 남김.
+  static let longGroupSamples: [SimilarPhoto] = (0 ..< 20).map { index in
+    SimilarPhoto(secondsAgo: 2 * 86400 - TimeInterval(index * 2), featureValue: 6 + Float(index) * 0.02)
+  }
 
   static func similarID(_ index: Int) -> ImageAsset.ID {
     "cleanup-similar-\(index)"
