@@ -56,6 +56,23 @@ struct SnapColorTests {
     }
   }
 
+  @Test("진행 막대 채움은 트랙과 구분된다(그래픽 대비 3:1 이상)", arguments: SnapProgressStyle.Tint.allCases)
+  func progressFillStandsOutFromTrack(tint: SnapProgressStyle.Tint) {
+    #expect(Self.contrast(tint.fill.light, tint.track.light) >= 3, "\(tint) 라이트")
+    #expect(Self.contrast(tint.fill.dark, tint.track.dark) >= 3, "\(tint) 다크")
+  }
+
+  @Test("로딩 점은 적어도 두 개가 바탕·카드와 구분된다(그래픽 대비 3:1 이상)")
+  func loadingDotsStandOut() {
+    let surfaces = [SnapColor.background, SnapColor.card]
+    let visible = SnapLoadingDots.colors.filter { dot in
+      surfaces.allSatisfy { surface in
+        Self.contrast(dot.light, surface.light) >= 3 && Self.contrast(dot.dark, surface.dark) >= 3
+      }
+    }
+    #expect(visible.count >= 2)
+  }
+
   @Test("아이콘마다 칸 색이 다르다")
   func glyphTilesAreDistinct() {
     let tiles = Set(SnapGlyph.allCases.map(\.palette.tile))
