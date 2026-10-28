@@ -70,11 +70,13 @@ struct LibraryFeatureExampleApp: App {
     PhotoLibraryClientFake.previewAuthorized
   }
 
-  /// 계속 분석 중이라 버튼으로 진행률을 더 보낼 수 있다.
-  private static let indexing = IndexingClientFake(
-    progress: IndexingClientFake.previewInProgress.progress,
-    finishesAfterProgress: false
-  )
+  /// 계속 분석 중이라 버튼으로 진행률을 더 보낼 수 있다. 시나리오로 준비 중·글자 읽는 중 카드를 본다.
+  private static let indexing = IndexingClientFake(progress: Self.indexingProgress, finishesAfterProgress: false)
+  private static let indexingProgress: [IndexingProgress] = switch Self.scenario {
+  case .indexingPreparing: []
+  case .indexingRecognizingText: IndexingClientFake.previewRecognizingText.progress
+  default: IndexingClientFake.previewInProgress.progress
+  }
   private static let map = PreviewTrips.map(
     failing: Self.scenario == .tripGeocodingFailing,
     openResult: Self.scenario != .mapsUnavailable

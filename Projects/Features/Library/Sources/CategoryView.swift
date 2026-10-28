@@ -57,7 +57,7 @@ public struct CategoryView: View {
   private var contentView: some View {
     switch self.content {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case let .loaded(sections) where sections.isEmpty:
       StatusMessageView(
         "이미지 없음",

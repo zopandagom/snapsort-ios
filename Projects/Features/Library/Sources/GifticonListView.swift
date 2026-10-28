@@ -54,7 +54,7 @@ public struct GifticonListView: View {
   private var contentView: some View {
     switch self.model.content {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case .failed:
       StatusMessageView("기프티콘을 불러오지 못했습니다", systemImage: "exclamationmark.triangle") {
         self.model.retryButtonTapped()
@@ -74,7 +74,7 @@ public struct GifticonListView: View {
         )
       } else if self.categoryModel.category != .gifticon {
         // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
-        ProgressView()
+        SnapLoadingDots()
       } else {
         self.list(sections)
       }

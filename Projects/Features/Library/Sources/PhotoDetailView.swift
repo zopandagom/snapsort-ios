@@ -79,7 +79,7 @@ public struct PhotoDetailView: View {
   private var contentView: some View {
     switch self.state {
     case .loading:
-      ProgressView()
+      SnapLoadingDots()
     case let .loaded(image):
       VStack(spacing: 12) {
         Image(decorative: image.cgImage, orientation: image.orientation)
