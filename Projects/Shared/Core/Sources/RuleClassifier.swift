@@ -4,6 +4,7 @@
 public enum RuleClassifier {
   /// 이미지가 속한 카테고리. 여러 개일 수 있고, 어디에도 해당하지 않으면 `[.other]` 다.
   /// - 정보형: 해당 라벨이 있거나 OCR 텍스트에 키워드가 기준 개수 이상 있으면. 문서는 라벨에 더해 OCR 글자가 기준 이상이어야 한다.
+  ///   기프티콘은 쿠폰 번호만 있는 줄(`couponNumberPattern`)도 키워드 하나로 센다.
   ///   대화 캡처는 말풍선 시각 줄로도 판단한다.
   /// - 사진형: 스크린샷이 아닐 때만 라벨로 판단한다. 화면에 보이던 음식·인물은 사진형으로 묶지 않는다.
   ///   남이 보낸 스크린샷을 저장한 이미지처럼 메타데이터로는 모르는 경우를 위해 `screenshot` 라벨도 스크린샷으로 본다.
@@ -21,10 +22,15 @@ public enum RuleClassifier {
     let keywordLines = textLines.map { KeywordLine($0.text) }
     let normalizedLines = textLines.map { ClassificationRules.normalize($0.text) }
 
+    let couponPattern = ClassificationRules.couponNumberPattern
+    let hasCouponNumber = normalizedLines.contains { $0.wholeMatch(of: couponPattern) != nil }
+
     var categories = Set<ImageCategory>()
-    for rule in ClassificationRules.informationRules
-      where self.matches(rule, identifiers: identifiers, keywordLines: keywordLines)
-    {
+    for rule in ClassificationRules.informationRules {
+      let extraMatches = rule.category == .gifticon && hasCouponNumber ? 1 : 0
+      guard self.matches(rule, identifiers: identifiers, keywordLines: keywordLines, extraMatches: extraMatches) else {
+        continue
+      }
       categories.insert(rule.category)
     }
     if categories.contains(.document),
@@ -66,14 +72,15 @@ public enum RuleClassifier {
   private static func matches(
     _ rule: ClassificationRules.InformationRule,
     identifiers: Set<String>,
-    keywordLines: [KeywordLine]
+    keywordLines: [KeywordLine],
+    extraMatches: Int
   ) -> Bool {
     if !identifiers.isDisjoint(with: rule.labels) {
       return true
     }
     guard !rule.keywords.isEmpty else { return false }
     let matchCount = rule.keywords.count { keyword in keywordLines.contains { $0.contains(keyword) } }
-    return matchCount >= rule.minimumKeywordMatches
+    return matchCount + extraMatches >= rule.minimumKeywordMatches
   }
 
   /// 말풍선 시각 줄이 기준 이상이고, 이웃한 시각끼리 늘거나 같은 쌍이 줄어드는 쌍보다 많으면 대화 캡처다.
