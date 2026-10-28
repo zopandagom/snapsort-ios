@@ -180,6 +180,8 @@ public struct CleanupView: View {
         self.model.sectionSelectionToggled(section.kind)
       }
       .buttonStyle(.borderless)
+      // 루트 `snapTheme()` 의 본문 글자색이 버튼 tint 를 덮지 않게 강조색을 직접 준다.
+      .foregroundStyle(.tint)
       .textCase(nil)
     }
   }
@@ -233,8 +235,11 @@ public struct CleanupView: View {
       ) {
         Task { await self.model.deleteButtonTapped() }
       }
-      // 알약 버튼의 삭제와 같은 경고색 (`SnapButtonStyle`).
-      .tint(SnapColor.danger)
+      // 알약 버튼의 삭제와 같은 경고색 (`SnapButtonStyle`). 루트 `snapTheme()` 의 본문 글자색이 tint 를 덮어 글자색을 직접 주고,
+      // 그래서 시스템이 흐리게 하지 않는 비활성 상태는 보조 글자색으로 그린다.
+      .foregroundStyle(
+        self.model.selectionCount == 0 ? AnyShapeStyle(SnapColor.inkSecondary) : AnyShapeStyle(SnapColor.danger)
+      )
       .disabled(self.model.selectionCount == 0)
     }
   }

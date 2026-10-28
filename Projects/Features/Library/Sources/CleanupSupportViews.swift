@@ -38,6 +38,7 @@ struct CleanupNoticeSection: View {
         }
         Button("닫기", action: self.dismiss)
           .buttonStyle(.borderless)
+          .foregroundStyle(.tint)
       }
       .font(.subheadline)
     }

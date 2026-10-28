@@ -209,8 +209,10 @@ public struct CaptureInboxView: View {
       ) {
         Task { await self.model.deleteButtonTapped() }
       }
-      // 알약 버튼의 삭제와 같은 경고색 (`SnapButtonStyle`).
-      .tint(SnapColor.danger)
+      // 정리 화면 삭제 버튼과 같은 경고색·비활성 색 (`CleanupView.deleteButton`).
+      .foregroundStyle(
+        self.model.markedIDs.isEmpty ? AnyShapeStyle(SnapColor.inkSecondary) : AnyShapeStyle(SnapColor.danger)
+      )
       .disabled(self.model.markedIDs.isEmpty)
     }
   }
