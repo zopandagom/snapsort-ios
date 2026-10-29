@@ -281,10 +281,10 @@ struct GifticonModelFillTests {
 
   @Test("교환처 라벨 줄이 있으면 모델 교환처를 받지 않는다")
   func rejectsWhenPlaceLabelLineExists() {
-    let lines = [line("교환처", width: 0.2), line("스타벅스", y: 0.9)]
+    let lines = [line("교환처", width: 0.2), line("가나다카페", y: 0.9)]
 
     #expect(extract(lines).redemptionPlace == nil)
-    #expect(fillPlace("스타벅스", lines) == nil)
+    #expect(fillPlace("가나다카페", lines) == nil)
   }
 
   @Test("채울 필드가 없거나 막혀 있으면 모델에 묻지 않는다")
