@@ -69,6 +69,7 @@ public enum ClassificationRules {
       category: .map,
       labels: ["map"],
       // 지도 화면 캡처는 키워드 없이 강하게(0.88) 붙는 경우가 있다(실기기 보관함). 약한 라벨만 키워드를 함께 본다. 임시 값.
+      // OCR 대상이 아닌 촬영 사진(글자 라벨 0.3 미만)은 키워드를 읽지 않아 0.5 미만 지도 라벨로는 지도가 되지 않는다(한계).
       labelOnlyMinimumConfidence: 0.5,
       keywords: ["길찾기", "대중교통", "도보", "지도"],
       minimumKeywordMatches: 2
