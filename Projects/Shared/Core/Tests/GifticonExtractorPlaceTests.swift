@@ -139,6 +139,9 @@ extension GifticonExtractorTests {
     #expect(extract([line("교환처 가나다하다")]).redemptionPlace == "가나다하다")
     #expect(extract([line("교환처 : 가나다하다")]).redemptionPlace == "가나다하다")
     #expect(extract([line("교환처", y: 0.5), line("가나다해요", y: 0.55)]).redemptionPlace == "가나다해요")
+    // 띄어 쓴 가게 이름도 종결 어미가 아니면 문장이 아니다.
+    #expect(extract([line("교환처 : 카페 가나다")]).redemptionPlace == "카페 가나다")
+    #expect(extract([line("사용처 가나 바다")]).redemptionPlace == "가나 바다")
   }
 
   @Test("앞 라벨 줄의 값이 다른 항목이면 다음 라벨 줄의 값을 쓴다")

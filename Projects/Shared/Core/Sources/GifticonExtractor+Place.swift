@@ -8,6 +8,8 @@ extension GifticonExtractor {
   static let maximumPlaceLength = 20
   /// 라벨 뒤나 값에 있으면 교환처가 아니라 안내문으로 보는 말("교환처 사정에 따라 …", "… 수 있습니다"). 공백 없이 적는다.
   static let noticeMarkers = ["에따라", "수있", "경우"]
+  /// 안내문의 종결 어미. 띄어 쓴 여러 낱말이 이것으로 끝나면 안내문이다("변경될 수 있습니다", "매장에 문의하세요").
+  static let noticeEndings = ["니다", "세요", "어요", "아요", "해요", "에요", "예요"]
 
   /// 교환처 라벨 줄 중 안내문이 아닌 것. 라벨 뒤가 안내문이면("교환처 사정에 따라 변경될 수 있습니다") 라벨로 보지 않는다.
   /// 값 부분(`beforeRemark`)으로 판단해, 값 뒤에 붙은 괄호 덧말("교환처 : 이마트 (매장 사정에 따라 상이할 수 있습니다)")은 라벨을 막지 않는다.
@@ -76,13 +78,14 @@ extension GifticonExtractor {
       && !self.otherItemWords.contains { compact.hasPrefix($0) } && !self.isNotice(value)
   }
 
-  /// 안내문인지: 띄어 쓴 여러 낱말이 문장 끝("…다", "…요")으로 끝나거나 안내문 표현(`noticeMarkers`)이 있다.
-  /// 한 낱말은 문장 끝으로 보지 않는다("다"로 끝나는 가게 이름 "커피에반하다"). 앞뒤 공백과 구분 기호(": 커피에반하다")는 떼고 본다.
+  /// 안내문인지: 띄어 쓴 여러 낱말이 종결 어미(`noticeEndings`, "…습니다", "…하세요")로 끝나거나 안내문 표현(`noticeMarkers`)이 있다.
+  /// 한 낱말은 문장 끝으로 보지 않고("커피에반하다", "가나다해요"), "다"·"요" 한 글자로 끝나는 가게 이름("카페 바다")도 문장이 아니다.
+  /// 앞뒤 공백과 구분 기호(": 커피에반하다")는 떼고 본다.
   static func isNotice(_ text: some StringProtocol) -> Bool {
     let trimmed = text.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ":：-|")))
     let compact = self.compact(trimmed)
-    let ending = compact.trimmingCharacters(in: CharacterSet(charactersIn: ".!…)")).last
-    let isSentence = trimmed.contains(where: \.isWhitespace) && (ending == "다" || ending == "요")
+    let body = compact.trimmingCharacters(in: CharacterSet(charactersIn: ".!…)"))
+    let isSentence = trimmed.contains(where: \.isWhitespace) && self.noticeEndings.contains { body.hasSuffix($0) }
     return isSentence || self.noticeMarkers.contains { compact.contains($0) }
   }
 
