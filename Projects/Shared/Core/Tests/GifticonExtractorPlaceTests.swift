@@ -115,6 +115,12 @@ extension GifticonExtractorTests {
     #expect(extract([line("교환처", y: 0.5), line(valueBelow, y: 0.55)]).redemptionPlace == expected)
   }
 
+  @Test("라벨 뒤가 괄호 덧말뿐이면 덧말을 교환처로 쓰지 않고 아래 줄 값을 읽는다")
+  func readsValueBelowRemarkOnlyLabel() {
+    #expect(extract([line("사용처 (일부 매장 제외)", y: 0.5), line("CU", y: 0.55)]).redemptionPlace == "CU")
+    #expect(extract([line("사용처 (일부 매장 제외)")]).redemptionPlace == nil)
+  }
+
   @Test("괄호 안내만 있는 라벨 줄은 라벨로 보지 않는다")
   func ignoresLabelWithOnlyRemark() {
     #expect(extract([line("교환처 (매장 사정에 따라 다름)")]).redemptionPlace == nil)
