@@ -282,9 +282,10 @@ extension GifticonExtractor {
 
   // MARK: - 교환처
 
-  /// 교환처 라벨 줄이 있는지. 있으면 규칙의 판단(라벨 값, 로고라 읽은 값이 없음)을 따른다.
+  /// 교환처 라벨 줄(안내문 제외, `redemptionPlaceLabelLines`)이 있는지. 있으면 규칙의 판단(라벨 값, 로고라 읽은 값이 없음,
+  /// 값이 다른 항목)을 따른다.
   static func hasRuleRedemptionPlaceLabel(_ lines: [RecognizedTextLine]) -> Bool {
-    !self.labeledLines(lines, labels: self.redemptionPlaceLabels).isEmpty
+    !self.redemptionPlaceLabelLines(lines).isEmpty
   }
 
   /// 모델이 교환처로 답한 텍스트를 원문으로 확인한 교환처. 날짜가 없는 줄(만료일 라벨 줄 아님)의 전체이거나 줄 앞 단어일 때

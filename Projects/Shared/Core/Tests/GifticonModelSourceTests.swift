@@ -8,34 +8,34 @@ import Testing
 struct GifticonModelSourceTests {
   @Test("모델로 채운 필드만 출처에 넣는다(두 필드 모두)")
   func marksBothModelFilledFields() {
-    let lines = [line("스타벅스", y: 0.2), line("Valid until 2026.12.31", y: 0.5)]
+    let lines = [line("가나다카페", y: 0.2), line("Valid until 2026.12.31", y: 0.5)]
     let rules = extract(lines)
 
-    let filled = fill(rules, GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: "스타벅스"), lines)
+    let filled = fill(rules, GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: "가나다카페"), lines)
 
     #expect(rules.modelFilledFields.isEmpty)
     #expect(filled == GifticonInfo(
       expiryDate: day(2026, 12, 31),
-      redemptionPlace: "스타벅스",
+      redemptionPlace: "가나다카페",
       modelFilledFields: [.expiryDate, .redemptionPlace]
     ))
   }
 
   @Test("규칙이 찾은 필드는 출처에 넣지 않는다")
   func doesNotMarkRuleFields() {
-    let lines = [line("스타벅스", y: 0.2), line("유효기간 2026.12.31", y: 0.5)]
+    let lines = [line("가나다카페", y: 0.2), line("유효기간 2026.12.31", y: 0.5)]
     let rules = extract(lines)
 
-    let filled = fill(rules, GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: "스타벅스"), lines)
+    let filled = fill(rules, GifticonModelAnswer(expiryText: "2026.12.31", redemptionPlace: "가나다카페"), lines)
 
     #expect(rules.expiryDate == day(2026, 12, 31))
-    #expect(filled.redemptionPlace == "스타벅스")
+    #expect(filled.redemptionPlace == "가나다카페")
     #expect(filled.modelFilledFields == [.redemptionPlace])
   }
 
   @Test("확인하지 못해 버린 답은 출처에 넣지 않는다")
   func doesNotMarkRejectedAnswer() {
-    let lines = [line("STARBUCKS", y: 0.2), line("Valid until 2026.12.31", y: 0.5)]
+    let lines = [line("GANADA CAFE", y: 0.2), line("Valid until 2026.12.31", y: 0.5)]
 
     let filled = fill(
       extract(lines),

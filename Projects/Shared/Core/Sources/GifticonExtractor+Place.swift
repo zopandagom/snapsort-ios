@@ -1,0 +1,123 @@
+import Foundation
+
+/// 교환처 규칙 (docs/ARCHITECTURE.md §4 기프티콘 추출).
+/// 교환처 라벨 줄이 있으면 라벨 값만 읽고, 없으면 줄 전체가 브랜드 목록(`GifticonBrand`)의 이름인 줄과 상품명 앞 괄호 브랜드("[스타벅스] 콜드 브루")로 찾는다.
+/// 틀린 교환처는 사실처럼 보이므로, 값이 다른 항목이나 안내문으로 보이거나 후보가 서로 다른 교환처면 비운다.
+extension GifticonExtractor {
+  /// 교환처 값의 최대 글자 수(공백 제외). 넘으면 안내문으로 본다. 임시 값이다.
+  static let maximumPlaceLength = 20
+  /// 라벨 뒤나 값에 있으면 교환처가 아니라 안내문으로 보는 말("교환처 사정에 따라 …", "… 수 있습니다"). 공백 없이 적는다.
+  static let noticeMarkers = ["에따라", "수있", "경우"]
+
+  /// 교환처 라벨 줄 중 안내문이 아닌 것. 라벨 뒤가 안내문이면("교환처 사정에 따라 변경될 수 있습니다") 라벨로 보지 않는다.
+  /// 모델 보강의 교환처 판단(`hasRuleRedemptionPlaceLabel`)도 같은 줄을 본다.
+  static func redemptionPlaceLabelLines(
+    _ lines: [RecognizedTextLine]
+  ) -> [(line: RecognizedTextLine, rest: Substring)] {
+    self.labeledLines(lines, labels: self.redemptionPlaceLabels).filter { !self.isNotice($0.rest) }
+  }
+
+  /// 교환처 라벨 줄이 있으면 OCR 순서로 보며 값을 처음 찾은 텍스트(라벨 뒤, 비었으면 라벨 오른쪽이나 아래 줄)이고, 없으면
+  /// 라벨 없는 교환처(`unlabeledRedemptionPlace`)다. 라벨이 있으면 값을 못 찾아도(로고라 읽은 글자가 없음) 라벨 없는 규칙을 쓰지 않는다.
+  /// 라벨 뒤에 글이 있으면 아래 줄을 보지 않는다. 값이 교환처로 보이지 않으면(`isPlaceValue`) 그 라벨 줄은 값을 못 찾은 것이다.
+  static func redemptionPlace(in lines: [RecognizedTextLine]) -> String? {
+    let labeled = self.redemptionPlaceLabelLines(lines)
+    guard !labeled.isEmpty else { return self.unlabeledRedemptionPlace(in: lines) }
+    for (label, rest) in labeled {
+      let value = self.cleanedValue(rest) ?? self.valueLine(of: label, in: lines).flatMap { self.cleanedValue($0.text) }
+      if let value, self.isPlaceValue(value) {
+        return value
+      }
+    }
+    return nil
+  }
+
+  /// 교환처로 볼 수 있는 값인지. 글자가 있고, 기준 길이 이하이며, 날짜·긴 숫자(쿠폰·주문 번호)가 없고, 다른 항목 단어
+  /// (`otherItemWords`, "주문번호 …")로 시작하지 않고, 안내문이 아니다.
+  static func isPlaceValue(_ value: String) -> Bool {
+    let compact = self.compact(value).lowercased()
+    return compact.contains(where: \.isLetter) && compact.count <= self.maximumPlaceLength
+      && DateMention.mentions(in: value).isEmpty && !compact.contains(#/\d{4}/#)
+      && !self.otherItemWords.contains { compact.hasPrefix($0) } && !self.isNotice(value)
+  }
+
+  /// 안내문인지: 띄어 쓴 여러 낱말이 문장 끝("…다", "…요")으로 끝나거나 안내문 표현(`noticeMarkers`)이 있다.
+  /// 한 낱말은 문장 끝으로 보지 않는다("다"로 끝나는 가게 이름 "커피에반하다").
+  static func isNotice(_ text: some StringProtocol) -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespaces)
+    let compact = self.compact(trimmed)
+    let ending = compact.trimmingCharacters(in: CharacterSet(charactersIn: ".!…)")).last
+    let isSentence = trimmed.contains(where: \.isWhitespace) && (ending == "다" || ending == "요")
+    return isSentence || self.noticeMarkers.contains { compact.contains($0) }
+  }
+
+  // MARK: - 라벨 없는 교환처
+
+  /// 라벨 없는 기프티콘의 교환처. 후보는 두 가지다.
+  /// - 줄 전체(앞뒤 기호 제외)가 브랜드 목록의 이름인 줄("스타벅스", "신세계이마트"). 안내문 속 브랜드("스타벅스 카드에 충전")는 아니다.
+  /// - 줄 맨 앞 괄호 안의 이름("[스타벅스] 콜드 브루 T")이 목록에 있거나, 같은 이름이 줄 전체인 줄이 따로 있다. 괄호만으로는
+  ///   받지 않는다("[단독]", "[1+1]").
+  /// 다른 후보에 포함되는 후보는 뺀다("신세계"·"신세계이마트" 면 "신세계이마트"). 남은 후보가 모두 같은 교환처(같은 브랜드, 목록에 없으면
+  /// 같은 이름)일 때만 가장 긴 이름의 원문 표기를 쓰고(같으면 OCR 순서로 앞), 서로 다른 교환처면("CU" 와 "GS25") 비운다.
+  static func unlabeledRedemptionPlace(in lines: [RecognizedTextLine]) -> String? {
+    let lineKeys = Set(lines.compactMap { self.placeKey(self.trimmedPlace($0.text)) })
+    var candidates: [PlaceCandidate] = []
+    for line in lines {
+      let text = self.trimmedPlace(line.text)
+      if let key = self.placeKey(text), let brand = GifticonBrand.index(of: key) {
+        candidates.append(PlaceCandidate(key: key, place: .brand(brand), text: text))
+      }
+      if let inner = self.bracketPrefix(line.text).map(self.trimmedPlace), let key = self.placeKey(inner) {
+        if let brand = GifticonBrand.index(of: key) {
+          candidates.append(PlaceCandidate(key: key, place: .brand(brand), text: inner))
+        } else if lineKeys.contains(key) {
+          candidates.append(PlaceCandidate(key: key, place: .name(key), text: inner))
+        }
+      }
+    }
+    let kept = candidates.filter { candidate in
+      !candidates.contains { $0.key != candidate.key && $0.key.contains(candidate.key) }
+    }
+    guard Set(kept.map(\.place)).count == 1 else { return nil }
+    let longest = kept.reduce(kept[0]) { $1.key.count > $0.key.count ? $1 : $0 }
+    return self.isPlaceValue(String(longest.text)) ? String(longest.text) : nil
+  }
+
+  private struct PlaceCandidate {
+    let key: String
+    let place: PlaceIdentity
+    let text: Substring
+  }
+
+  /// 같은 교환처인지 견주는 값. 목록 브랜드는 별칭이 달라도 같고, 목록에 없는 이름은 정규화한 이름이 같아야 같다.
+  private enum PlaceIdentity: Hashable {
+    case brand(Int)
+    case name(String)
+  }
+
+  /// 앞뒤의 글자·숫자 아닌 것(공백, 글머리 기호, 괄호)을 뺀 원문.
+  private static func trimmedPlace(_ text: some StringProtocol) -> Substring {
+    let isPlaceCharacter = { (character: Character) in character.isLetter || character.isNumber }
+    guard let start = text.firstIndex(where: isPlaceCharacter), let end = text.lastIndex(where: isPlaceCharacter) else {
+      return ""
+    }
+    return Substring(text[start ... end])
+  }
+
+  /// 공백을 지우고 소문자로 바꾼 대조 키. 글자가 없으면 nil.
+  private static func placeKey(_ text: Substring) -> String? {
+    let key = self.compact(text).lowercased()
+    return key.contains(where: \.isLetter) ? key : nil
+  }
+
+  /// 줄 맨 앞(앞쪽 공백 제외) 괄호 "[…]"·"【…】" 안의 텍스트. 괄호 뒤에 글자나 숫자(상품명)가 없으면 nil.
+  private static func bracketPrefix(_ text: String) -> Substring? {
+    let trimmed = text.drop(while: \.isWhitespace)
+    let brackets: [Character: Character] = ["[": "]", "【": "】"]
+    guard let open = trimmed.first, let close = brackets[open], let closeIndex = trimmed.firstIndex(of: close)
+    else { return nil }
+    let inner = trimmed[trimmed.index(after: trimmed.startIndex) ..< closeIndex]
+    let product = trimmed[trimmed.index(after: closeIndex)...]
+    return product.contains { $0.isLetter || $0.isNumber } ? inner : nil
+  }
+}

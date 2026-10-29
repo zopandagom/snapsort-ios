@@ -5,7 +5,8 @@ import Foundation
 /// 필드마다 값이 규칙에서 왔는지 언어 모델 답으로 채웠는지(`modelFilledFields`)를 함께 담아, 화면이 모델 값을 "추정"으로 보인다.
 public struct GifticonInfo: Sendable, Hashable {
   public let expiryDate: LocalDate?
-  /// 교환처 라벨 옆이나 아래에 적힌 텍스트(예: "스타벅스"). 브랜드 이름으로 정규화하지 않는다.
+  /// 교환처 라벨 옆이나 아래에 적힌 텍스트, 라벨이 없으면 브랜드 이름 줄이나 상품명 앞 괄호의 브랜드(예: "스타벅스").
+  /// 원문 표기 그대로이고 브랜드 이름으로 정규화하지 않는다.
   public let redemptionPlace: String?
   /// 언어 모델 답으로 채운 필드(`GifticonExtractor.filling`). 값이 nil 인 필드는 넣지 않는다(init 이 정규화).
   public let modelFilledFields: Set<Field>
@@ -42,7 +43,10 @@ public enum GifticonExtractor {
   /// 2: 기간의 끝을 놓쳐 시작을 쓰던 경로를 고쳤다(읽지 못한 끝은 비운다: 기호·잇는 말·"부터" 뒤 영문 날짜, "부터" 뒤 날짜 아닌 글,
   /// 기간 표시 이웃 줄 날짜 뒤 다른 글. 끝을 읽는다: 영문·한국어 잇는 말 "to"·"에서", 이웃 줄 영문 날짜 앞부분과 공백 없는
   /// "to2026.12.31", AM/PM·오전/오후 시각). 상세는 docs/ARCHITECTURE.md §4 기프티콘 추출 행.
-  public static let rulesVersion = 2
+  /// 3: 라벨 없는 교환처를 브랜드 목록·괄호 브랜드로 찾고(`GifticonExtractor+Place.swift`), 라벨 뒤 안내문과 다른 항목 값 줄은 비운다.
+  ///   라벨 판단이 바뀌어 모델 보강 대상도 바뀌지만, 이 버전으로 다시 추출한 행은 저장소가 보강 상태를 되돌려 다시 보강하므로
+  ///   `modelFillVersion` 은 올리지 않는다.
+  public static let rulesVersion = 3
 
   /// 만료일 라벨. 공백 없이 소문자로 적는다.
   static let expiryLabels = ["유효기간", "유효기한", "사용기한", "사용기간", "만료일", "만료일자"]
@@ -301,18 +305,6 @@ public enum GifticonExtractor {
     return self.isRange(from: mentions[index - 1].match, to: mentions[index].match, in: text)
   }
 
-  /// 교환처 라벨 줄을 OCR 순서로 보며 값을 처음 찾은 텍스트. 라벨 뒤 텍스트이고, 비었으면 라벨 오른쪽이나 아래 줄의 텍스트다.
-  private static func redemptionPlace(in lines: [RecognizedTextLine]) -> String? {
-    for (label, rest) in self.labeledLines(lines, labels: self.redemptionPlaceLabels) {
-      if let place = self.cleanedValue(rest) ?? self.valueLine(of: label, in: lines)
-        .flatMap({ self.cleanedValue($0.text) })
-      {
-        return place
-      }
-    }
-    return nil
-  }
-
   /// 라벨 중 하나로 시작하는 줄과, 그 줄에서 라벨 뒤의 원래 텍스트. OCR 순서대로다.
   static func labeledLines(
     _ lines: [RecognizedTextLine],
@@ -347,7 +339,7 @@ public enum GifticonExtractor {
   }
 
   /// 라벨 오른쪽 같은 높이의 줄, 없으면 라벨 바로 아래에서 가로로 겹치는 가장 가까운 줄.
-  private static func valueLine(of label: RecognizedTextLine, in lines: [RecognizedTextLine]) -> RecognizedTextLine? {
+  static func valueLine(of label: RecognizedTextLine, in lines: [RecognizedTextLine]) -> RecognizedTextLine? {
     let neighbors = self.neighborLines(of: label, in: lines)
     return neighbors.sameRow ?? neighbors.below
   }
