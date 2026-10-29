@@ -15,6 +15,7 @@ public enum Client: String, CaseIterable {
   case map = "Map"
   case pasteboard = "Pasteboard"
   case widgetTimeline = "WidgetTimeline"
+  case tripPlace = "TripPlace"
 
   public var interface: String { "\(self.rawValue)Interface" }
   public var impl: String { "\(self.rawValue)Impl" }
