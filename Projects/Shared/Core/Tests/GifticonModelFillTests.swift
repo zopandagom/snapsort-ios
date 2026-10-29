@@ -250,11 +250,11 @@ struct GifticonModelFillTests {
   @Test(
     "교환처는 줄 전체나 줄 앞 단어일 때 원문 표기로 받는다",
     arguments: [
-      ("스타벅스", "스타벅스", "스타벅스"),
-      ("메가MGC커피", "메가mgc커피", "메가MGC커피"),
+      ("가나다카페", "가나다카페", "가나다카페"),
+      ("가나GS커피", "가나gs커피", "가나GS커피"),
       ("CU 모바일 상품권 5,000원", "CU", "CU"),
       ("배스킨라빈스 파인트", "배스킨라빈스 파인트", "배스킨라빈스 파인트"),
-      ("■ 스타 벅스", "스타벅스", "스타 벅스"),
+      ("■ 가나 다카페", "가나다카페", "가나 다카페"),
     ]
   )
   func acceptsPlaceAtLineStart(text: String, answer: String, expected: String) {
@@ -281,10 +281,10 @@ struct GifticonModelFillTests {
 
   @Test("교환처 라벨 줄이 있으면 모델 교환처를 받지 않는다")
   func rejectsWhenPlaceLabelLineExists() {
-    let lines = [line("교환처", width: 0.2), line("스타벅스", y: 0.9)]
+    let lines = [line("교환처", width: 0.2), line("가나다카페", y: 0.9)]
 
     #expect(extract(lines).redemptionPlace == nil)
-    #expect(fillPlace("스타벅스", lines) == nil)
+    #expect(fillPlace("가나다카페", lines) == nil)
   }
 
   @Test("채울 필드가 없거나 막혀 있으면 모델에 묻지 않는다")
