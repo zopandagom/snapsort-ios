@@ -121,6 +121,13 @@ extension GifticonExtractorTests {
     #expect(extract([line("사용처 (일부 매장 제외)")]).redemptionPlace == nil)
   }
 
+  @Test("괄호로 시작하는 라벨 값은 덧말이 아니라 같은 줄 값으로 읽는다")
+  func readsValueStartingWithParenthesis() {
+    #expect(extract([line("교환처 : (주)가나다")]).redemptionPlace == "(주)가나다")
+    #expect(extract([line("교환처 (주)가나다", y: 0.5), line("아이스 라떼 T", y: 0.55)]).redemptionPlace == "(주)가나다")
+    #expect(extract([line("교환처 (주)가나다 (매장 사정에 따라 상이할 수 있습니다)")]).redemptionPlace == "(주)가나다")
+  }
+
   @Test("괄호 안내만 있는 라벨 줄은 라벨로 보지 않는다")
   func ignoresLabelWithOnlyRemark() {
     #expect(extract([line("교환처 (매장 사정에 따라 다름)")]).redemptionPlace == nil)
