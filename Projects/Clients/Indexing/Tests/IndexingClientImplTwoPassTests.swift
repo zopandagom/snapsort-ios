@@ -38,13 +38,13 @@ struct IndexingClientImplTwoPassTests {
   @Test("1단계는 대상 아님을 규칙 분류로, OCR 대상을 대기와 라벨만의 카테고리(기타 제외)로 저장하고, 2단계가 글자로 카테고리를 더한다")
   func storesPendingThenRecognized() async throws {
     let gift = ImageAsset.stub(id: "gift", isScreenshot: true)
-    let note = ImageAsset.stub(id: "note", isScreenshot: true)
+    let route = ImageAsset.stub(id: "route", isScreenshot: true)
     let blank = ImageAsset.stub(id: "blank", isScreenshot: true)
     let meal = ImageAsset.stub(id: "meal", coordinate: seoul)
     let fixture = Fixture(
-      library: [gift, note, blank, meal],
+      library: [gift, route, blank, meal],
       labels: [
-        "note": [ImageLabel(identifier: "receipt", confidence: 0.8)],
+        "route": [ImageLabel(identifier: "map", confidence: 0.8)],
         "meal": [ImageLabel(identifier: "food", confidence: 0.8)],
       ],
       text: ["gift": ["교환처 GS25", "유효기간 2026.12.31"]]
@@ -59,13 +59,13 @@ struct IndexingClientImplTwoPassTests {
     #expect(classified["meal"]?.categories == [.food])
     #expect(classified["gift"]?.textRecognition == .pending)
     #expect(classified["gift"]?.categories == [])
-    #expect(classified["note"]?.categories == [.receipt])
+    #expect(classified["route"]?.categories == [.map])
     #expect(classified["blank"]?.categories == [])
 
     let stored = Dictionary(uniqueKeysWithValues: fixture.store.images.map { ($0.id, $0) })
     #expect(stored["gift"]?.textLines?.map(\.text) == ["교환처 GS25", "유효기간 2026.12.31"])
     #expect(stored["gift"]?.categories == [.gifticon])
-    #expect(stored["note"]?.categories == [.receipt])
+    #expect(stored["route"]?.categories == [.map])
     // 글자를 읽어도 아무것도 못 찾은 이미지만 기타다.
     #expect(stored["blank"]?.textRecognition == .recognized([]))
     #expect(stored["blank"]?.categories == [.other])
