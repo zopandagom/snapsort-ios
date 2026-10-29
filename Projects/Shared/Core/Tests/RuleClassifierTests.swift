@@ -8,7 +8,6 @@ struct RuleClassifierTests {
     arguments: [
       ("coupon", ImageCategory.gifticon),
       ("gift_card", .gifticon),
-      ("receipt", .receipt),
       ("shopping_cart", .shopping),
       ("map", .map),
     ]
@@ -191,11 +190,11 @@ struct RuleClassifierTests {
   func classifiesMultipleCategories() {
     let categories = RuleClassifier.classify(
       asset: photo,
-      labels: [label("receipt"), label("food"), label("people")],
+      labels: [label("map"), label("food"), label("people")],
       textLines: []
     )
 
-    #expect(categories == [.receipt, .food, .people])
+    #expect(categories == [.map, .food, .people])
   }
 
   @Test("어떤 규칙에도 맞지 않으면 기타다")
@@ -224,6 +223,7 @@ struct RuleClassifierTests {
     "라벨이 같으면 OCR 전 결과에 줄을 더해도 기타 밖의 카테고리가 빠지지 않는다",
     arguments: [
       (screenshot, ["receipt"]),
+      (screenshot, ["map"]),
       (screenshot, ["screenshot"]),
       (photo, ["food"]),
       (photo, ["document", "dog"]),
