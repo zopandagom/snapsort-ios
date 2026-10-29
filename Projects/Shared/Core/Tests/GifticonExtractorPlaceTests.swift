@@ -59,6 +59,10 @@ extension GifticonExtractorTests {
   func clearsConflictingBrands() {
     #expect(extract([line("CU", y: 0.3), line("GS25", y: 0.4)]).redemptionPlace == nil)
     #expect(extract([line("스타벅스", y: 0.3), line("[투썸] 케이크", y: 0.4)]).redemptionPlace == nil)
+    // 이름만 겹치는 다른 교환처는 포함 후보로 빼지 않는다.
+    #expect(extract([line("이마트", y: 0.3), line("이마트24", y: 0.4)]).redemptionPlace == nil)
+    // 같은 교환처의 짧은 별칭은 뺀다.
+    #expect(extract([line("투썸", y: 0.3), line("투썸플레이스", y: 0.4)]).redemptionPlace == "투썸플레이스")
   }
 
   @Test("교환처 라벨이 있으면 라벨 값만 쓰고 라벨 없는 규칙은 쓰지 않는다")
