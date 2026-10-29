@@ -53,6 +53,17 @@ struct RuleClassifierWeakLabelTests {
     #expect(categories == [.other])
   }
 
+  /// 기프티콘·쇼핑 라벨은 실기기 보관함에 붙은 이미지가 없어 근거 없이 기준을 올리지 않는다. 기프티콘이 빠지면 만료 알림도 빠진다.
+  @Test(
+    "기프티콘·쇼핑 라벨은 분류 신뢰도 기준만 넘으면 라벨만으로 정한다",
+    arguments: [("coupon", ImageCategory.gifticon), ("gift_card", .gifticon), ("shopping_cart", .shopping)]
+  )
+  func weakGifticonAndShoppingLabelsClassifyAlone(identifier: String, expected: ImageCategory) {
+    let labels = [ImageLabel(identifier: identifier, confidence: ClassificationRules.minimumLabelConfidence)]
+
+    #expect(RuleClassifier.classify(asset: screenshot, labels: labels, textLines: []) == [expected])
+  }
+
   @Test("지도 라벨은 기준 이상이면 라벨만으로, 미만이면 키워드 하나와 함께일 때 지도다")
   func weakMapLabelNeedsKeyword() throws {
     let minimum = try #require(ClassificationRules.informationRules.first { $0.category == .map }?
