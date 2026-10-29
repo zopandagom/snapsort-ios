@@ -28,6 +28,12 @@ struct ModelCategoryPolicyTests {
     #expect(ModelCategoryPolicy.accepted(others.union([category]), textLines: lines) == [category])
   }
 
+  /// 규칙은 영문 영수증 키워드 하나만으로는 영수증이 아니지만, 모델이 영수증을 제안하면 그 하나가 근거가 된다(한계, docs/ARCHITECTURE.md §4).
+  @Test("영문 영수증 키워드 하나도 모델 영수증 제안의 근거가 된다", arguments: ["Subtotal 12.00", "Your receipts"])
+  func acceptsReceiptWithOneEnglishKeyword(text: String) {
+    #expect(ModelCategoryPolicy.accepted([.receipt], textLines: [line("Order summary"), line(text)]) == [.receipt])
+  }
+
   @Test("대화는 말풍선 시각 줄이 하나 이상일 때만 더한다")
   func acceptsChatWithTimestampLine() {
     let timestamp = [line("내일 몇 시에 볼까"), line("오후 3:12")]
