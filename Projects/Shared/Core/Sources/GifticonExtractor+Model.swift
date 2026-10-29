@@ -292,10 +292,12 @@ extension GifticonExtractor {
 
   /// 모델이 교환처로 답한 텍스트를 원문으로 확인한 교환처. 날짜가 없는 줄(만료일 라벨 줄 아님)의 전체이거나 줄 앞 단어일 때
   /// 그 줄의 원문 표기를 돌려준다. 문장 속 상호("…애플스토어에서 사용"), 원문에 없는 상호, 날짜나 긴 숫자(쿠폰 번호)가 든 답은 nil.
+  /// 라벨 낱말로 시작하는 답("교환처", "교환처 사정에")도 nil 이다(안내문 라벨 줄 "교환처 사정에 따라 …" 의 줄 앞 단어와 맞아 확인을 통과한다).
   static func modelRedemptionPlace(answer: String, lines: [RecognizedTextLine]) -> String? {
     guard !self.hasRuleRedemptionPlaceClue(lines), let value = self.cleanedValue(answer),
           value.contains(where: \.isLetter), self.compact(value).count <= self.maximumModelPlaceLength,
-          DateMention.mentions(in: value).isEmpty, !self.compact(value).contains(#/\d{4}/#)
+          DateMention.mentions(in: value).isEmpty, !self.compact(value).contains(#/\d{4}/#),
+          !(self.redemptionPlaceLabels + self.expiryLabels).contains(where: { self.text(after: $0, in: value) != nil })
     else { return nil }
     let needle = self.foldedCharacters(value).map(\.character)
     let expiryLabelLines = Set(self.labeledLines(lines, labels: self.expiryLabels).map(\.line))
