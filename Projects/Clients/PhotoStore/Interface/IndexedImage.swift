@@ -9,7 +9,7 @@ public struct IndexedImage: Sendable, Hashable, Identifiable {
   /// OCR 상태. 인덱서는 분류를 먼저 저장하고(OCR 대상은 `.pending`) 글자는 나중에 읽어 `.recognized` 로 바꾼다.
   public let textRecognition: TextRecognition
   /// 규칙 분류기가 정한 카테고리. 여행은 여행 판정이 정해 `trips()` 로 다루므로, `.travel` 을 넣어도 저장하지 않는다.
-  /// `.pending` 이면 라벨만으로 나온 카테고리에서 `.other` 를 뺀 것이다(글자를 읽으면 더해지기만 한다).
+  /// `.pending` 이면 라벨만으로 나온 카테고리에서 `.other` 를 뺀 것이다(같은 규칙 안에서는 글자를 읽으면 더해지기만 한다. docs/ARCHITECTURE.md §4 저장소).
   public let categories: Set<ImageCategory>
   /// 기프티콘 추출 값. nil 이면 추출하지 않았다(기프티콘 아님·OCR 전·지금 규칙 버전으로 추출 전).
   /// 추출했는데 못 찾은 값은 `GifticonInfo` 의 그 필드가 nil 이다.
