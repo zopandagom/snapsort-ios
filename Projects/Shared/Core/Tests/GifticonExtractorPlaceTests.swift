@@ -101,6 +101,26 @@ extension GifticonExtractorTests {
     #expect(extract([line("교환처 \(text)")]).redemptionPlace == nil)
   }
 
+  @Test(
+    "라벨 값 뒤 괄호 안내는 라벨을 막지 않고 괄호 앞 값을 쓴다",
+    arguments: [
+      ("교환처 : 이마트 (매장 사정에 따라 상이할 수 있습니다)", "이마트"),
+      ("사용처 : CU (재고가 없는 경우 다른 상품으로 교환)", "CU"),
+      ("교환처 : CU (일부 매장 제외)", "CU (일부 매장 제외)"),
+    ]
+  )
+  func readsValueBeforeRemark(text: String, expected: String) {
+    #expect(extract([line(text)]).redemptionPlace == expected)
+    let valueBelow = String(text.drop { $0 != ":" }.dropFirst())
+    #expect(extract([line("교환처", y: 0.5), line(valueBelow, y: 0.55)]).redemptionPlace == expected)
+  }
+
+  @Test("괄호 안내만 있는 라벨 줄은 라벨로 보지 않는다")
+  func ignoresLabelWithOnlyRemark() {
+    #expect(extract([line("교환처 (매장 사정에 따라 다름)")]).redemptionPlace == nil)
+    #expect(extract([line("스타벅스", y: 0.3), line("교환처 (매장 사정에 따라 다름)", y: 0.7)]).redemptionPlace == "스타벅스")
+  }
+
   @Test("'다'·'요'로 끝나는 한 낱말 가게 이름은 안내문으로 보지 않는다")
   func keepsSingleWordPlaceEndingInSentenceEnding() {
     #expect(extract([line("교환처 가나다하다")]).redemptionPlace == "가나다하다")
