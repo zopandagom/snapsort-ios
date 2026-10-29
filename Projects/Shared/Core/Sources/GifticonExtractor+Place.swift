@@ -57,7 +57,8 @@ extension GifticonExtractor {
   /// - 줄 전체(앞뒤 기호 제외)가 브랜드 목록의 이름인 줄("스타벅스", "신세계이마트"). 안내문 속 브랜드("스타벅스 카드에 충전")는 아니다.
   /// - 줄 맨 앞 괄호 안의 이름("[스타벅스] 콜드 브루 T")이 목록에 있거나, 같은 이름이 줄 전체인 줄이 따로 있다. 괄호만으로는
   ///   받지 않는다("[단독]", "[1+1]").
-  /// 다른 후보에 포함되는 후보는 뺀다("신세계"·"신세계이마트" 면 "신세계이마트"). 남은 후보가 모두 같은 교환처(같은 브랜드, 목록에 없으면
+  /// 다른 후보에 포함되는 후보는 같은 교환처이거나 긴 이름의 나머지가 그 브랜드 별칭일 때만 뺀다("신세계"·"신세계이마트" 면
+  /// "신세계이마트". "이마트"·"이마트24" 는 빼지 않는다, `isSubsumed`). 남은 후보가 모두 같은 교환처(같은 브랜드, 목록에 없으면
   /// 같은 이름)일 때만 가장 긴 이름의 원문 표기를 쓰고(같으면 OCR 순서로 앞), 서로 다른 교환처면("CU" 와 "GS25") 비운다.
   static func unlabeledRedemptionPlace(in lines: [RecognizedTextLine]) -> String? {
     let kept = self.unlabeledPlaceCandidates(in: lines)
@@ -85,8 +86,22 @@ extension GifticonExtractor {
       }
     }
     return candidates.filter { candidate in
-      !candidates.contains { $0.key != candidate.key && $0.key.contains(candidate.key) }
+      !candidates.contains { self.isSubsumed(candidate, by: $0) }
     }
+  }
+
+  /// `candidate` 가 `other` 이름에 포함돼 뺄 후보인지. 같은 교환처("투썸" ⊂ "투썸플레이스")이거나, `other` 이름에서 `candidate` 이름을
+  /// 뺀 나머지가 `other` 브랜드의 별칭일 때다("신세계이마트" 에서 "신세계" 를 빼면 이마트의 "이마트"). 이름만 겹치는 다른 교환처
+  /// ("이마트" ⊂ "이마트24", 나머지 "24")는 빼지 않아 서로 다른 교환처로 비운다.
+  private static func isSubsumed(_ candidate: PlaceCandidate, by other: PlaceCandidate) -> Bool {
+    guard other.key != candidate.key, let range = other.key.range(of: candidate.key) else { return false }
+    if other.place == candidate.place {
+      return true
+    }
+    var remainder = other.key
+    remainder.removeSubrange(range)
+    guard case let .brand(brand) = other.place else { return false }
+    return GifticonBrand.index(of: remainder) == brand
   }
 
   struct PlaceCandidate {
