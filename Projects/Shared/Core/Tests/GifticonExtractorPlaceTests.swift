@@ -170,10 +170,17 @@ extension GifticonExtractorTests {
     #expect(GifticonExtractor.needsModelFill(missingPlace, textLines: bracketOnly))
   }
 
-  @Test("안내문 라벨 줄이 있어도 라벨 낱말로 시작하는 모델 답은 교환처로 받지 않는다", arguments: ["교환처", "교환처 사정에", "유효기간"])
+  @Test(
+    "안내문 라벨 줄이 있어도 라벨 낱말로 시작하는 모델 답은 교환처로 받지 않는다",
+    arguments: ["교환처", "교환처 사정에", "교환처의 사정에", "유효기간", "유효기간이"]
+  )
   func rejectsLabelWordModelAnswer(_ answer: String) {
     let missingPlace = GifticonInfo(expiryDate: LocalDate(year: 2026, month: 12, day: 31), redemptionPlace: nil)
-    let lines = [line("교환처 사정에 따라 변경될 수 있습니다", y: 0.5), line("유효기간 안내", y: 0.6)]
+    let lines = [
+      line("교환처 사정에 따라 변경될 수 있습니다", y: 0.5),
+      line("교환처의 사정에 따라 품절될 수 있습니다", y: 0.55),
+      line("유효기간이 지난 상품은 사용할 수 없습니다", y: 0.6),
+    ]
 
     #expect(GifticonExtractor.needsModelFill(missingPlace, textLines: lines))
     let filled = GifticonExtractor.filling(
