@@ -7,8 +7,8 @@ import PhotoStoreInterface
 
 extension TripDetailModel {
   /// 이름 응답을 기다리는 시간. 넘으면 이름 없이 기간을 제목으로 보인다(요청은 계속 가고 끝나면 캐시에 쓴다).
-  /// 오프라인에서 오는 오류·시간을 실기기에서 확인하지 못해 임시로 둔 값이다.
-  static let defaultPlaceNameTimeout: Duration = .seconds(15)
+  /// 미리 받기와 같은 값이다(`PlaceNameTiming.timeout`, 임시 값).
+  static let defaultPlaceNameTimeout = PlaceNameTiming.timeout
 }
 
 /// 이름 루프에 넣는 요청. 캐시를 읽은 로캘로 묻는다.

@@ -12,10 +12,12 @@ import SwiftUI
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
 /// - 저장소 변경(`LibraryModel.storeRevision`) → 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 목록·여행 폴더 상세·사진 상세·검색 결과·정리 화면·최근 스크린샷 화면의 다시
 /// 읽기
+/// - 장소 캐시 쓰기(`LibraryModel.placeRevision`, 장소 이름 미리 받기) → 여행 폴더 목록·여행 폴더 상세·검색 결과의 다시 읽기
 /// - 대표 사진 변경(`LibraryModel.coverIDs`) → 카드 대표 썸네일 읽기·놓기(`LibraryCoverModel.coversChanged`)
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
 /// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근
 /// 스크린샷 화면)
+/// - 기기 로캘 변경 → 장소 이름 미리 받기(`LibraryModel.localeChanged`)
 public struct LibraryView: View {
   let model: LibraryModel
   let coverModel: LibraryCoverModel
@@ -127,6 +129,12 @@ public struct LibraryView: View {
       self.cleanupModel.libraryStoreChanged()
       self.captureInboxModel.libraryStoreChanged()
     }
+    // 장소 캐시를 읽는 화면만 다시 읽는다. 닫혀 있으면 각 Model 이 버린다.
+    .onChange(of: self.model.placeRevision) {
+      self.tripListModel.libraryStoreChanged()
+      self.tripDetailModel.libraryStoreChanged()
+      self.searchModel.libraryStoreChanged()
+    }
     // 상세를 닫은 뒤 끝난 쓰기도 오른다. 같은 사진을 닫았다 바로 다시 열어 경로의 옛 값을 보이는 상세도 다시 읽어 맞춘다.
     // 사용 여부 쓰기는 `storeRevision` 을 올리지 않으므로, 정리 화면에서 연 상세에서 바꾼 기프티콘이 만료됨 ↔ 사용함 섹션을 옮기도록 정리 화면도 맞춘다.
     .onChange(of: self.captureActionsModel.usageRevision) {
@@ -148,12 +156,16 @@ public struct LibraryView: View {
       self.cleanupModel.dayChanged()
       self.captureInboxModel.dayChanged()
     }
-    // 아래 두 알림 모두 백그라운드 큐에서 post 해도 `.onReceive` 의 action 은 메인에서 돈다(iOS 26.5 시뮬레이터 실험으로 확인).
+    // 아래 알림 모두 백그라운드 큐에서 post 해도 `.onReceive` 의 action 은 메인에서 돈다(iOS 26.5 시뮬레이터 실험으로 확인).
     .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
       self.dayChanged()
     }
     .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
       self.dayChanged()
+    }
+    // 이 알림이 앱 복귀보다 먼저 오는지 확인하지 못해 복귀(`sceneBecameActive`)와 둘 다 계기로 둔다.
+    .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in
+      self.model.localeChanged()
     }
   }
 

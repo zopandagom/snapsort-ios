@@ -3,6 +3,16 @@ import ProjectDescriptionHelpers
 
 let project = Project.feature(
   .library,
-  clients: [.photoLibrary, .indexing, .photoStore, .notification, .imageAnalysis, .map, .pasteboard, .widgetTimeline],
+  clients: [
+    .photoLibrary,
+    .indexing,
+    .photoStore,
+    .notification,
+    .imageAnalysis,
+    .map,
+    .pasteboard,
+    .widgetTimeline,
+    .tripPlace,
+  ],
   shared: [.core, .designSystem]
 )

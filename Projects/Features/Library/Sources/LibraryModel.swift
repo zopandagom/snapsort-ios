@@ -5,6 +5,7 @@ import NotificationInterface
 import Observation
 import PhotoLibraryInterface
 import PhotoStoreInterface
+import TripPlaceInterface
 import WidgetTimelineInterface
 
 /// 이미지 보관함 화면의 상태와 로직.
@@ -44,22 +45,14 @@ public final class LibraryModel {
   /// 결과·정리 화면·최근 스크린샷 화면이
   /// 이 변화로 다시 읽는다(LibraryView 가 CategoryModel·GifticonListModel·ReceiptListModel·CaptureActionsModel·TripListModel·
   /// TripDetailModel·SearchModel·CleanupModel·CaptureInboxModel 에 넘긴다).
-  /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다.
+  /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다. 장소 이름 미리 받기의 캐시 쓰기는 `placeRevision` 으로 따로 알린다.
   public private(set) var storeRevision = 0
+  /// 장소 이름 미리 받기(`TripPlaceClient`)가 장소 캐시에 쓸 때마다 하나씩 오른다. LibraryView 가 장소 캐시를 읽는 여행 폴더 목록·
+  /// 여행 폴더 상세·검색 결과에만 넘긴다(`storeRevision` 은 캐시를 읽지 않는 화면까지 다시 읽게 해 쓰지 않는다).
+  public private(set) var placeRevision = 0
 
   /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
   static let coverLimit = 4
-
-  /// "만료 알림 받기" 버튼을 보일지.
-  public var showsExpiryReminderButton: Bool {
-    self.notificationAuthorization == .notDetermined && self.hasPlannedReminder
-      && !self.isRequestingNotificationAuthorization
-  }
-
-  /// "설정에서 알림 켜기"를 보일지: 알림을 거부했고 지금 예약할 알림이 있다.
-  public var showsNotificationSettingsButton: Bool {
-    self.notificationAuthorization == .denied && self.hasPlannedReminder
-  }
 
   /// 개수가 아니라 식별자 집합으로 들고 있어, 처음 조회 결과와 겹치는 변경이 와도 두 번 세지 않는다.
   @ObservationIgnored private var imageIDs: Set<ImageAsset.ID> = [] {
@@ -79,6 +72,7 @@ public final class LibraryModel {
   @ObservationIgnored private var authorizationRequestCount = 0
   /// 이 Model 이 마지막으로 위젯 갱신을 요청할 때의 요약. nil 이면 아직 요청하지 않았다. 값이 같으면 다시 요청하지 않는다.
   @ObservationIgnored private var requestedWidgetSummaries: [ExpiryWidgetSummary]?
+  @ObservationIgnored private let placePrefetch: LibraryPlacePrefetch
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
@@ -98,16 +92,20 @@ public final class LibraryModel {
   ///   - notification: 만료 알림. 저장소가 없거나 이것이 nil 이면 알림을 예약하지 않고 버튼도 보이지 않는다.
   ///   - widgetTimeline: 만료 임박 위젯 갱신 요청. 만료 알림 동기화가 위젯에 보일 값이 바뀐 것을 볼 때만 요청한다.
   ///   알림이나 저장소가 없으면 동기화가 돌지 않으므로 위젯 갱신도 하지 않는다.
+  ///   - tripPlace: 여행 장소 이름 미리 받기. 1단계(분류)를 마친 뒤 계기마다 회차를 돌린다. 저장소가 없으면 App 이 nil 을 넘긴다.
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
+  ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
   public init(
     photoLibrary: any PhotoLibraryClient,
     indexing: (any IndexingClient)?,
     photoStore: (any PhotoStoreClient)?,
     notification: (any NotificationClient)?,
     widgetTimeline: (any WidgetTimelineClient)?,
+    tripPlace: (any TripPlaceClient)?,
     calendar: Calendar = .autoupdatingCurrent,
-    now: @escaping @Sendable () -> Date = { Date() }
+    now: @escaping @Sendable () -> Date = { Date() },
+    locale: @escaping @Sendable () -> Locale = { .current }
   ) {
     self.photoLibrary = photoLibrary
     self.indexing = indexing
@@ -116,18 +114,20 @@ public final class LibraryModel {
     self.widgetTimeline = widgetTimeline
     self.calendar = calendar
     self.now = now
+    self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
     self.isLimited = photoLibrary.accessState() == .limited
   }
 
   // MARK: - Events
 
-  /// 이미지 수 관찰, 분류 인덱싱, 만료 알림 동기화를 함께 시작한다.
+  /// 이미지 수 관찰, 분류 인덱싱, 만료 알림 동기화, 장소 이름 미리 받기를 함께 시작한다.
   /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 모두 끝난다.
   public func onAppear() async {
     await withDiscardingTaskGroup { group in
       group.addTask { await self.observeImages() }
       group.addTask { await self.runIndexing() }
       group.addTask { await self.runReminderSync() }
+      group.addTask { await self.placePrefetch.run { self.placeRevision += 1 } }
     }
   }
 
@@ -169,8 +169,15 @@ public final class LibraryModel {
 
   /// 앱이 앞으로 돌아왔다(scenePhase `.active`). 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
   /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
+  /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다).
   public func sceneBecameActive() {
     self.requestReminderSync()
+    self.placePrefetch.request()
+  }
+
+  /// 기기 로캘이 바뀌었다. 도는 미리 받기 회차를 멈추고(진행 중 요청은 끝까지 간다) 새 로캘로 회차를 요청한다.
+  public func localeChanged() {
+    self.placePrefetch.localeChanged()
   }
 
   /// 기프티콘 사용 여부가 바뀌었다. 사용한 기프티콘은 알리지 않으므로 만료 알림을 다시 맞춘다.
@@ -234,6 +241,7 @@ public final class LibraryModel {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
+      self.placePrefetch.indexingProgressChanged(phase: progress.phase)
       // 개수·대표를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)

@@ -7,6 +7,7 @@ import PhotoLibraryInterface
 import PhotoLibraryTesting
 import PhotoStoreTesting
 import SwiftUI
+import TripPlaceTesting
 
 // 보관함 화면·카테고리 화면·사진 상세 Preview. 데모 앱 본문은 LibraryFeatureExampleApp.swift 에 있다.
 
@@ -24,7 +25,8 @@ private func libraryPreview(
       indexing: indexing,
       photoStore: photoStore,
       notification: notification,
-      widgetTimeline: nil
+      widgetTimeline: nil,
+      tripPlace: TripPlaceClientFake()
     ),
     coverModel: LibraryCoverModel(photoLibrary: photoLibrary),
     categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),

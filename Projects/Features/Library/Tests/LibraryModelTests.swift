@@ -242,7 +242,8 @@ func libraryModel(
     indexing: indexing,
     photoStore: photoStore,
     notification: nil,
-    widgetTimeline: nil
+    widgetTimeline: nil,
+    tripPlace: nil
   )
 }
 

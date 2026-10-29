@@ -8,9 +8,9 @@ import PhotoStoreInterface
 /// 여행 사진 격자, 그 기간의 영수증·지도·문서 캡처 묶음, 장소 이름, 반올림 중심점 지도를 보인다. 상세 화면은 한 번에 하나만 열리므로
 /// App 이 하나를 소유한다. 여행 판정은 저장소가 바뀔 때마다 다시 돌아 같은 여행도 값이 바뀌므로, 다시 읽을 때 사진이 가장 많이 겹치는
 /// 여행(`Trip.bestMatch(in:)`)을 같은 여행으로 본다.
-/// 장소 이름은 이 화면을 열 때만, 여행 중심점의 반올림 좌표(`Trip.placeKey`)로만 묻는다(`MapClient.placeName(near:locale:)`).
-/// 받은 이름·시간대는 저장소에 캐시하고, 시간대를 받으면 다시 읽어 기간·캡처를 여행지 시간대로 다시 계산한다(`TripPeriod`).
-/// 저장소 변경·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
+/// 장소 이름은 캐시에 없을 때만, 여행 중심점의 반올림 좌표(`Trip.placeKey`)로만 묻는다(`MapClient.placeName(near:locale:)`).
+/// 받은 이름·시간대는 저장소에 캐시하고(미리 받기 `TripPlaceClient` 도 쓴다), 시간대를 받으면 다시 읽어 기간·캡처를 다시 계산한다.
+/// 저장소 변경(장소 캐시 쓰기 포함)·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다.
 @MainActor
 @Observable
 public final class TripDetailModel {
@@ -56,7 +56,7 @@ public final class TripDetailModel {
 
   /// - Parameters:
   ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 카드가 없어 이 화면에 오지 않는다).
-  ///   - map: 장소 이름을 묻는다. 이 화면을 열 때 여행 중심점의 반올림 좌표로만 부른다.
+  ///   - map: 장소 이름을 묻는다. 이 화면에서 캐시에 이름이 없을 때 여행 중심점의 반올림 좌표로만 부른다.
   ///   - calendar: 기기 달력. 읽을 때와 `dayChanged()` 때 부른다. 시간대를 모르는 여행의 기간을 이 시간대로 계산한다(`TripPeriod`).
   ///   - locale: 장소 이름의 로캘. 읽을 때마다 한 번 부른다.
   public convenience init(
@@ -252,7 +252,7 @@ public final class TripDetailModel {
   }
 
   /// 캐시에 이름이 있으면 그것을 쓴다. 없으면 이 방문에서 그 키로 받은 결과를 다시 쓰고, 처음 보는 키는 묻고, 묻는 중이던 키는
-  /// 진행 중 요청을 이어받거나 다시 묻는다. 이름은 늘 지금 키의 값이다.
+  /// 진행 중 요청을 이어받거나 다시 묻는다. 이름은 늘 지금 키·로캘의 값이다.
   private func updatePlaceName(key: RoundedCoordinate?, cached: CachedPlaceName?, localeIdentifier: String) {
     guard let key else {
       self.setPlaceName(.unavailable, for: nil)
@@ -313,11 +313,11 @@ extension TripDetailModel {
     waiting?.cancel()
   }
 
-  /// 이름을 묻고 응답이나 시한 중 먼저 오는 것을 반영한다. 기다림이 멈추면(화면이 닫힘, 키가 바뀜) 아무것도 바꾸지 않고
-  /// 요청은 끝까지 가서 캐시에 쓴다. 같은 진입에서 받은 결과는 키가 바뀌었어도 그 키의 결과로 기억한다.
+  /// 이름을 묻고 응답이나 시한 중 먼저 오는 것을 반영한다. 기다림이 멈추면(화면이 닫힘, 키·로캘이 바뀜) 아무것도 바꾸지 않고
+  /// 요청은 끝까지 가서 캐시에 쓴다. 같은 진입에서 받은 결과는 키·로캘이 바뀌었어도 그 요청의 결과로 기억하고, 이름에는 반영하지 않는다.
   private func resolvePlaceName(_ request: TripPlaceRequest, photoStore: any PhotoStoreClient, generation: Int) async {
-    // 지금 키가 아니거나 이 방문에서 이미 결과를 받은 요청이면 묻지 않는다.
-    guard !Task.isCancelled, self.currentTrip?.placeKey == request.key,
+    // 지금 이름의 주인(키·로캘)이 아니거나 이 방문에서 이미 결과를 받은 요청이면 묻지 않는다.
+    guard !Task.isCancelled, self.placeNameRequest == request,
           self.visitPlaces[request] == .loading else { return }
     let inFlight = self.sharedOrNewRequest(request, photoStore: photoStore)
     let outcome = await TripPlaceOutcome.first(of: inFlight.task, until: inFlight.startedAt + self.placeNameTimeout)
@@ -327,7 +327,7 @@ extension TripDetailModel {
     case .failed: .unavailable
     }
     self.visitPlaces[request] = state
-    guard self.currentTrip?.placeKey == request.key else { return }
+    guard self.placeNameRequest == request else { return }
     self.setPlaceName(state, for: request)
     // 시간대를 받았으면 다시 읽어 캐시의 시간대로 기간·캡처를 다시 계산한다. 항목이 없으면(nil) 캐시가 없어 대체 규칙 그대로다.
     if case let .found(info) = outcome, info?.timeZoneIdentifier != nil {
