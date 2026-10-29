@@ -10,7 +10,7 @@ public protocol MapClient: Sendable {
   func openInMaps(address: String) async -> Bool
 
   /// 반올림 중심점 근처 장소. 항목이 없으면(`placemarkNotFound`) nil, 요청 실패는 던진다.
-  /// 여행 폴더 상세를 열 때 그 여행 중심점으로만 부른다. 좌표·이름은 로그에 남기지 않는다.
+  /// 여행 중심점으로만 부른다(여행 폴더 상세, 미리 받기 TripPlace). 좌표·이름은 로그에 남기지 않는다.
   /// 받은 Task 가 취소돼도 요청은 끝까지 간다(MapKit 이 취소를 받지 않는다).
   func placeName(near coordinate: RoundedCoordinate, locale: Locale) async throws(PlaceNameError) -> PlaceInfo?
 }
