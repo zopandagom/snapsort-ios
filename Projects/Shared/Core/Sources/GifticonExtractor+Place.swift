@@ -10,26 +10,44 @@ extension GifticonExtractor {
   static let noticeMarkers = ["에따라", "수있", "경우"]
 
   /// 교환처 라벨 줄 중 안내문이 아닌 것. 라벨 뒤가 안내문이면("교환처 사정에 따라 변경될 수 있습니다") 라벨로 보지 않는다.
+  /// 첫 여는 괄호 앞부분으로 판단해, 값 뒤에 붙은 괄호 덧말("교환처 : 이마트 (매장 사정에 따라 상이할 수 있습니다)")은 라벨을 막지 않는다.
+  /// 괄호 앞에 글이 없으면 전체로 판단한다("교환처 (매장 사정에 따라 다름)").
   /// 모델 보강의 교환처 판단(`hasRuleRedemptionPlaceClue`)도 같은 줄을 본다.
   static func redemptionPlaceLabelLines(
     _ lines: [RecognizedTextLine]
   ) -> [(line: RecognizedTextLine, rest: Substring)] {
-    self.labeledLines(lines, labels: self.redemptionPlaceLabels).filter { !self.isNotice($0.rest) }
+    self.labeledLines(lines, labels: self.redemptionPlaceLabels).filter { _, rest in
+      let head = self.beforeRemark(rest)
+      return !self.isNotice(head.contains { $0.isLetter || $0.isNumber } ? head : rest)
+    }
   }
 
   /// 교환처 라벨 줄이 있으면 OCR 순서로 보며 값을 처음 찾은 텍스트(라벨 뒤, 비었으면 라벨 오른쪽이나 아래 줄)이고, 없으면
   /// 라벨 없는 교환처(`unlabeledRedemptionPlace`)다. 라벨이 있으면 값을 못 찾아도(로고라 읽은 글자가 없음) 라벨 없는 규칙을 쓰지 않는다.
-  /// 라벨 뒤에 글이 있으면 아래 줄을 보지 않는다. 값이 교환처로 보이지 않으면(`isPlaceValue`) 그 라벨 줄은 값을 못 찾은 것이다.
+  /// 라벨 뒤에 글이 있으면 아래 줄을 보지 않는다. 값이 교환처로 보이지 않으면(`labeledPlaceValue`) 그 라벨 줄은 값을 못 찾은 것이다.
   static func redemptionPlace(in lines: [RecognizedTextLine]) -> String? {
     let labeled = self.redemptionPlaceLabelLines(lines)
     guard !labeled.isEmpty else { return self.unlabeledRedemptionPlace(in: lines) }
     for (label, rest) in labeled {
-      let value = self.cleanedValue(rest) ?? self.valueLine(of: label, in: lines).flatMap { self.cleanedValue($0.text) }
-      if let value, self.isPlaceValue(value) {
-        return value
+      let text = self.cleanedValue(rest) != nil
+        ? Substring(rest)
+        : self.valueLine(of: label, in: lines).map { Substring($0.text) }
+      if let place = text.flatMap(self.labeledPlaceValue) {
+        return place
       }
     }
     return nil
+  }
+
+  /// 라벨 값 텍스트의 교환처. 전체가 교환처로 보이면(`isPlaceValue`) 전체("CU (일부 매장 제외)"), 아니면 첫 여는 괄호 앞부분
+  /// ("이마트 (매장 사정에 따라 상이할 수 있습니다)" 의 "이마트")이고, 둘 다 아니면 nil.
+  private static func labeledPlaceValue(_ text: Substring) -> String? {
+    [text, self.beforeRemark(text)].lazy.compactMap { self.cleanedValue($0) }.first(where: self.isPlaceValue)
+  }
+
+  /// 첫 여는 괄호("(", "（") 앞부분. 괄호가 없으면 전체.
+  private static func beforeRemark(_ text: Substring) -> Substring {
+    text[..<(text.firstIndex { "(（".contains($0) } ?? text.endIndex)]
   }
 
   /// 교환처로 볼 수 있는 값인지. 글자가 있고, 기준 길이 이하이며, 날짜·긴 숫자(쿠폰·주문 번호)가 없고, 다른 항목 단어
