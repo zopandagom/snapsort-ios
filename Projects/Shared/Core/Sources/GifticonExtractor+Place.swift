@@ -77,9 +77,9 @@ extension GifticonExtractor {
   }
 
   /// 안내문인지: 띄어 쓴 여러 낱말이 문장 끝("…다", "…요")으로 끝나거나 안내문 표현(`noticeMarkers`)이 있다.
-  /// 한 낱말은 문장 끝으로 보지 않는다("다"로 끝나는 가게 이름 "커피에반하다").
+  /// 한 낱말은 문장 끝으로 보지 않는다("다"로 끝나는 가게 이름 "커피에반하다"). 앞뒤 공백과 구분 기호(": 커피에반하다")는 떼고 본다.
   static func isNotice(_ text: some StringProtocol) -> Bool {
-    let trimmed = text.trimmingCharacters(in: .whitespaces)
+    let trimmed = text.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ":：-|")))
     let compact = self.compact(trimmed)
     let ending = compact.trimmingCharacters(in: CharacterSet(charactersIn: ".!…)")).last
     let isSentence = trimmed.contains(where: \.isWhitespace) && (ending == "다" || ending == "요")

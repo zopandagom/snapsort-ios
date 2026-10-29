@@ -137,6 +137,7 @@ extension GifticonExtractorTests {
   @Test("'다'·'요'로 끝나는 한 낱말 가게 이름은 안내문으로 보지 않는다")
   func keepsSingleWordPlaceEndingInSentenceEnding() {
     #expect(extract([line("교환처 가나다하다")]).redemptionPlace == "가나다하다")
+    #expect(extract([line("교환처 : 가나다하다")]).redemptionPlace == "가나다하다")
     #expect(extract([line("교환처", y: 0.5), line("가나다해요", y: 0.55)]).redemptionPlace == "가나다해요")
   }
 
