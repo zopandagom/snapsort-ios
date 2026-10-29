@@ -119,4 +119,24 @@ extension GifticonExtractorTests {
     #expect(!GifticonExtractor.needsModelFill(missingPlace, textLines: rejectedValue))
     #expect(extract(rejectedValue).redemptionPlace == nil)
   }
+
+  @Test("라벨 없는 후보가 서로 달라 비운 교환처는 모델에 묻지 않고 모델 답도 받지 않는다")
+  func conflictingBrandsBlockModel() {
+    let missingPlace = GifticonInfo(expiryDate: LocalDate(year: 2026, month: 12, day: 31), redemptionPlace: nil)
+    let conflicting = [line("CU", y: 0.3), line("GS25", y: 0.4)]
+    let bracketOnly = [line("[단독] 아이스 라떼 T", y: 0.3), line("가나다카페", y: 0.4)]
+
+    #expect(extract(conflicting).redemptionPlace == nil)
+    #expect(!GifticonExtractor.needsModelFill(missingPlace, textLines: conflicting))
+    let filled = GifticonExtractor.filling(
+      missingPlace,
+      with: GifticonModelAnswer(expiryText: nil, redemptionPlace: "CU"),
+      from: conflicting,
+      referenceDate: Self.referenceDate,
+      calendar: Self.calendar
+    )
+    #expect(filled.redemptionPlace == nil)
+    // 괄호만 있고 확인되지 않은 이름은 후보가 아니라 모델에 묻는다.
+    #expect(GifticonExtractor.needsModelFill(missingPlace, textLines: bracketOnly))
+  }
 }

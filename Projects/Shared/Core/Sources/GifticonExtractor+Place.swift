@@ -10,7 +10,7 @@ extension GifticonExtractor {
   static let noticeMarkers = ["에따라", "수있", "경우"]
 
   /// 교환처 라벨 줄 중 안내문이 아닌 것. 라벨 뒤가 안내문이면("교환처 사정에 따라 변경될 수 있습니다") 라벨로 보지 않는다.
-  /// 모델 보강의 교환처 판단(`hasRuleRedemptionPlaceLabel`)도 같은 줄을 본다.
+  /// 모델 보강의 교환처 판단(`hasRuleRedemptionPlaceClue`)도 같은 줄을 본다.
   static func redemptionPlaceLabelLines(
     _ lines: [RecognizedTextLine]
   ) -> [(line: RecognizedTextLine, rest: Substring)] {
@@ -60,6 +60,15 @@ extension GifticonExtractor {
   /// 다른 후보에 포함되는 후보는 뺀다("신세계"·"신세계이마트" 면 "신세계이마트"). 남은 후보가 모두 같은 교환처(같은 브랜드, 목록에 없으면
   /// 같은 이름)일 때만 가장 긴 이름의 원문 표기를 쓰고(같으면 OCR 순서로 앞), 서로 다른 교환처면("CU" 와 "GS25") 비운다.
   static func unlabeledRedemptionPlace(in lines: [RecognizedTextLine]) -> String? {
+    let kept = self.unlabeledPlaceCandidates(in: lines)
+    guard Set(kept.map(\.place)).count == 1 else { return nil }
+    let longest = kept.reduce(kept[0]) { $1.key.count > $0.key.count ? $1 : $0 }
+    return self.isPlaceValue(String(longest.text)) ? String(longest.text) : nil
+  }
+
+  /// 라벨 없는 교환처 후보(다른 후보에 포함되는 후보를 뺀 것). 비어 있지 않으면 규칙이 교환처 단서를 본 것이라, 서로 달라 비웠어도
+  /// 모델 보강에 묻지 않는다(`hasRuleRedemptionPlaceClue`).
+  static func unlabeledPlaceCandidates(in lines: [RecognizedTextLine]) -> [PlaceCandidate] {
     let lineKeys = Set(lines.compactMap { self.placeKey(self.trimmedPlace($0.text)) })
     var candidates: [PlaceCandidate] = []
     for line in lines {
@@ -75,22 +84,19 @@ extension GifticonExtractor {
         }
       }
     }
-    let kept = candidates.filter { candidate in
+    return candidates.filter { candidate in
       !candidates.contains { $0.key != candidate.key && $0.key.contains(candidate.key) }
     }
-    guard Set(kept.map(\.place)).count == 1 else { return nil }
-    let longest = kept.reduce(kept[0]) { $1.key.count > $0.key.count ? $1 : $0 }
-    return self.isPlaceValue(String(longest.text)) ? String(longest.text) : nil
   }
 
-  private struct PlaceCandidate {
+  struct PlaceCandidate {
     let key: String
     let place: PlaceIdentity
     let text: Substring
   }
 
   /// 같은 교환처인지 견주는 값. 목록 브랜드는 별칭이 달라도 같고, 목록에 없는 이름은 정규화한 이름이 같아야 같다.
-  private enum PlaceIdentity: Hashable {
+  enum PlaceIdentity: Hashable {
     case brand(Int)
     case name(String)
   }

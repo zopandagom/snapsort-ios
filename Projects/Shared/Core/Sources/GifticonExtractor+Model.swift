@@ -25,6 +25,8 @@ extension GifticonExtractor {
   /// 모델 보강 버전. 기프티콘 확인 규칙(이 파일)이나 기프티콘 요청(기프티콘 instructions, `GifticonFields` 의 `@Guide`,
   /// 두 요청이 함께 쓰는 입력 형식 `ClassifierPrompt.text`·글자 수 상한·생성 옵션)을 바꿔 같은 줄에서 다른 기프티콘 값이 나올 수 있으면 올린다.
   /// 분류 요청(분류 instructions, `InformationKinds`)만 바꾸면 올리지 않는다(분류 보강은 보강 상태를 남기지 않는다).
+  /// 같은 변경으로 `rulesVersion` 도 올리면 올리지 않는다(다시 추출한 행은 저장소가 보강 상태를 되돌려 다시 보강한다. 규칙 버전 3 의
+  /// 교환처 단서 판단 변경이 그렇다).
   /// 저장소가 이 버전으로 보강하지 않은 행을 보강 대기로 돌려주고, 인덱서가 규칙 추출부터 다시 계산해 보강한다.
   public static let modelFillVersion = 1
 
@@ -68,11 +70,11 @@ extension GifticonExtractor {
   private static var monthWithoutDayPattern: Regex<Substring> { #/\d{1,2}\s*월(?!\s*\d)/# }
 
   /// 규칙이 비운 필드 중 모델로 채울 수 있는 것이 있는지. 둘 다 찾았거나, 비운 필드가 규칙의 판단으로 막혀 있으면
-  /// (만료일: 만료일 라벨 줄·"까지" 기한·상대 기간이 있음. 교환처: 교환처 라벨 줄이 있음) false 라 모델에 묻지 않는다.
+  /// (만료일: 만료일 라벨 줄·"까지" 기한·상대 기간이 있음. 교환처: 교환처 라벨 줄이나 라벨 없는 교환처 후보가 있음) false 라 모델에 묻지 않는다.
   /// 줄이 없어도 false 다(대조할 원문이 없어 어떤 답도 확인을 통과할 수 없다).
   public static func needsModelFill(_ info: GifticonInfo, textLines: [RecognizedTextLine]) -> Bool {
     !textLines.isEmpty && ((info.expiryDate == nil && !self.hasRuleExpiryClue(textLines))
-      || (info.redemptionPlace == nil && !self.hasRuleRedemptionPlaceLabel(textLines)))
+      || (info.redemptionPlace == nil && !self.hasRuleRedemptionPlaceClue(textLines)))
   }
 
   /// `info` 의 nil 필드만, 원문으로 확인한 모델 답으로 채운다. 규칙이 찾은 필드는 그대로 둔다.
@@ -282,16 +284,16 @@ extension GifticonExtractor {
 
   // MARK: - 교환처
 
-  /// 교환처 라벨 줄(안내문 제외, `redemptionPlaceLabelLines`)이 있는지. 있으면 규칙의 판단(라벨 값, 로고라 읽은 값이 없음,
-  /// 값이 다른 항목)을 따른다.
-  static func hasRuleRedemptionPlaceLabel(_ lines: [RecognizedTextLine]) -> Bool {
-    !self.redemptionPlaceLabelLines(lines).isEmpty
+  /// 규칙이 교환처 단서를 봤는지: 교환처 라벨 줄(안내문 제외, `redemptionPlaceLabelLines`)이나 라벨 없는 교환처 후보
+  /// (`unlabeledPlaceCandidates`)가 있다. 있으면 규칙의 판단(라벨 값, 로고라 읽은 값이 없음, 값이 다른 항목, 후보가 서로 다른 교환처)을 따른다.
+  static func hasRuleRedemptionPlaceClue(_ lines: [RecognizedTextLine]) -> Bool {
+    !self.redemptionPlaceLabelLines(lines).isEmpty || !self.unlabeledPlaceCandidates(in: lines).isEmpty
   }
 
   /// 모델이 교환처로 답한 텍스트를 원문으로 확인한 교환처. 날짜가 없는 줄(만료일 라벨 줄 아님)의 전체이거나 줄 앞 단어일 때
   /// 그 줄의 원문 표기를 돌려준다. 문장 속 상호("…애플스토어에서 사용"), 원문에 없는 상호, 날짜나 긴 숫자(쿠폰 번호)가 든 답은 nil.
   static func modelRedemptionPlace(answer: String, lines: [RecognizedTextLine]) -> String? {
-    guard !self.hasRuleRedemptionPlaceLabel(lines), let value = self.cleanedValue(answer),
+    guard !self.hasRuleRedemptionPlaceClue(lines), let value = self.cleanedValue(answer),
           value.contains(where: \.isLetter), self.compact(value).count <= self.maximumModelPlaceLength,
           DateMention.mentions(in: value).isEmpty, !self.compact(value).contains(#/\d{4}/#)
     else { return nil }
