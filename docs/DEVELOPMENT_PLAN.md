@@ -36,8 +36,8 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 1 | (PhotoLibrary 확장: 변경 감지, 제한 접근 선택) | Onboarding |
 | 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
 | 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | |
-| 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세)), Pasteboard(이 기기만 복사), WidgetTimeline(위젯 갱신 요청), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회, 영수증 추출 값·목록 조회, 캡처 묶음 추출 값·목록 조회, 검색 목록 조회, 최근 스크린샷 보관·조회, 특징 벡터 저장·비슷한 사진 조회, App Group 저장 위치·옛 위치에서 옮기기·위젯용 읽기 전용 열기), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터), (Indexing 확장: 특징 벡터 1단계·소급) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더, 영수증 목록, 쇼핑·대화·지도 묶기, 검색, 정리 도우미(기프티콘 정리·최근 스크린샷·비슷한 사진)), ExpiryWidget(만료 임박 위젯), Extension `Widget`(위젯 조립 지점) |
-| 5 | (PhotoLibrary 확장: restricted 상태) | Onboarding 확장 |
+| 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세·미리 받기)), Pasteboard(이 기기만 복사), WidgetTimeline(위젯 갱신 요청), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회, 영수증 추출 값·목록 조회, 캡처 묶음 추출 값·목록 조회, 검색 목록 조회, 최근 스크린샷 보관·조회, 특징 벡터 저장·비슷한 사진 조회, App Group 저장 위치·옛 위치에서 옮기기·위젯용 읽기 전용 열기), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터), (Indexing 확장: 특징 벡터 1단계·소급) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더, 영수증 목록, 쇼핑·대화·지도 묶기, 검색, 정리 도우미(기프티콘 정리·최근 스크린샷·비슷한 사진)), ExpiryWidget(만료 임박 위젯), Extension `Widget`(위젯 조립 지점) |
+| 5 | TripPlace(여행 장소 이름 미리 받기, Map·PhotoStore 조합), (PhotoLibrary 확장: restricted 상태) | Onboarding 확장 |
 
 ## 작업 진행 방식
 1. 로드맵의 주차 목표와 완료 기준을 확인 → 작업 단위로 쪼갠다.

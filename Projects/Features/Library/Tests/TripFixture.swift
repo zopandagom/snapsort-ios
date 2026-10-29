@@ -5,6 +5,7 @@ import MapTesting
 import PhotoLibraryTesting
 import PhotoStoreInterface
 import PhotoStoreTesting
+import Synchronization
 @testable import LibraryFeature
 
 /// 여행 폴더 목록·상세 테스트의 공통 준비. 기기는 Asia/Seoul·ko_KR 이다.
@@ -170,5 +171,19 @@ extension Calendar {
 extension Date {
   static func newYork(_ year: Int, _ month: Int, _ day: Int, hour: Int, minute: Int = 0) -> Date {
     Calendar.newYork.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+  }
+}
+
+/// 테스트가 바꾸는 기기 로캘. Model 의 `locale` 클로저가 읽는다.
+final class LocaleBox: Sendable {
+  private let state: Mutex<Locale>
+
+  init(_ locale: Locale) {
+    self.state = Mutex(locale)
+  }
+
+  var value: Locale {
+    get { self.state.withLock { $0 } }
+    set { self.state.withLock { $0 = newValue } }
   }
 }

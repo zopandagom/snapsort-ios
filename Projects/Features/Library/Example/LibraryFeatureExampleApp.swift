@@ -14,6 +14,7 @@ import PhotoLibraryTesting
 import PhotoStoreInterface
 import PhotoStoreTesting
 import SwiftUI
+import TripPlaceTesting
 
 /// 실제 사진 없이 Library 화면을 확인하는 데모 앱. Preview 도 여기에 둔다.
 /// 카테고리를 연 채 아래 버튼으로 저장소를 바꾸면, 인덱서가 진행률을 보낸 것처럼 카테고리 화면이 다시 읽는다.
@@ -22,7 +23,7 @@ import SwiftUI
 /// "영수증 추출" 버튼은 인덱서의 영수증 소급 추출처럼 추출 대기 영수증에 값을 쓰고 진행률을 보낸다.
 /// 쇼핑·대화·지도 카드에서 툴바 묶기 메뉴(쇼핑몰·브랜드·앱·지역별, `PreviewCaptureGroups`)를 보고, "캡처 묶음 추출" 버튼이
 /// 추출 대기 캡처에 값을 쓴다(OCR 대기 캡처는 확인 중으로 남는다).
-/// 지도·복사·장소 이름은 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
+/// 지도·복사·장소 이름·장소 이름 미리 받기는 Fake 라 지도 앱이 열리지 않고 클립보드에 쓰지 않으며 지오코딩하지 않는다.
 /// 검색 필드를 누르면 검색 결과(`PreviewSearch` 의 글자 사진, 캡처 묶음 값, 카테고리 이름, 캐시된 여행 장소 이름)를 보고,
 /// "글자 사진 추가" 버튼이 글자를 읽은 사진을 최신으로 더한다(열린 검색 화면이 다시 읽는다).
 /// 보관함 카테고리 위 "정리 도우미" 카드에서 정리 화면(만료됨·사용함 기프티콘 후보, 정리 시나리오면 비슷한 사진 묶음)과
@@ -91,7 +92,8 @@ struct LibraryFeatureExampleApp: App {
     notification: Self.scenario == .notificationDenied
       ? NotificationClientFake.previewDenied()
       : NotificationClientFake.previewNotDetermined(),
-    widgetTimeline: nil
+    widgetTimeline: nil,
+    tripPlace: TripPlaceClientFake()
   )
   @State private var coverModel = LibraryCoverModel(photoLibrary: Self.photoLibrary)
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)

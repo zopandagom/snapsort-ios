@@ -158,6 +158,7 @@ struct LibraryModelWidgetTests {
       photoStore: Self.photoStore(),
       notification: NotificationClientFake(authorization: .authorized),
       widgetTimeline: widget,
+      tripPlace: nil,
       calendar: .seoul,
       now: { clock.withLock { $0 } }
     )

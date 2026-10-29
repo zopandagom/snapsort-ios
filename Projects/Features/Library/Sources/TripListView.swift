@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 여행 폴더 목록: 최신 여행이 위인 줄마다 대표 썸네일·제목(장소 이름 또는 기간)·기간·사진 수 (docs/ARCHITECTURE.md §4 여행 폴더).
 /// 줄을 누르면 여행 폴더 상세(`TripDetailView`)로 간다(이동 목적지는 LibraryView 가 루트에 둔다).
-/// 장소 이름은 상세를 열 때 캐시된 것만 보이고, 이 화면은 묻지 않는다.
+/// 장소 이름은 캐시된 것만 보이고(상세·미리 받기가 쓴다), 이 화면은 묻지 않는다.
 /// 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(category: .travel)`).
 public struct TripListView: View {
   let model: TripListModel

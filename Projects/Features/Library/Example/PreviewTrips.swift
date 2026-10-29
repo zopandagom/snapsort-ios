@@ -46,7 +46,7 @@ enum PreviewTrips {
   static let missingIDs: Set<ImageAsset.ID> = [PreviewTrips.photoID("jeju", 10), PreviewTrips.photoID("jeju", 11)]
 
   /// 시드 캐시의 이름이 캐시된 로캘. Model 이 캐시를 읽을 때 쓰는 기기 로캘 식별자(`Locale.current.identifier`)와 같게 둔다
-  /// (다르면 이름이 다른 로캘로 캐시된 것으로 보여 목록에 안 보이고 상세를 열 때 다시 묻는다).
+  /// (다르면 이름이 다른 로캘로 캐시된 것으로 보여 목록에 안 보이고 미리 받기·상세가 다시 묻는다).
   static let placesLocaleIdentifier = Locale.current.identifier
 
   /// 제주만 이름·시간대가 캐시돼 있다(`placesLocaleIdentifier` 로 캐시한 것으로 본다).

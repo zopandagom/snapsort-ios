@@ -11,6 +11,7 @@ import PasteboardImpl
 import PhotoLibraryImpl
 import PhotoStoreImpl
 import SwiftUI
+import TripPlaceImpl
 import WidgetTimelineImpl
 #if DEBUG
   import SampleRecorderFeature
@@ -59,12 +60,16 @@ struct SnapSortApp: App {
         classifier: ClassifierClientImpl()
       )
     }
+    let map = MapClientImpl()
+    // 여행 장소 이름 미리 받기. 분류 1단계를 마친 뒤(글자 읽기와 병렬) 저장된 여행 중심점의 반올림 좌표만 한 번에 하나씩 묻는다
+    // (docs/ARCHITECTURE.md §4 위치·지도 원칙 ①). 앱 실행 동안 하나라 빈도 제한(간격·최소 간격)이 화면 진입을 넘어 이어진다.
     self._libraryModel = State(initialValue: LibraryModel(
       photoLibrary: photoLibrary,
       indexing: indexing,
       photoStore: photoStore,
       notification: NotificationClientImpl(),
-      widgetTimeline: widgetTimeline
+      widgetTimeline: widgetTimeline,
+      tripPlace: photoStore.map { TripPlaceClientImpl(map: map, photoStore: $0) }
     ))
     // 보관함 카드의 대표 썸네일. App 이 소유해 보관함 화면에 다시 들어와도(온보딩·기록 도구에서) 읽은 썸네일이 남는다.
     self._libraryCoverModel = State(initialValue: LibraryCoverModel(photoLibrary: photoLibrary))
@@ -72,7 +77,6 @@ struct SnapSortApp: App {
     self._categoryModel = State(initialValue: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._gifticonListModel = State(initialValue: GifticonListModel(photoStore: photoStore))
     self._receiptListModel = State(initialValue: ReceiptListModel(photoStore: photoStore))
-    let map = MapClientImpl()
     // 사진 상세의 캡처 행동. 지도 앱 열기·복사는 사용자가 누를 때만 한다.
     self._captureActionsModel = State(initialValue: CaptureActionsModel(
       photoStore: photoStore,
@@ -80,7 +84,7 @@ struct SnapSortApp: App {
       map: map,
       pasteboard: PasteboardClientImpl()
     ))
-    // 여행 폴더. 목록은 지오코딩하지 않고, 상세를 열 때만 여행 중심점의 반올림 좌표로 장소 이름을 묻는다.
+    // 여행 폴더. 목록은 지오코딩하지 않고 캐시만 읽는다. 상세는 캐시에 이름이 없을 때만 여행 중심점의 반올림 좌표로 묻는다.
     self._tripListModel = State(initialValue: TripListModel(photoLibrary: photoLibrary, photoStore: photoStore))
     self._tripDetailModel = State(initialValue: TripDetailModel(photoStore: photoStore, map: map))
     // 장소 이름은 캐시만 대조하므로 Map 을 넘기지 않는다.

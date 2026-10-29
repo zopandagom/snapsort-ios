@@ -30,6 +30,7 @@ enum ReminderFixture {
       photoStore: photoStore,
       notification: notification,
       widgetTimeline: widgetTimeline,
+      tripPlace: nil,
       calendar: .seoul,
       now: { now }
     )

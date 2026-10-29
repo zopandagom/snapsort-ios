@@ -6,9 +6,9 @@ import PhotoStoreInterface
 
 /// 여행 폴더 목록 화면의 상태와 로직 (docs/ARCHITECTURE.md §4 여행 폴더).
 /// 보관함의 여행 카드를 누르면 연다. 목록 화면은 한 번에 하나만 열리므로 App 이 하나를 소유한다.
-/// 목록은 지오코딩하지 않는다(MapClient 를 받지 않는다). 장소 이름과 여행지 시간대는 상세를 열 때 캐시된 것만 쓴다.
+/// 목록은 지오코딩하지 않는다(MapClient 를 받지 않는다). 장소 이름과 여행지 시간대는 캐시된 것만 쓴다(상세·미리 받기가 쓴다).
 /// 썸네일 칸은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel.thumbnailScreenAppeared(category: .travel)` 로 빌린다.
-/// 저장소 변경·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
+/// 저장소 변경(미리 받기의 장소 캐시 쓰기 포함)·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
 @MainActor
 @Observable
 public final class TripListModel {
