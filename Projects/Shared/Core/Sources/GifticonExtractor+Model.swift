@@ -26,7 +26,7 @@ extension GifticonExtractor {
   /// 두 요청이 함께 쓰는 입력 형식 `ClassifierPrompt.text`·글자 수 상한·생성 옵션)을 바꿔 같은 줄에서 다른 기프티콘 값이 나올 수 있으면 올린다.
   /// 분류 요청(분류 instructions, `InformationKinds`)만 바꾸면 올리지 않는다(분류 보강은 보강 상태를 남기지 않는다).
   /// 같은 변경으로 `rulesVersion` 도 올리면 올리지 않는다(다시 추출한 행은 저장소가 보강 상태를 되돌려 다시 보강한다. 규칙 버전 3 의
-  /// 교환처 단서 판단 변경이 그렇다).
+  /// 교환처 변경(단서 판단·모델 답 확인)이 그렇다).
   /// 저장소가 이 버전으로 보강하지 않은 행을 보강 대기로 돌려주고, 인덱서가 규칙 추출부터 다시 계산해 보강한다.
   public static let modelFillVersion = 1
 
