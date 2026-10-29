@@ -24,12 +24,13 @@ extension GifticonExtractor {
 
   /// 교환처 라벨 줄이 있으면 OCR 순서로 보며 값을 처음 찾은 텍스트(라벨 뒤, 비었으면 라벨 오른쪽이나 아래 줄)이고, 없으면
   /// 라벨 없는 교환처(`unlabeledRedemptionPlace`)다. 라벨이 있으면 값을 못 찾아도(로고라 읽은 글자가 없음) 라벨 없는 규칙을 쓰지 않는다.
-  /// 라벨 뒤에 글이 있으면 아래 줄을 보지 않는다. 값이 교환처로 보이지 않으면(`labeledPlaceValue`) 그 라벨 줄은 값을 못 찾은 것이다.
+  /// 라벨 뒤 첫 여는 괄호 앞에 글이 있으면 아래 줄을 보지 않는다. 괄호 덧말뿐이면("사용처 (일부 매장 제외)") 같은 줄 값이 없는 것으로 보고
+  /// 아래 줄을 읽는다(덧말을 교환처로 쓰지 않는다). 값이 교환처로 보이지 않으면(`labeledPlaceValue`) 그 라벨 줄은 값을 못 찾은 것이다.
   static func redemptionPlace(in lines: [RecognizedTextLine]) -> String? {
     let labeled = self.redemptionPlaceLabelLines(lines)
     guard !labeled.isEmpty else { return self.unlabeledRedemptionPlace(in: lines) }
     for (label, rest) in labeled {
-      let text = self.cleanedValue(rest) != nil
+      let text = self.cleanedValue(self.beforeRemark(rest)) != nil
         ? Substring(rest)
         : self.valueLine(of: label, in: lines).map { Substring($0.text) }
       if let place = text.flatMap(self.labeledPlaceValue) {
