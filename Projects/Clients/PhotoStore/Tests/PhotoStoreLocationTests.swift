@@ -1,6 +1,7 @@
 import Core
 import Foundation
 import PhotoStoreInterface
+import SQLite3
 import SwiftData
 import Testing
 @testable import PhotoStoreImpl
@@ -220,6 +221,8 @@ struct PhotoStoreLocationTests {
     let folders = try Folders()
     defer { folders.remove() }
     try Self.writePreSimilarPhotoRow(at: folders.groupStore)
+    // 쓴 행은 모두 본 파일에 있고 -wal 은 비어 있다. -wal 은 픽스처 연결이 닫힐 때 SQLite 가 지울 수 있어 비어 있거나 없음만 본다.
+    // -shm 은 읽는 쪽도 쓰는 공유 메모리 색인이라 보지 않는다.
     let before = try Data(contentsOf: folders.groupStore)
 
     #expect(throws: PhotoStoreError.failed) {
@@ -227,6 +230,7 @@ struct PhotoStoreLocationTests {
     }
 
     #expect(try Data(contentsOf: folders.groupStore) == before)
+    #expect(Self.fileSize(URL(filePath: folders.groupStore.path(percentEncoded: false) + "-wal")) ?? 0 == 0)
     #expect(try await PhotoStoreClientImpl(url: folders.groupStore).indexedIDs() == ["old"])
   }
 
@@ -256,6 +260,8 @@ struct PhotoStoreLocationTests {
   }
 
   /// 이전 빌드처럼 특징 벡터 속성이 없는 스키마로 한 행을 쓰고 컨테이너를 놓는다.
+  /// 놓은 컨테이너는 SQLite 연결을 늦게 닫을 수 있고, 닫힐 때 -wal 을 본 파일로 옮겨 본 파일이 바뀐다(전체 실행에서 가끔).
+  /// 그래서 돌아가기 전에 -wal 을 본 파일로 옮겨 비워 둔다. 그 뒤 연결이 닫혀도 옮길 것이 없어 본 파일은 그대로다.
   private static func writePreSimilarPhotoRow(at url: URL) throws {
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let container = try ModelContainer(
@@ -270,6 +276,21 @@ struct PhotoStoreLocationTests {
     image.labelsData = try PropertyListEncoder().encode([ImageLabel]())
     context.insert(image)
     try context.save()
+    try Self.checkpointWAL(at: url)
+  }
+
+  private static func checkpointWAL(at url: URL) throws {
+    var database: OpaquePointer?
+    defer { sqlite3_close(database) }
+    let opened = sqlite3_open(url.path(percentEncoded: false), &database)
+    try #require(opened == SQLITE_OK, "sqlite3_open \(opened)")
+    // 저장을 마친 픽스처 연결은 잠금을 잡고 있지 않아 기다리지 않는다. 실패하면 결과 코드(예: 5 = BUSY)를 남긴다.
+    let checkpointed = sqlite3_wal_checkpoint_v2(database, nil, SQLITE_CHECKPOINT_TRUNCATE, nil, nil)
+    try #require(checkpointed == SQLITE_OK, "wal_checkpoint \(checkpointed)")
+  }
+
+  private static func fileSize(_ url: URL) -> Int? {
+    try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
   }
 
   private static func gifticon(_ id: String, expiryDate: LocalDate) -> IndexedImage {
