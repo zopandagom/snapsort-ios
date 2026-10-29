@@ -203,4 +203,19 @@ extension GifticonExtractorTests {
     )
     #expect(filled.redemptionPlace == nil)
   }
+
+  @Test("안내문 줄의 앞 낱말 모델 답은 교환처로 받지 않는다", arguments: ["가나 사정에", "가나"])
+  func rejectsNoticeLeadingWordModelAnswer(_ answer: String) {
+    let missingPlace = GifticonInfo(expiryDate: LocalDate(year: 2026, month: 12, day: 31), redemptionPlace: nil)
+    let lines = [line("가나 사정에 따라 상품이 변경될 수 있습니다")]
+
+    let filled = GifticonExtractor.filling(
+      missingPlace,
+      with: GifticonModelAnswer(expiryText: nil, redemptionPlace: answer),
+      from: lines,
+      referenceDate: Self.referenceDate,
+      calendar: Self.calendar
+    )
+    #expect(filled.redemptionPlace == nil)
+  }
 }

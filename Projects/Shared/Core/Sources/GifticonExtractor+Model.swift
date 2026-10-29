@@ -294,6 +294,7 @@ extension GifticonExtractor {
   /// 그 줄의 원문 표기를 돌려준다. 문장 속 상호("…애플스토어에서 사용"), 원문에 없는 상호, 날짜나 긴 숫자(쿠폰 번호)가 든 답은 nil.
   /// 라벨 낱말로 시작하는 답("교환처", "교환처 사정에", 조사가 붙은 "교환처의 사정에")도 nil 이다(안내문 줄 "교환처 사정에 따라 …" 의
   /// 줄 앞 단어와 맞아 확인을 통과한다). 라벨 줄 찾기(`text(after:in:)`)와 달리 조사 예외 없이 공백을 뺀 접두어로 본다.
+  /// 안내문 줄(`isNotice`, "매장 사정에 따라 상품이 변경될 수 있습니다")은 대조하지 않는다(줄 앞 단어 "매장 사정에" 를 받지 않는다).
   static func modelRedemptionPlace(answer: String, lines: [RecognizedTextLine]) -> String? {
     guard !self.hasRuleRedemptionPlaceClue(lines), let value = self.cleanedValue(answer),
           value.contains(where: \.isLetter), self.compact(value).count <= self.maximumModelPlaceLength,
@@ -303,7 +304,7 @@ extension GifticonExtractor {
     let needle = self.foldedCharacters(value).map(\.character)
     let expiryLabelLines = Set(self.labeledLines(lines, labels: self.expiryLabels).map(\.line))
     return lines.lazy
-      .filter { !expiryLabelLines.contains($0) && DateMention.mentions(in: $0.text).isEmpty }
+      .filter { !expiryLabelLines.contains($0) && DateMention.mentions(in: $0.text).isEmpty && !self.isNotice($0.text) }
       .compactMap { self.leadingText(matching: needle, in: $0.text) }
       .first
       .map(String.init)
