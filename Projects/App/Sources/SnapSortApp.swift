@@ -1,3 +1,4 @@
+import BackgroundIndexingImpl
 import ClassifierImpl
 import DesignSystem
 import Foundation
@@ -52,24 +53,23 @@ struct SnapSortApp: App {
     // 열기 성공·실패와 관계없이 한 번 다시 읽기를 요청한다(조립 지점의 부수효과, docs/ARCHITECTURE.md §4 만료 임박 위젯).
     let widgetTimeline = WidgetTimelineClientImpl()
     widgetTimeline.reloadExpiryWidget()
-    let indexing = photoStore.map { photoStore in
-      IndexingClientImpl(
-        photoLibrary: photoLibrary,
-        imageAnalysis: imageAnalysis,
-        photoStore: photoStore,
-        classifier: ClassifierClientImpl()
-      )
-    }
+    let indexing = photoStore.map { Self.makeIndexing(photoLibrary, imageAnalysis, $0) }
     let map = MapClientImpl()
     // 여행 장소 이름 미리 받기. 분류 1단계를 마친 뒤(글자 읽기와 병렬) 저장된 여행 중심점의 반올림 좌표만 한 번에 하나씩 묻는다
-    // (docs/ARCHITECTURE.md §4 위치·지도 원칙 ①). 앱 실행 동안 하나라 빈도 제한(간격·최소 간격)이 화면 진입을 넘어 이어진다.
+    // (docs/ARCHITECTURE.md §4 위치·지도 원칙 ①). 앱 실행 동안 하나를 보관함 화면과 BG 작업이 함께 써, 빈도 제한(간격·최소 간격·상한·쉼)이
+    // 화면 진입과 BG 실행을 넘어 이어진다.
+    let tripPlace = photoStore.map { TripPlaceClientImpl(map: map, photoStore: $0) }
+    // 앱이 뒤에 있거나 닫혀 있을 때의 분류(BG 처리 작업). 핸들러는 앱이 실행을 마치기 전에 등록해야 해서 여기서 한다
+    // (조립 지점의 부수효과, docs/ARCHITECTURE.md §4 인덱싱). 저장소가 없어도 등록한다(예약된 작업이 핸들러 없이 오지 않게).
+    let backgroundIndexing = Self.registeredBackgroundIndexing(indexing, tripPlace, widgetTimeline)
     self._libraryModel = State(initialValue: LibraryModel(
       photoLibrary: photoLibrary,
       indexing: indexing,
       photoStore: photoStore,
       notification: NotificationClientImpl(),
       widgetTimeline: widgetTimeline,
-      tripPlace: photoStore.map { TripPlaceClientImpl(map: map, photoStore: $0) }
+      tripPlace: tripPlace,
+      backgroundIndexing: backgroundIndexing
     ))
     // 보관함 카드의 대표 썸네일. App 이 소유해 보관함 화면에 다시 들어와도(온보딩·기록 도구에서) 읽은 썸네일이 남는다.
     self._libraryCoverModel = State(initialValue: LibraryCoverModel(photoLibrary: photoLibrary))
@@ -90,7 +90,8 @@ struct SnapSortApp: App {
     // 장소 이름은 캐시만 대조하므로 Map 을 넘기지 않는다.
     self._searchModel = State(initialValue: SearchModel(photoStore: photoStore))
     // 정리 도우미. 사진을 지우는 것은 사용자가 고른 사진을 시스템 확인 창을 거쳐서만 한다.
-    // 비슷한 사진은 이 기기에서 특징 벡터를 만들 수 있을 때만 보인다(시뮬레이터는 섹션 없음).
+    // 비슷한 사진은 이 기기에서 특징 벡터를 만들 수 있을 때만 보인다(시뮬레이터는 섹션 없음). init 은 어떤 벡터 요청보다 먼저 돌아
+    // 이 값은 기기 지원 여부와 같다(앱이 뒤에 있을 때 넘긴 시한은 섹션에 영향이 없다, docs/ARCHITECTURE.md §4 정리 도우미).
     self._cleanupModel = State(initialValue: CleanupModel(
       photoLibrary: photoLibrary,
       photoStore: photoStore,
@@ -103,6 +104,38 @@ struct SnapSortApp: App {
         imageAnalysis: imageAnalysis
       ))
     #endif
+  }
+
+  /// 분류 인덱서. 저장소를 열었을 때만 만든다.
+  private static func makeIndexing(
+    _ photoLibrary: PhotoLibraryClientImpl,
+    _ imageAnalysis: ImageAnalysisClientImpl,
+    _ photoStore: PhotoStoreClientImpl
+  ) -> IndexingClientImpl {
+    IndexingClientImpl(
+      photoLibrary: photoLibrary,
+      imageAnalysis: imageAnalysis,
+      photoStore: photoStore,
+      classifier: ClassifierClientImpl()
+    )
+  }
+
+  /// BG 처리 작업 조정자를 만들고 핸들러를 등록한다. 식별자 이름의 단일 출처는 Tuist `Env` 이고 Info.plist
+  /// `BGTaskSchedulerPermittedIdentifiers` 첫 값으로 읽는다(App Group 이름과 같은 방식). 없으면 BG 작업을 등록·제출하지 않는다.
+  private static func registeredBackgroundIndexing(
+    _ indexing: IndexingClientImpl?,
+    _ tripPlace: TripPlaceClientImpl?,
+    _ widgetTimeline: WidgetTimelineClientImpl
+  ) -> BackgroundIndexingClientImpl {
+    let identifiers = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String]
+    let backgroundIndexing = BackgroundIndexingClientImpl(
+      indexing: indexing,
+      tripPlace: tripPlace,
+      widgetTimeline: widgetTimeline,
+      taskIdentifier: identifiers?.first
+    )
+    backgroundIndexing.registerLaunchHandler()
+    return backgroundIndexing
   }
 
   /// 저장 위치는 App Group 컨테이너이고, 옛 위치(Application Support)에만 있으면 열기 전에 옮긴다.
