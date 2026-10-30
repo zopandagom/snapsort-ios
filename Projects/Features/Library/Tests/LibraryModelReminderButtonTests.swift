@@ -240,6 +240,7 @@ struct LibraryModelReminderButtonTests {
       notification: hasNotification ? notification : nil,
       widgetTimeline: nil,
       tripPlace: nil,
+      backgroundIndexing: nil,
       calendar: .seoul,
       now: { .seoul(2026, 10, 19, hour: 8) }
     )

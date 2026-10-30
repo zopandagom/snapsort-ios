@@ -26,7 +26,8 @@ private func libraryPreview(
       photoStore: photoStore,
       notification: notification,
       widgetTimeline: nil,
-      tripPlace: TripPlaceClientFake()
+      tripPlace: TripPlaceClientFake(),
+      backgroundIndexing: nil
     ),
     coverModel: LibraryCoverModel(photoLibrary: photoLibrary),
     categoryModel: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),

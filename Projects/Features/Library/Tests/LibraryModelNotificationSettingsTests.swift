@@ -107,6 +107,7 @@ struct LibraryModelNotificationSettingsTests {
       notification: notification,
       widgetTimeline: nil,
       tripPlace: nil,
+      backgroundIndexing: nil,
       calendar: .seoul,
       now: { clock.now }
     )

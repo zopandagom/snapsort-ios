@@ -159,6 +159,7 @@ struct LibraryModelWidgetTests {
       notification: NotificationClientFake(authorization: .authorized),
       widgetTimeline: widget,
       tripPlace: nil,
+      backgroundIndexing: nil,
       calendar: .seoul,
       now: { clock.withLock { $0 } }
     )

@@ -18,6 +18,8 @@ import SwiftUI
 /// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근
 /// 스크린샷 화면)
 /// - 기기 로캘 변경 → 장소 이름 미리 받기(`LibraryModel.localeChanged`)
+/// - 앱이 앞으로 옴·뒤로 감(scenePhase `.active`·`.background`, 처음 값 포함) → 분류 멈춤·재개와 BG 작업(`LibraryModel.sceneBecameActive`·
+/// `sceneEnteredBackground`)
 public struct LibraryView: View {
   let model: LibraryModel
   let coverModel: LibraryCoverModel
@@ -143,10 +145,18 @@ public struct LibraryView: View {
       self.cleanupModel.libraryStoreChanged()
       self.captureActionsModel.libraryStoreChanged()
     }
+    // 첫 값도 본다: BG 작업이 앱을 띄우며 화면이 백그라운드에서 만들어지면 처음부터 멈춘 상태로 두고, 앞에서 만들어지면 앞으로 맞춘다
+    // (docs/ARCHITECTURE.md §4 인덱싱). `.inactive`(알림 센터를 내림 등)는 멈추지 않는다.
+    .onChange(of: self.scenePhase, initial: true) { _, phase in
+      switch phase {
+      case .active: self.model.sceneBecameActive()
+      case .background: self.model.sceneEnteredBackground()
+      default: break
+      }
+    }
     // 시작 직후의 첫 값은 부르지 않는다(화면 진입 동기화가 맡는다). 백그라운드(잠금 포함) 동안의 날짜 변경도 여기서 덮는다.
     .onChange(of: self.scenePhase) { _, phase in
       guard phase == .active else { return }
-      self.model.sceneBecameActive()
       self.gifticonListModel.dayChanged()
       self.receiptListModel.dayChanged()
       self.captureActionsModel.dayChanged()

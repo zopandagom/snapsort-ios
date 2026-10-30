@@ -1,3 +1,4 @@
+import BackgroundIndexingInterface
 import Core
 import Foundation
 import IndexingInterface
@@ -49,6 +50,7 @@ public final class LibraryModel {
   public private(set) var storeRevision = 0
   /// 장소 이름 미리 받기(`TripPlaceClient`)가 장소 캐시에 쓸 때마다 하나씩 오른다. LibraryView 가 장소 캐시를 읽는 여행 폴더 목록·
   /// 여행 폴더 상세·검색 결과에만 넘긴다(`storeRevision` 은 캐시를 읽지 않는 화면까지 다시 읽게 해 쓰지 않는다).
+  /// 앱이 뒤에 있는 동안(BG 작업의 미리 받기 포함)의 쓰기는 모아 두었다가 앞으로 올 때 한 번 올린다(뒤에서 화면들이 저장소를 읽지 않게).
   public private(set) var placeRevision = 0
 
   /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
@@ -70,15 +72,14 @@ public final class LibraryModel {
   @ObservationIgnored private var reminderGeneration = 0
   /// 권한 요청을 시작할 때마다 하나씩 올린다. 요청과 겹친 동기화가 요청 전에 읽은 권한으로 상태를 덮지 않게 한다.
   @ObservationIgnored private var authorizationRequestCount = 0
-  /// 이 Model 이 마지막으로 위젯 갱신을 요청할 때의 요약. nil 이면 아직 요청하지 않았다. 값이 같으면 다시 요청하지 않는다.
-  @ObservationIgnored private var requestedWidgetSummaries: [ExpiryWidgetSummary]?
   @ObservationIgnored private let placePrefetch: LibraryPlacePrefetch
+  @ObservationIgnored private let backgroundIndexing: (any BackgroundIndexingClient)?
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
   @ObservationIgnored private let photoStore: (any PhotoStoreClient)?
   @ObservationIgnored private let notification: (any NotificationClient)?
-  @ObservationIgnored private let widgetTimeline: (any WidgetTimelineClient)?
+  @ObservationIgnored private let widgetReload: LibraryWidgetReload
   @ObservationIgnored private let calendar: Calendar
   @ObservationIgnored private let now: @Sendable () -> Date
 
@@ -93,6 +94,7 @@ public final class LibraryModel {
   ///   - widgetTimeline: 만료 임박 위젯 갱신 요청. 만료 알림 동기화가 위젯에 보일 값이 바뀐 것을 볼 때만 요청한다.
   ///   알림이나 저장소가 없으면 동기화가 돌지 않으므로 위젯 갱신도 하지 않는다.
   ///   - tripPlace: 여행 장소 이름 미리 받기. 1단계(분류)를 마친 뒤 계기마다 회차를 돌린다. 저장소가 없으면 App 이 nil 을 넘긴다.
+  ///   - backgroundIndexing: 앱이 뒤에 있거나 닫혀 있을 때의 분류. 앱이 뒤로 가고 앞으로 올 때 알린다. nil 이면(Example) 알리지 않는다.
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
   ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
@@ -103,6 +105,7 @@ public final class LibraryModel {
     notification: (any NotificationClient)?,
     widgetTimeline: (any WidgetTimelineClient)?,
     tripPlace: (any TripPlaceClient)?,
+    backgroundIndexing: (any BackgroundIndexingClient)?,
     calendar: Calendar = .autoupdatingCurrent,
     now: @escaping @Sendable () -> Date = { Date() },
     locale: @escaping @Sendable () -> Locale = { .current }
@@ -111,10 +114,11 @@ public final class LibraryModel {
     self.indexing = indexing
     self.photoStore = photoStore
     self.notification = notification
-    self.widgetTimeline = widgetTimeline
+    self.widgetReload = LibraryWidgetReload(widgetTimeline: widgetTimeline, calendar: calendar)
     self.calendar = calendar
     self.now = now
     self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
+    self.backgroundIndexing = backgroundIndexing
     self.isLimited = photoLibrary.accessState() == .limited
   }
 
@@ -167,12 +171,24 @@ public final class LibraryModel {
     await notification.openSettings()
   }
 
-  /// 앱이 앞으로 돌아왔다(scenePhase `.active`). 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
+  /// 앱이 앞으로 왔다(scenePhase `.active`, 처음 값 포함). 멈춘 분류를 다시 열고(인덱서가 둔 최신 진행률이 오면 개수를 다시 읽는다), 뒤에 있는 동안 장소 캐시 쓰기가 있었으면 한 번
+  /// 알린다.
+  /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
   /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
   /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다).
   public func sceneBecameActive() {
+    self.backgroundIndexing?.appDidBecomeActive()
+    if self.placePrefetch.sceneBecameActive() {
+      self.placeRevision += 1
+    }
     self.requestReminderSync()
-    self.placePrefetch.request()
+  }
+
+  /// 앱이 뒤로 갔다(scenePhase `.background`, 처음 값 포함). 미리 받기 회차를 멈추고 분류를 멈춰 BG 작업에 넘긴다(docs/ARCHITECTURE.md §4 인덱싱).
+  /// 분류 구독은 끊지 않아 앞으로 오면 멈춤 안내 없이 이어진다.
+  public func sceneEnteredBackground() {
+    self.placePrefetch.sceneEnteredBackground()
+    self.backgroundIndexing?.appDidEnterBackground()
   }
 
   /// 기기 로캘이 바뀌었다. 도는 미리 받기 회차를 멈추고(진행 중 요청은 끝까지 간다) 새 로캘로 회차를 요청한다.
@@ -336,7 +352,7 @@ public final class LibraryModel {
       return
     }
     guard self.isCurrentReminderSync(generation) else { return }
-    self.requestWidgetReloadIfChanged(expiries: expiries, isChecking: !pendingExtractionIDs.isEmpty, now: now)
+    self.widgetReload.expiriesRead(expiries, isChecking: !pendingExtractionIDs.isEmpty, now: now)
     let desired = ExpiryReminderPlanner.reminders(for: expiries, now: now, calendar: self.calendar)
       .map { $0.notificationRequest(calendar: self.calendar) }
     self.hasPlannedReminder = !desired.isEmpty
@@ -366,19 +382,6 @@ public final class LibraryModel {
 
   private func isCurrentReminderSync(_ generation: Int) -> Bool {
     generation == self.reminderGeneration
-  }
-
-  /// 비교와 요청 사이에 기다리지 않아 겹치지 않는다. 요약에 날짜가 들어 있어 자정을 넘기면(`dayChanged`) 하루 한 번 더 요청한다.
-  private func requestWidgetReloadIfChanged(expiries: [GifticonExpiry], isChecking: Bool, now: Date) {
-    guard let widgetTimeline = self.widgetTimeline else { return }
-    let summaries = ExpiryWidgetTimeline.summaries(
-      for: expiries,
-      isChecking: isChecking,
-      today: LocalDate(now, calendar: self.calendar)
-    )
-    guard summaries != self.requestedWidgetSummaries else { return }
-    self.requestedWidgetSummaries = summaries
-    widgetTimeline.reloadExpiryWidget()
   }
 
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.

@@ -37,6 +37,7 @@ struct LibraryModelPlacePrefetchTests {
       notification: nil,
       widgetTimeline: nil,
       tripPlace: tripPlace,
+      backgroundIndexing: nil,
       locale: { locale.value }
     )
   }
