@@ -357,27 +357,9 @@ public final class LibraryModel {
       .map { $0.notificationRequest(calendar: self.calendar) }
     self.hasPlannedReminder = !desired.isEmpty
 
-    // `changes` 가 nil 을 낼 조건이면 알림 센터를 부르지 않는다.
-    guard status == .authorized, pendingExtractionIDs.isEmpty, !Task.isCancelled else { return }
-    let pendingIDs = await notification.pendingRequestIDs()
-    guard self.isCurrentReminderSync(generation), !Task.isCancelled,
-          let changes = ExpiryReminderPlanner.changes(
-            desiredIDs: Set(desired.map(\.id)),
-            pendingIDs: pendingIDs,
-            managedPrefix: ExpiryReminder.notificationIDPrefix,
-            isAuthorized: status == .authorized,
-            hasPendingExtraction: !pendingExtractionIDs.isEmpty
-          )
-    else { return }
-    // 지우기와 더하기는 같은 시점의 계산이라 사이에 멈추지 않는다. 지우기를 먼저 해 대기 상한을 넘지 않게 한다.
-    if !changes.removals.isEmpty {
-      await notification.removePendingRequests(ids: changes.removals)
-    }
-    let additions = desired.filter { changes.additions.contains($0.id) }
-    if !additions.isEmpty {
-      // 실패한 것만 빠지고 나머지는 예약된다. 빠진 것은 다음 동기화가 다시 더한다.
-      try? await notification.add(additions)
-    }
+    await Self.applyReminderChanges(
+      desired, status: status, hasPendingExtraction: !pendingExtractionIDs.isEmpty, notification: notification
+    ) { self.isCurrentReminderSync(generation) }
   }
 
   private func isCurrentReminderSync(_ generation: Int) -> Bool {
