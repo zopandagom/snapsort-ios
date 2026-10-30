@@ -50,7 +50,8 @@ extension IndexingRun {
       }
       if !gifticons.isEmpty {
         let batch = gifticons
-        try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveGifticons(batch) }
+        try await self
+          .store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.saveGifticons(batch) }
       }
       self.pendingGifticonIDs.subtract(batchIDs)
       // 저장에 성공한 뒤에만 더한다. 저장소가 쓰지 않은 행이 섞여도 소급 보강 저장이 조건을 다시 보므로 무해하다.

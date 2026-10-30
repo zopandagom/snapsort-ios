@@ -7,6 +7,7 @@ import PhotoStoreInterface
 /// 비슷한 사진 비교용 특징 벡터 (docs/ARCHITECTURE.md §4 인덱싱·정리 도우미).
 /// 1단계가 분류와 같은 썸네일로 만들고(`phaseOneFeaturePrint`), 벡터가 생기기 전에 저장된 사진·버전이 바뀐 사진·지난 실패는
 /// 썸네일을 다시 읽어 소급 계산한다(`computeFeaturePrintBatch`). 벡터를 쓸 수 없거나 실패해도 인덱싱은 멈추지 않는다. 취소만 던진다.
+/// BG 모드에서도 같게 요청하고, 이미지 분석의 뒤 시한 차단(`isFeaturePrintAvailable`)을 부를 때마다 따른다.
 /// 벡터와 식별자는 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 extension IndexingRun {
   /// 벡터 요청이 이 수만큼 잇달아 실패하면 이번 실행(다음 전체 다시 비교까지)에서는 부르지 않는다. 임시 값이다.
@@ -82,7 +83,9 @@ extension IndexingRun {
     let batch = prints.filter { self.assets[$0.key] != nil }
     guard !batch.isEmpty else { return }
     do throws(IndexingStop) {
-      try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveFeaturePrints(batch) }
+      try await self.store(write: true) { () async throws(PhotoStoreError) in
+        try await self.photoStore.saveFeaturePrints(batch)
+      }
     } catch {
       // 다른 소급과 같은 이유로 이번 실행에서는 벡터 소급만 멈추고 분류·2단계·소급 보강은 이어 간다.
       // 다음 실행이나 전체 다시 비교가 대상을 다시 채운다. 저장소 실패가 아닌 오류(취소 등)는 삼키지 않는다.
@@ -130,12 +133,15 @@ extension IndexingRun {
     do throws(ImageAnalysisError) {
       let featurePrint = try await self.imageAnalysis.featurePrint(thumbnail)
       self.consecutiveFeaturePrintFailures = 0
+      self.environment.record(.featurePrint)
       return featurePrint
     } catch {
       switch error {
       case .cancelled:
         throw .cancelled
       case .failed:
+        // BG 모드의 Vision 연속 실패(`consecutiveVisionFailures`)에는 세지 않는다(IndexingRun+Background.swift).
+        self.environment.record(.featurePrintFailure)
         self.consecutiveFeaturePrintFailures += 1
         if self.consecutiveFeaturePrintFailures >= Self.maximumConsecutiveFeaturePrintFailures {
           self.isFeaturePrintSuspended = true

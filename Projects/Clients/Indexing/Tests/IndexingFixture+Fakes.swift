@@ -72,6 +72,7 @@ extension Fixture {
       recognizeText: recognizeText,
       detectBarcodes: detectBarcodes,
       isFeaturePrintAvailable: featurePrint.options.isAvailable,
+      isFeaturePrintAvailableInBackground: featurePrint.options.isAvailableInBackground,
       featurePrint: Self.featurePrinter(
         idsByWidth: idsByWidth,
         failures: featurePrint.failures,
