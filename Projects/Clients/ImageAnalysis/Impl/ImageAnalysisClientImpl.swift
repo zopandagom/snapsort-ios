@@ -60,23 +60,32 @@ public struct ImageAnalysisClientImpl: ImageAnalysisClient {
     )
   }
 
-  /// 특징 벡터를 쓸 수 있는지(`FeaturePrinting.availability`). 시한을 넘긴 요청이 있으면 이 프로세스 동안 false 다.
+  /// 특징 벡터를 쓸 수 있는지(`FeaturePrinting.availability`). 앱이 앞에 있는 동안 시한을 넘긴 요청이 있으면 이 프로세스 동안 false,
+  /// 뒤에서 넘긴 요청이 있으면 이 프로세스에서 앱이 뒤에 있을 때만 false 다.
   public var isFeaturePrintAvailable: Bool {
-    FeaturePrinting.availability.withLock { $0 }
+    FeaturePrinting.availability.withLock(\.isAvailable)
   }
 
-  /// 메인 밖에서 시한(`FeaturePrinting.timeout`)과 경주시켜 실행한다. 시한을 넘기면 쓸 수 없음으로 바꾸고 `.failed` 를 던진다
-  /// (그 요청은 끝까지 돌 수 있고 결과는 버린다). `cropAndScaleAction` 은 기본값(`.scaleToFill`)을 둔다.
+  /// 메인 밖에서 시한(`FeaturePrinting.timeout`)과 경주시켜 실행한다. 시한을 넘기면 시작 때의 ticket 으로 앞·뒤 차단을 걸고 `.failed` 를 던진다
+  /// (그 요청은 끝까지 돌 수 있고 결과는 버린다). 앱이 뒤에 있을 때 시작한 요청은 CPU 로 계산한다(`FeaturePrinting.pinToCPU`).
+  /// `cropAndScaleAction` 은 기본값(`.scaleToFill`)을 둔다.
   @concurrent
   public func featurePrint(_ image: AnalysisImage) async throws(ImageAnalysisError) -> ImageFeaturePrint {
-    guard self.isFeaturePrintAvailable else {
+    let (isAvailable, ticket) = FeaturePrinting.availability.withLock { ($0.isAvailable, $0.ticket()) }
+    guard isAvailable else {
       throw Task.isCancelled ? .cancelled : .failed
     }
     let outcome = try await FeaturePrinting
       .race(timeout: FeaturePrinting.timeout) { () async throws(ImageAnalysisError) in
+        // Vision 작업이 돌아올 때(경주가 먼저 끝나 늦게 돌아와도) 남은 뒤 요청 수를 맞춘다.
+        FeaturePrinting.availability.withLock { $0.requestStarted(ticket) }
+        defer { FeaturePrinting.availability.withLock { $0.requestEnded(ticket) } }
         let observation = try await Self.perform {
-          try await GenerateImageFeaturePrintRequest(FeaturePrinting.revision)
-            .perform(on: image.cgImage, orientation: image.orientation)
+          var request = GenerateImageFeaturePrintRequest(FeaturePrinting.revision)
+          if !ticket.isAppActive {
+            FeaturePrinting.pinToCPU(&request)
+          }
+          return try await request.perform(on: image.cgImage, orientation: image.orientation)
         }
         guard let featurePrint = FeaturePrinting.featurePrint(
           data: observation.data,
@@ -89,9 +98,14 @@ public struct ImageAnalysisClientImpl: ImageAnalysisClient {
       }
     let handled = FeaturePrinting.handle(outcome)
     if handled.makesUnavailable {
-      FeaturePrinting.availability.withLock { $0 = false }
+      FeaturePrinting.availability.withLock { $0.timedOut(ticket) }
     }
     return try handled.result.get()
+  }
+
+  /// 앱 활성 상태를 프로세스 전역(`FeaturePrinting.availability`)에 둔다. 자기 잠금만 쥔다.
+  public func appActivityChanged(isActive: Bool) {
+    FeaturePrinting.availability.withLock { $0.appActivityChanged(isActive: isActive) }
   }
 
   /// Vision 요청을 실행하고 실패를 이유로 바꾼다. 시작 전과 끝난 뒤에 Task 취소를 확인한다.

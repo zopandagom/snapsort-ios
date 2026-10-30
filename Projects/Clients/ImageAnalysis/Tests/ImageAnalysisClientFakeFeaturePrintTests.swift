@@ -54,4 +54,29 @@ struct ImageAnalysisClientFakeFeaturePrintTests {
 
     #expect(await task.value == .cancelled)
   }
+
+  @Test("앱 활성 알림을 순서대로 기록하고, 뒤 값을 정하면 마지막 알림이 false 일 때 그 값을 쓴다")
+  func recordsActivityAndUsesBackgroundAvailability() {
+    let fake = ImageAnalysisClientFake(isFeaturePrintAvailable: true, isFeaturePrintAvailableInBackground: false)
+
+    #expect(fake.isFeaturePrintAvailable)
+    fake.appActivityChanged(isActive: false)
+    #expect(!fake.isFeaturePrintAvailable)
+    fake.appActivityChanged(isActive: true)
+    #expect(fake.isFeaturePrintAvailable)
+    #expect(fake.activityChanges == [false, true])
+  }
+
+  @Test("뒤 값을 정하지 않으면 뒤에서도 앞과 같고, 쓸 수 없게 바꾸면 앞·뒤 모두 못 쓴다")
+  func backgroundFollowsForegroundByDefault() {
+    let fake = ImageAnalysisClientFake(isFeaturePrintAvailable: true)
+    fake.appActivityChanged(isActive: false)
+    #expect(fake.isFeaturePrintAvailable)
+
+    fake.makeFeaturePrintUnavailable()
+
+    #expect(!fake.isFeaturePrintAvailable)
+    fake.appActivityChanged(isActive: true)
+    #expect(!fake.isFeaturePrintAvailable)
+  }
 }

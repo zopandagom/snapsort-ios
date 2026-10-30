@@ -1,4 +1,5 @@
 import Core
+import CoreML
 import Foundation
 import ImageAnalysisInterface
 import Synchronization
@@ -13,6 +14,7 @@ enum FeaturePrinting {
 
   /// 요청 하나의 시한(임시 값). iOS 27 시뮬레이터 GPU 에서 요청이 10분 넘게 돌아오지 않은 실측이 있어 둔다.
   /// Mac 장당 4.8ms, iOS 27 시뮬레이터 CPU 첫 호출 0.29s·이후 72ms. 실기기 첫 호출(모델 적재)을 넉넉히 덮는 값으로 잡고 실기기에서 조정한다.
+  /// 넘기면 앞·뒤로 나눠 막는다(`FeaturePrintAvailability`). 뒤(앱이 뒤에 있을 때)에서 시작한 요청은 CPU 로 계산한다(`pinToCPU`).
   static let timeout: Duration = .seconds(5)
 
   /// 이 기기에서 특징 벡터를 만들 수 있는지. 시뮬레이터는 Vision 이 실패하거나 멈추거나 모든 사진에 같은 벡터를 준다.
@@ -25,10 +27,32 @@ enum FeaturePrinting {
     #endif
   }()
 
-  /// 지금 쓸 수 있는지. 요청이 시한을 넘기면 false 로 바꾸고 프로세스가 끝날 때까지 두어, 그 뒤 요청은 Vision 을 부르지 않는다.
+  /// 지금 쓸 수 있는지와 앱 활성 상태. 요청이 시한을 넘기면 앞·뒤 차단을 걸어 프로세스가 끝날 때까지 두고, 막힌 동안 요청은 Vision 을 부르지 않는다.
   /// 프로세스에 하나라 같은 프로세스의 모든 `ImageAnalysisClientImpl` 값이 같이 본다.
-  /// 테스트는 이 값을 바꾸지 않는다(같은 프로세스의 Impl 테스트끼리 나눈다). 바꾸는 판정은 `handle(_:)` 로만 테스트한다.
-  static let availability = Mutex(Self.isSupportedDevice)
+  /// 테스트는 이 값을 바꾸지 않는다(같은 프로세스의 Impl 테스트끼리 나눈다). 바꾸는 판정은 `handle(_:)` 와 값 타입 `FeaturePrintAvailability` 로만
+  /// 테스트한다(`ImageAnalysisClientImpl.appActivityChanged` 도 이 값을 바꾸므로 Impl 테스트에서 부르지 않는다).
+  static let availability = Mutex(FeaturePrintAvailability(isSupportedDevice: Self.isSupportedDevice))
+
+  /// 요청의 주 계산 단계를 CPU 로 고정한다. 그 런타임이 주 단계에 CPU 를 지원하지 않으면 바꾸지 않는다(기본 장치).
+  /// 반드시 제네릭 `VisionRequest` 경유(프로토콜 witness)로 부른다: macOS 26.6 런타임에서 `GenerateImageFeaturePrintRequest` 의
+  /// `supportedComputeStageDevices` 를 구조체로 직접 부르면 dyld 가 심볼을 못 찾아 실행 시작에서 죽었다(실측). 그래서 최적화가 이 함수를
+  /// 구체 타입으로 특수화해 직접 호출로 바꾸지 않게 막는다(Release 산출물 `nm -u` 로 확인, docs/ARCHITECTURE.md §4 정리 도우미).
+  @inline(never)
+  @_semantics("optimize.sil.specialize.generic.never")
+  static func pinToCPU(_ request: inout some VisionRequest) {
+    guard let cpu = cpuDevice(in: request.supportedComputeStageDevices[.main] ?? []) else { return }
+    request.setComputeDevice(cpu, for: .main)
+  }
+
+  /// 장치 목록에서 CPU 를 고른다. 없으면 nil.
+  static func cpuDevice(in devices: [MLComputeDevice]) -> MLComputeDevice? {
+    devices.first { device in
+      if case .cpu = device {
+        return true
+      }
+      return false
+    }
+  }
 
   /// Vision 결과를 Core 값으로 바꾼다. Float 원소이고 개수가 `ImageFeaturePrint.elementCount` 이고 데이터 길이가 맞을 때만 값이다.
   /// revision 2 는 Float 768 개다(실측). Double 이면 저장 형식과 달라 nil.
@@ -45,7 +69,7 @@ enum FeaturePrinting {
     case timedOut
   }
 
-  /// 경주 결과를 요청 결과로 바꾼다. 시한을 넘기면 `.failed` 이고 쓸 수 없음으로 바꿔야 한다(`makesUnavailable`).
+  /// 경주 결과를 요청 결과로 바꾼다. 시한을 넘기면 `.failed` 이고 시한 차단을 걸어야 한다(`makesUnavailable`, 앞·뒤 판정은 `FeaturePrintAvailability`).
   static func handle(
     _ outcome: RaceOutcome<ImageFeaturePrint>
   ) -> (result: Result<ImageFeaturePrint, ImageAnalysisError>, makesUnavailable: Bool) {
