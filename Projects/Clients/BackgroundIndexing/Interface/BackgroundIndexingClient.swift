@@ -8,7 +8,7 @@ public protocol BackgroundIndexingClient: Sendable {
   /// 미리 받기의 저장소 출입을 멈추고, 인덱서가 있으면 BG 처리 요청을 제출한다. BG 작업이 도는 중이면 빌리지도 제출하지도 않고
   /// 저장소 출입만 맞춘다(그 작업이 쥔다). 이미 뒤에 있으면 아무것도 하지 않는다.
   @MainActor func appDidEnterBackground()
-  /// 앱이 앞으로 왔다(scenePhase `.active`, 화면이 처음 생길 때의 값 포함). 멈춘 분류와 미리 받기 저장소 출입을 다시 연다.
+  /// 앱이 앞으로 왔다(scenePhase `.active`. 앞에서 켤 때 처음 값은 `.inactive` 이고 `.active` 는 변화로 온다). 멈춘 분류와 미리 받기 저장소 출입을 다시 연다.
   /// 이미 앞에 있으면 아무것도 하지 않는다.
   @MainActor func appDidBecomeActive()
 }
