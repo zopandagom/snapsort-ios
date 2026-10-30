@@ -244,6 +244,7 @@ struct LibraryModelReminderButtonTests {
       calendar: .seoul,
       now: { .seoul(2026, 10, 19, hour: 8) }
     )
+    model.sceneBecameActive()
     photoLibrary.finishImageChanges()
 
     // 동기화 루프가 시작하지 않으므로 이미지 관찰이 끝나면 돌아온다.

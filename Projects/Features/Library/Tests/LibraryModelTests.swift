@@ -231,13 +231,14 @@ struct LibraryModelTests {
 }
 
 /// 만료 알림·위젯 갱신 없이 보관함 Model 을 만든다(알림이 없으면 동기화가 돌지 않는다).
+/// 화면 진입은 앱이 앞으로 온 뒤에 시작하므로(앞에서 켤 때의 순서) 만든 뒤 `sceneBecameActive()` 를 부른다.
 @MainActor
 func libraryModel(
   _ photoLibrary: any PhotoLibraryClient,
   indexing: (any IndexingClient)? = nil,
   photoStore: (any PhotoStoreClient)? = nil
 ) -> LibraryModel {
-  LibraryModel(
+  let model = LibraryModel(
     photoLibrary: photoLibrary,
     indexing: indexing,
     photoStore: photoStore,
@@ -246,6 +247,8 @@ func libraryModel(
     tripPlace: nil,
     backgroundIndexing: nil
   )
+  model.sceneBecameActive()
+  return model
 }
 
 /// `onAppear()` 가 구독과 처음 불러오기를 마칠 때까지 다른 Task 에 실행을 넘기며 기다린다.

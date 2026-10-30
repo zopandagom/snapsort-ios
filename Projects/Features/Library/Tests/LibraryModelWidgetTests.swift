@@ -163,6 +163,7 @@ struct LibraryModelWidgetTests {
       calendar: .seoul,
       now: { clock.withLock { $0 } }
     )
+    model.sceneBecameActive()
     let appear = Task { await model.onAppear() }
     await waitUntil { widget.reloadCount == 1 }
 

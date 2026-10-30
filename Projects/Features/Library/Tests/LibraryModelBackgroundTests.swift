@@ -29,12 +29,14 @@ struct LibraryModelBackgroundTests {
     )
   }
 
+  /// 앱이 앞으로 온 뒤(BG 작업에 `.didBecomeActive` 를 알린다) 화면 진입을 시작하고,
   /// 인덱싱 구독과 미리 받기 루프(캐시 쓰기 구독)가 선 뒤에 돌아온다.
   private static func appear(
     _ model: LibraryModel,
     indexing: IndexingClientFake,
     tripPlace: TripPlaceClientFake
   ) async -> Task<Void, Never> {
+    model.sceneBecameActive()
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 && tripPlace.activeSubscriberCount == 1 }
     return appear
@@ -51,7 +53,7 @@ struct LibraryModelBackgroundTests {
     model.sceneEnteredBackground()
     await settle()
 
-    #expect(backgroundIndexing.events == [.didEnterBackground])
+    #expect(backgroundIndexing.events == [.didBecomeActive, .didEnterBackground])
     #expect(indexing.activeRunCount == 1)
     #expect(!model.isIndexingStopped)
     await cancelAndWait(appear)
@@ -74,7 +76,7 @@ struct LibraryModelBackgroundTests {
 
     model.sceneBecameActive()
     #expect(model.placeRevision == 1)
-    #expect(backgroundIndexing.events == [.didEnterBackground, .didBecomeActive])
+    #expect(backgroundIndexing.events == [.didBecomeActive, .didEnterBackground, .didBecomeActive])
 
     // 앞에 있으면 지금처럼 바로 알린다.
     tripPlace.sendPlaceChange()
@@ -109,7 +111,7 @@ struct LibraryModelBackgroundTests {
 
     model.sceneEnteredBackground()
     model.sceneBecameActive()
-    #expect(backgroundIndexing.events == [.didEnterBackground, .didBecomeActive])
+    #expect(backgroundIndexing.events == [.didBecomeActive, .didEnterBackground, .didBecomeActive])
 
     let revision = model.storeRevision
     indexing.sendProgress(Self.finished)

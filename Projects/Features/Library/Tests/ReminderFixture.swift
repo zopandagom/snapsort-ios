@@ -24,7 +24,7 @@ enum ReminderFixture {
     widgetTimeline: WidgetTimelineClientFake? = nil,
     now: Date = .seoul(2026, 10, 19, hour: 8)
   ) -> LibraryModel {
-    LibraryModel(
+    let model = LibraryModel(
       photoLibrary: PhotoLibraryClientFake(currentState: .authorized),
       indexing: indexing,
       photoStore: photoStore,
@@ -35,6 +35,9 @@ enum ReminderFixture {
       calendar: .seoul,
       now: { now }
     )
+    // 화면 진입은 앱이 앞으로 온 뒤에 시작한다(앞에서 켤 때의 순서).
+    model.sceneBecameActive()
+    return model
   }
 
   /// 앞선 동기화가 끝까지 돌았음을 기다린다. 동기화는 한 번에 하나씩 차례로 돌므로, 진행률로 다음 동기화를 요청해

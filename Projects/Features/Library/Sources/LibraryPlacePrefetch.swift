@@ -19,7 +19,8 @@ final class LibraryPlacePrefetch {
   /// 마지막으로 받은 인덱싱 진행률이 1단계를 마쳤는지(`IndexingProgress.phase` 가 `.classifying` 이 아님). 요청을 꺼낼 때마다 본다.
   /// 인덱싱이 멈춰도 마지막 값을 두고, 화면 진입(`run`) 때 false 로 되돌린다(`LibraryModel.indexingProgress` 는 지난 값을 둔다).
   private var isClassified = false
-  /// 앱이 앞에 있는지(scenePhase). 처음 값은 화면이 생길 때 `sceneBecameActive`·`sceneEnteredBackground` 로 맞춘다.
+  /// 앱이 앞에 있는지(scenePhase). 화면이 뒤에서 생기면 첫 값 `.background`(`sceneEnteredBackground`)로 거짓이 되고, 앞에서 켜면
+  /// 첫 값이 `.inactive` 라 기본값 참을 쓴다(`.active` 는 변화로 온다. 미리 받기는 보관함 화면 진입이 첫 `.active` 뒤에 시작한다).
   private var isSceneActive = true
   /// 뒤에 있는 동안 캐시 쓰기가 있었는지. 앞으로 올 때 한 번 알리고 푼다.
   private var hasPendingPlaceChange = false
