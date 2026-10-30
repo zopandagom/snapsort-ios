@@ -281,6 +281,11 @@ struct IndexingRun {
     let fetched = await self.photoLibrary.fetchImageAssets()
     self.assets = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     let stored = try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.indexedIDs() }
+    // BG 모드(잠긴 기기 등)에서 사진 조회가 비었는데 저장된 결과가 있으면 지우지 않고 멈춘다. 조회가 실제로 비었는지 읽지 못한 것인지
+    // 가를 수 없고, 지우면 사용함 표시 같은 사용자 상태도 함께 사라진다. 앞 실행이 다시 비교한다.
+    if fetched.isEmpty, !stored.isEmpty, self.isBackgroundMode {
+      throw .libraryEmpty
+    }
     let pending = try await self.store { () async throws(PhotoStoreError) in
       try await self.photoStore.pendingTextRecognitionIDs()
     }

@@ -328,6 +328,8 @@ enum IndexingStop: Error {
   case yielded
   /// BG 모드에서 Vision 이 잇달아 실패했다.
   case visionStopped
+  /// BG 모드에서 사진 조회가 비었는데 저장된 결과가 있다(지우지 않고 앞 실행에 넘긴다).
+  case libraryEmpty
 }
 
 /// 이미지 한 장을 분석하지 못한 이유.

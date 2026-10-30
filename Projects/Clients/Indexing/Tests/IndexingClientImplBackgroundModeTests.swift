@@ -26,6 +26,16 @@ struct IndexingClientImplBackgroundModeTests {
     #expect(fixture.store.images.isEmpty)
   }
 
+  @Test("BG 모드에서 사진 조회가 비었는데 저장된 결과가 있으면 지우지 않고 남은 것으로 멈춘다")
+  func keepsStoredRowsWhenLibraryReadsEmpty() async {
+    let fixture = Fixture(library: [], stored: [indexed("gift")])
+
+    let result = await fixture.runInBackground()
+
+    #expect(result.hasRemainingWork)
+    #expect(fixture.store.images.only?.asset.id == indexed("gift").asset.id)
+  }
+
   @Test("BG 모드에서 미룬 장은 다시 활성이 된 새 실행이 앞 모드로 처리한다")
   func retriesDeferredOnActivation() async {
     let photo = cameraPhoto("photo", day: 9)

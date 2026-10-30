@@ -6,6 +6,7 @@ import IndexingInterface
 /// - 분류 보강이 거부(`.rejected`, 속도 제한 포함)되거나 모델 차단 중이면 규칙 결과로 저장하지 않고 그 장을 대기로 남긴다(IndexingRun+ModelFill.swift).
 /// - 분류·OCR·바코드 Vision 요청이 잇달아 실패하면 실행을 멈춘다(`.visionStopped`). 이미지 읽기 실패와 특징 벡터 실패는 세지 않는다
 ///   (벡터는 선택 기능이라 분류·OCR 을 멈출 근거가 아니다. 벡터는 실행 안 연속 실패 차단만 따른다).
+/// - 처음 비교에서 사진 조회가 비었는데 저장된 결과가 있으면 지우지 않고 멈춘다(`.libraryEmpty`, 잠긴 기기에서 읽지 못했을 수 있다).
 /// - 배치 경계(본 루프 맨 위·1단계 저장 직후)에서 양보(`shouldYield`, 발열)를 본다.
 /// 특징 벡터는 BG 모드에서도 같게 요청한다(뒤에서는 이미지 분석이 CPU 로 계산하고 뒤 시한 차단을 따른다).
 extension IndexingRun {
@@ -115,6 +116,8 @@ enum IndexingRunEnd: String, Sendable {
   case yielded
   /// BG 모드에서 Vision 이 잇달아 실패했다.
   case visionStopped
+  /// BG 모드에서 사진 조회가 비었는데 저장된 결과가 있다.
+  case libraryEmpty
   /// 보관함 변경 스트림이 끝나 남은 일을 마쳤다.
   case changesEnded
 
@@ -125,13 +128,14 @@ enum IndexingRunEnd: String, Sendable {
     case .notReadable: self = .notReadable
     case .yielded: self = .yielded
     case .visionStopped: self = .visionStopped
+    case .libraryEmpty: self = .libraryEmpty
     }
   }
 
   /// BG 가 다시 예약할 일이 남는지.
   var leavesRemainingWork: Bool {
     switch self {
-    case .cancelled, .storeFailed, .yielded, .visionStopped: true
+    case .cancelled, .storeFailed, .yielded, .visionStopped, .libraryEmpty: true
     case .notReadable, .changesEnded: false
     }
   }
