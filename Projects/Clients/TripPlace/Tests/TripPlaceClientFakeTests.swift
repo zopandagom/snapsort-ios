@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 import TripPlaceTesting
 
@@ -52,5 +53,32 @@ struct TripPlaceClientFakeTests {
     consumer.cancel()
     await consumer.value
     #expect(fake.activeSubscriberCount == 2)
+  }
+
+  @Test("회차 시작·취소·끝과 저장소 출입 막기·열기를 순서대로 기록하고 onEvent 로도 넘긴다")
+  func recordsEvents() async {
+    let forwarded = Mutex<[TripPlaceClientFake.Event]>([])
+    let fake = TripPlaceClientFake(
+      onPrefetch: { _ in try? await Task.sleep(for: .seconds(3600)) },
+      onEvent: { event in forwarded.withLock { $0.append(event) } }
+    )
+
+    let round = Task { await fake.prefetchPlaces(locale: Locale(identifier: "ko_KR")) }
+    while fake.prefetchLocaleIdentifiers.isEmpty {
+      await Task.yield()
+    }
+    round.cancel()
+    await round.value
+    await fake.holdStoreAccess()
+    await fake.allowStoreAccess()
+
+    #expect(fake.events == [
+      .prefetchStarted,
+      .prefetchCancelled,
+      .prefetchReturned,
+      .holdStoreAccess,
+      .allowStoreAccess,
+    ])
+    #expect(forwarded.withLock { $0 } == fake.events)
   }
 }

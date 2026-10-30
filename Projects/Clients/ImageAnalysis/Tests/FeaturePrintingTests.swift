@@ -1,4 +1,5 @@
 import Core
+import CoreML
 import Foundation
 import ImageAnalysisInterface
 import Synchronization
@@ -9,7 +10,8 @@ import Vision
 /// 실제 벡터 계산(`ImageAnalysisClientImpl.featurePrint` 가 Vision 을 부르는 경로)은 자동 테스트가 없다. 시뮬레이터의 Vision 은
 /// 요청이 실패하거나 멈추거나 모든 사진에 같은 벡터를 주고, Client 테스트는 호스트 앱이 없어 실기기에서 돌 수 없다(docs/CONVENTIONS.md §3).
 /// 그래서 결과 변환·시한 경주·시뮬레이터 경로·버전 대조만 테스트한다. 전역 `FeaturePrinting.availability` 는 바꾸지 않는다
-/// (같은 프로세스의 Impl 테스트끼리 나눈다). 시한 초과로 쓸 수 없게 바꾸는 판정은 `handle(_:)` 로 본다.
+/// (같은 프로세스의 Impl 테스트끼리 나눈다). 시한 초과로 쓸 수 없게 바꾸는 판정은 `handle(_:)` 와 `FeaturePrintAvailabilityTests` 로 본다.
+/// 같은 이유로 `ImageAnalysisClientImpl.appActivityChanged` 도 부르지 않는다.
 struct FeaturePrintingTests {
   private static func floatData(_ values: [Float]) -> Data {
     values.withUnsafeBytes { Data($0) }
@@ -203,5 +205,46 @@ private final class Gate: Sendable {
       return state.waiters
     }
     waiters.forEach { $0.resume() }
+  }
+
+  @Test("장치 목록에서 CPU 를 고르고, CPU 가 없거나 비었으면 nil 이다")
+  func picksCPUDevice() {
+    let all = MLComputeDevice.allComputeDevices
+    let withoutCPU = all.filter { !Self.isCPU($0) }
+
+    #expect(FeaturePrinting.cpuDevice(in: all).map(Self.isCPU) == true)
+    #expect(FeaturePrinting.cpuDevice(in: withoutCPU) == nil)
+    #expect(FeaturePrinting.cpuDevice(in: []) == nil)
+  }
+
+  @Test("CPU 고정은 그 런타임이 주 단계에 CPU 를 지원하면 CPU 로 바꾸고, 아니면 기본 장치(nil)로 둔다")
+  func pinsFeaturePrintRequestToCPU() {
+    var request = GenerateImageFeaturePrintRequest(FeaturePrinting.revision)
+    // 로컬 목록으로 기대를 고정하지 않는다(CI 러너와 런타임이 다를 수 있다).
+    let supportsCPU = Self.mainDevices(of: request).contains(where: Self.isCPU)
+
+    FeaturePrinting.pinToCPU(&request)
+
+    if supportsCPU {
+      #expect(Self.mainDevice(of: request).map(Self.isCPU) == true)
+    } else {
+      #expect(Self.mainDevice(of: request) == nil)
+    }
+  }
+
+  private static func isCPU(_ device: MLComputeDevice) -> Bool {
+    if case .cpu = device {
+      return true
+    }
+    return false
+  }
+
+  // 구조체로 직접 부르면 iOS 26 런타임에서 dyld 가 심볼을 못 찾을 수 있어 Impl 과 같이 제네릭 `VisionRequest` 로 부른다.
+  private static func mainDevices(of request: some VisionRequest) -> [MLComputeDevice] {
+    request.supportedComputeStageDevices[.main] ?? []
+  }
+
+  private static func mainDevice(of request: some VisionRequest) -> MLComputeDevice? {
+    request.computeDevice(for: .main)
   }
 }

@@ -30,15 +30,19 @@ struct LibraryModelPlacePrefetchTests {
     tripPlace: TripPlaceClientFake?,
     locale: LocaleBox = LocaleBox(Locale(identifier: "ko_KR"))
   ) -> LibraryModel {
-    LibraryModel(
+    let model = LibraryModel(
       photoLibrary: PhotoLibraryClientFake(currentState: .authorized),
       indexing: indexing,
       photoStore: nil,
       notification: nil,
       widgetTimeline: nil,
       tripPlace: tripPlace,
+      backgroundIndexing: nil,
       locale: { locale.value }
     )
+    // 화면 진입은 앱이 앞으로 온 뒤에 시작한다(앞에서 켤 때의 순서). 루프가 없을 때라 회차 요청은 버려진다.
+    model.sceneBecameActive()
+    return model
   }
 
   /// 인덱싱 구독과 미리 받기 루프(캐시 쓰기 구독)가 선 뒤에 돌아온다.

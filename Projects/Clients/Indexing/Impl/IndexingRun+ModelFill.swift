@@ -20,15 +20,30 @@ extension IndexingRun {
 
   // MARK: - 2단계 보강
 
-  /// 규칙 분류가 기타뿐인 이미지의 카테고리를 모델 제안 중 원문 근거가 있는 정보형으로 바꾼다.
-  /// 모델을 쓰지 못했거나 근거 있는 제안이 없으면 nil 이다(규칙 결과를 쓴다).
-  mutating func modelCategories(for lines: [RecognizedTextLine]) async throws(IndexingStop) -> Set<ImageCategory>? {
-    guard self.canUseModel else { return nil }
+  /// 규칙 분류가 기타뿐인 이미지의 카테고리를 모델 제안 중 원문 근거가 있는 정보형으로 바꾼다(`.accepted`).
+  /// 모델을 쓸 수 없거나 실패했거나 근거 있는 제안이 없으면 `.rules`(규칙 결과를 쓴다).
+  /// BG 모드에서 모델이 거부했거나(속도 제한 포함) 모델 차단 중이면 `.deferred`: 규칙 결과로 굳히지 않고 대기로 남긴다(IndexingRun+Background.swift).
+  mutating func modelCategories(for lines: [RecognizedTextLine]) async throws(IndexingStop) -> ModelCategoryResult {
+    guard self.classifier.isModelAvailable() else { return .rules }
+    guard !self.isModelSuspended else { return self.deferIfBackground() }
     let classifier = self.classifier
     let result = try await self.askModel { () async throws(ClassifierError) in try await classifier.classify(lines) }
-    guard case let .answered(proposed) = result else { return nil }
-    let accepted = ModelCategoryPolicy.accepted(proposed, textLines: lines)
-    return accepted.isEmpty ? nil : accepted
+    switch result {
+    case let .answered(proposed):
+      let accepted = ModelCategoryPolicy.accepted(proposed, textLines: lines)
+      return accepted.isEmpty ? .rules : .accepted(accepted)
+    case .rejected:
+      return self.deferIfBackground()
+    case .failed, .unavailable:
+      return .rules
+    }
+  }
+
+  /// BG 모드면 미룸을 알리고 `.deferred`, 앞 모드면 `.rules`.
+  private func deferIfBackground() -> ModelCategoryResult {
+    guard self.isBackgroundMode else { return .rules }
+    self.environment.record(.modelDeferred)
+    return .deferred
   }
 
   /// 2단계 기프티콘 추출: 규칙으로 추출하고, 채울 필드가 있고 모델을 쓸 수 있으면 확인된 모델 값으로 채운다.
@@ -96,7 +111,7 @@ extension IndexingRun {
       let assets = self.assets
       let batch = results.filter { assets[$0.key] != nil }
       if !batch.isEmpty {
-        try await self.store { () async throws(PhotoStoreError) in
+        try await self.store(write: true) { () async throws(PhotoStoreError) in
           try await self.photoStore.saveGifticonModelFills(batch)
         }
       }
@@ -195,6 +210,7 @@ extension IndexingRun {
         return .failed
       case .rejected:
         self.recordConsecutiveModelFailure()
+        self.environment.record(.modelRejected)
         return .rejected
       }
     }
@@ -207,6 +223,16 @@ extension IndexingRun {
       self.isModelSuspended = true
     }
   }
+}
+
+/// 분류 보강 결과.
+enum ModelCategoryResult {
+  /// 모델 제안 중 원문 근거가 있는 정보형 카테고리.
+  case accepted(Set<ImageCategory>)
+  /// 규칙 결과를 쓴다.
+  case rules
+  /// BG 모드라 규칙 결과로 굳히지 않고 대기로 남긴다.
+  case deferred
 }
 
 /// 모델 호출 한 번의 결과. 취소는 결과가 아니라 던진다.

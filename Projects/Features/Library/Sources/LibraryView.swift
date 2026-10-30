@@ -15,9 +15,12 @@ import SwiftUI
 /// - 장소 캐시 쓰기(`LibraryModel.placeRevision`, 장소 이름 미리 받기) → 여행 폴더 목록·여행 폴더 상세·검색 결과의 다시 읽기
 /// - 대표 사진 변경(`LibraryModel.coverIDs`) → 카드 대표 썸네일 읽기·놓기(`LibraryCoverModel.coversChanged`)
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
-/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경 → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근
-/// 스크린샷 화면)
+/// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경(날짜·시간대는 앱이 앞에 있을 때만) → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·
+/// 영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근 스크린샷 화면)
 /// - 기기 로캘 변경 → 장소 이름 미리 받기(`LibraryModel.localeChanged`)
+/// - 앱이 앞으로 옴·뒤로 감(scenePhase `.active`·`.background`. `.background` 는 처음 값 포함, 앞에서 켤 때 처음 값은 `.inactive`)
+/// → 분류 멈춤·재개와 BG 작업(`LibraryModel.sceneBecameActive`·
+/// `sceneEnteredBackground`). 보관함 화면 진입(`LibraryModel.onAppear`)은 첫 `.active` 까지 기다린다
 public struct LibraryView: View {
   let model: LibraryModel
   let coverModel: LibraryCoverModel
@@ -143,10 +146,20 @@ public struct LibraryView: View {
       self.cleanupModel.libraryStoreChanged()
       self.captureActionsModel.libraryStoreChanged()
     }
-    // 시작 직후의 첫 값은 부르지 않는다(화면 진입 동기화가 맡는다). 백그라운드(잠금 포함) 동안의 날짜 변경도 여기서 덮는다.
+    // 첫 값도 본다: 화면이 백그라운드에서 만들어지면(BG 작업이 앱을 띄움) 처음부터 멈춘 상태로 두고, 보관함 화면 진입(`onAppear()`)은
+    // 첫 `.active` 까지 기다린다(docs/ARCHITECTURE.md §4 인덱싱). 앞에서 켤 때 첫 값은 `.inactive` 이고 `.active` 는 변화로 온다
+    // (iOS 27.0 시뮬레이터 실험). `.inactive`(알림 센터를 내림 등)는 멈추지 않는다.
+    .onChange(of: self.scenePhase, initial: true) { _, phase in
+      switch phase {
+      case .active: self.model.sceneBecameActive()
+      case .background: self.model.sceneEnteredBackground()
+      default: break
+      }
+    }
+    // 첫 값(`.inactive`)은 부르지 않는다. 시작 때 오는 `.active` 변화는 여기서도 불리지만 같은 날짜라 다시 계산만 한다.
+    // 백그라운드(잠금 포함) 동안의 날짜 변경도 여기서 덮는다.
     .onChange(of: self.scenePhase) { _, phase in
       guard phase == .active else { return }
-      self.model.sceneBecameActive()
       self.gifticonListModel.dayChanged()
       self.receiptListModel.dayChanged()
       self.captureActionsModel.dayChanged()
@@ -169,7 +182,9 @@ public struct LibraryView: View {
     }
   }
 
+  /// 앱이 뒤에 있으면(BG 작업이 깨운 프로세스) 넘기지 않는다. 앞으로 올 때 `.active` 변화가 아홉 Model 을 다시 맞춘다.
   private func dayChanged() {
+    guard self.model.isSceneActive else { return }
     self.model.dayChanged()
     self.gifticonListModel.dayChanged()
     self.receiptListModel.dayChanged()

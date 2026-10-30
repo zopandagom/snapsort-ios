@@ -7,19 +7,27 @@ import ImageAnalysisInterface
 extension IndexingRun {
   /// 확인 대상(`TextRecognitionPolicy.needsBarcodeCheck`)이면 분류와 같은 썸네일로 인식해 읽을 수 있는 바코드가 있는지만 돌려준다.
   /// 대체 버전 썸네일도 그대로 쓴다(작아서 못 읽으면 바코드 없음과 같다). 실패는 바코드 없음(false)으로 보고 분류를 이어 가고, 취소면 던진다.
-  func phaseOneHasBarcode(
+  /// BG 모드의 실패는 바코드 없음으로 굳히지 않고 nil 이다: 부르는 쪽이 그 장을 저장하지 않고 이번 실행에서 미룬다(IndexingRun+Background.swift).
+  mutating func phaseOneHasBarcode(
     asset: ImageAsset,
     labels: [ImageLabel],
     thumbnail: AnalysisImage
-  ) async throws(IndexingStop) -> Bool {
+  ) async throws(IndexingStop) -> Bool? {
     guard TextRecognitionPolicy.needsBarcodeCheck(asset: asset, labels: labels) else { return false }
     do throws(ImageAnalysisError) {
       // 있는지만 보고 결과는 버린다.
-      return try await !self.imageAnalysis.detectBarcodes(thumbnail).isEmpty
+      let hasBarcode = try await !self.imageAnalysis.detectBarcodes(thumbnail).isEmpty
+      self.recordVisionResult(succeeded: true)
+      return hasBarcode
     } catch {
       switch error {
-      case .cancelled: throw .cancelled
-      case .failed: return false
+      case .cancelled:
+        throw .cancelled
+      case .failed:
+        self.recordVisionResult(succeeded: false)
+        guard self.isBackgroundMode else { return false }
+        self.environment.record(.barcodeDeferred)
+        return nil
       }
     }
   }

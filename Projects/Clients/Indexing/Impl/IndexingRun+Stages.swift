@@ -34,7 +34,7 @@ extension IndexingRun {
       switch try await self.classify(asset) {
       case let .indexed(image):
         pending.append(image)
-      case .unavailable:
+      case .unavailable, .deferred:
         self.skippedIDs.insert(asset.id)
       case .gone:
         // 보관함에서 지워졌다. 삭제 변경도 오지만 그 전에 전체 수와 여행에서 뺀다.
@@ -42,10 +42,17 @@ extension IndexingRun {
         foundGone = true
       }
       processedSinceReport += 1
+      if self.shouldStopForVisionFailures {
+        // 분석한 결과는 저장한 뒤 멈춘다.
+        try await self.saveClassified(&pending)
+        report(self.progress)
+        throw .visionStopped
+      }
       if processedSinceReport >= self.batchSize {
         try await self.saveClassified(&pending)
         processedSinceReport = 0
         report(self.progress)
+        try self.yieldIfNeeded()
       }
     }
     try await self.saveClassified(&pending)
@@ -64,13 +71,17 @@ extension IndexingRun {
     let labels: [ImageLabel]
     do throws(AnalysisFailure) {
       thumbnail = try await self.loadImage(asset.id, size: .thumbnail)
+      let imageAnalysis = self.imageAnalysis
       labels = try await self.analysis { () async throws(ImageAnalysisError) in
-        try await self.imageAnalysis.classify(thumbnail, minimumConfidence: ClassificationRules.minimumLabelConfidence)
+        try await imageAnalysis.classify(thumbnail, minimumConfidence: ClassificationRules.minimumLabelConfidence)
       }
     } catch let failure {
       return try failure.outcome()
     }
-    let hasBarcode = try await self.phaseOneHasBarcode(asset: asset, labels: labels, thumbnail: thumbnail)
+    // BG 모드의 바코드 확인 실패는 바코드 없음으로 굳히지 않고 미룬다.
+    guard let hasBarcode = try await self.phaseOneHasBarcode(asset: asset, labels: labels, thumbnail: thumbnail) else {
+      return .deferred
+    }
     guard TextRecognitionPolicy.needsTextRecognition(asset: asset, labels: labels, hasBarcode: hasBarcode) else {
       let categories = RuleClassifier.classify(asset: asset, labels: labels, textLines: [])
       let featurePrint = try await self.phaseOneFeaturePrint(asset: asset, thumbnail: thumbnail)
@@ -102,7 +113,8 @@ extension IndexingRun {
   private mutating func saveClassified(_ pending: inout [IndexedImage]) async throws(IndexingStop) {
     guard !pending.isEmpty else { return }
     let images = pending
-    try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.save(images) }
+    try await self.store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.save(images) }
+    self.environment.record(.classified(images.count))
     self.indexedIDs.formUnion(images.map(\.id))
     self.pendingTextIDs.formUnion(images.filter { $0.textRecognition == .pending }.map(\.id))
     pending = []
@@ -130,36 +142,19 @@ extension IndexingRun {
       if Task.isCancelled {
         throw .cancelled
       }
-      guard let asset = self.assets[id] else {
-        self.pendingTextIDs.remove(id)
-        continue
-      }
-      guard let image = storedByID[id] else {
-        // 저장 결과가 없으면 읽을 라벨이 없다. 저장 수에서도 빼고 1단계 미룸으로 옮겨, 진행률이 행 없는 이미지를 저장된 것으로 세지 않고
-        // 전체 다시 비교나 다음 실행의 1단계가 다시 분류하게 한다. 저장 수에서만 빼면 할 일 없이 1단계에 머문다.
-        self.pendingTextIDs.remove(id)
-        self.indexedIDs.remove(id)
-        self.skippedIDs.insert(id)
-        continue
-      }
-      switch try await self.recognize(image, asset: asset) {
-      case let .indexed(result):
+      if let result = try await self.recognizeOne(id, stored: storedByID[id], foundGone: &foundGone) {
         recognized.append(result)
-      case .unavailable:
-        self.pendingTextIDs.remove(id)
-        self.textSkippedIDs.insert(id)
-      case .gone:
-        // 저장 결과는 지우지 않는다(삭제는 보관함 변경이 한다). 삭제 없이 다시 추가되면 대기로 되돌린다.
-        self.pendingTextIDs.remove(id)
-        self.goneTextIDs.insert(id)
-        self.assets[id] = nil
-        foundGone = true
+      }
+      if self.shouldStopForVisionFailures {
+        // 읽은 결과는 저장한 뒤 멈춘다. 남은 장은 대기로 남는다.
+        break
       }
     }
     // 삭제는 배치 사이에만 반영하므로 방어용이다. 지워진 이미지의 행을 다시 만들지 않는다.
     let images = recognized.filter { self.assets[$0.id] != nil }
     if !images.isEmpty {
-      try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.save(images) }
+      try await self.store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.save(images) }
+      self.environment.record(.recognized(images.count))
       self.pendingTextIDs.subtract(images.map(\.id))
       self.recognizedTextCount += images.count
     }
@@ -167,6 +162,44 @@ extension IndexingRun {
       try await self.replaceTripsIfChanged()
     }
     report(self.progress)
+    if self.shouldStopForVisionFailures {
+      throw .visionStopped
+    }
+  }
+
+  /// 2단계 배치의 한 장을 읽는다. 읽은 결과를 돌려주고, 읽지 못했으면 대기에서 빼 알맞은 곳으로 옮긴다.
+  /// 보관함에 없다고 나오면 `foundGone` 을 켠다.
+  private mutating func recognizeOne(
+    _ id: ImageAsset.ID,
+    stored: IndexedImage?,
+    foundGone: inout Bool
+  ) async throws(IndexingStop) -> IndexedImage? {
+    guard let asset = self.assets[id] else {
+      self.pendingTextIDs.remove(id)
+      return nil
+    }
+    guard let image = stored else {
+      // 저장 결과가 없으면 읽을 라벨이 없다. 저장 수에서도 빼고 1단계 미룸으로 옮겨, 진행률이 행 없는 이미지를 저장된 것으로 세지 않고
+      // 전체 다시 비교나 다음 실행의 1단계가 다시 분류하게 한다. 저장 수에서만 빼면 할 일 없이 1단계에 머문다.
+      self.pendingTextIDs.remove(id)
+      self.indexedIDs.remove(id)
+      self.skippedIDs.insert(id)
+      return nil
+    }
+    switch try await self.recognize(image, asset: asset) {
+    case let .indexed(result):
+      return result
+    case .unavailable, .deferred:
+      self.pendingTextIDs.remove(id)
+      self.textSkippedIDs.insert(id)
+    case .gone:
+      // 저장 결과는 지우지 않는다(삭제는 보관함 변경이 한다). 삭제 없이 다시 추가되면 대기로 되돌린다.
+      self.pendingTextIDs.remove(id)
+      self.goneTextIDs.insert(id)
+      self.assets[id] = nil
+      foundGone = true
+    }
+    return nil
   }
 
   /// 2단계: 가장 큰 버전으로 OCR → 저장된 라벨과 지금 보관함의 메타데이터, 읽은 줄로 규칙 분류 → 기타뿐이면 모델 분류 보강
@@ -177,15 +210,23 @@ extension IndexingRun {
     let lines: [RecognizedTextLine]
     do throws(AnalysisFailure) {
       let image = try await self.loadImage(asset.id, size: .largestAvailable)
+      let imageAnalysis = self.imageAnalysis
       lines = try await self.analysis { () async throws(ImageAnalysisError) in
-        try await self.imageAnalysis.recognizeText(image)
+        try await imageAnalysis.recognizeText(image)
       }
     } catch let failure {
       return try failure.outcome()
     }
     var categories = RuleClassifier.classify(asset: asset, labels: stored.labels, textLines: lines)
     if categories == [.other], !lines.isEmpty {
-      categories = try await self.modelCategories(for: lines) ?? categories
+      switch try await self.modelCategories(for: lines) {
+      case let .accepted(accepted):
+        categories = accepted
+      case .rules:
+        break
+      case .deferred:
+        return .deferred
+      }
     }
     let receipt = categories.contains(.receipt) ? ReceiptExtractor.extract(from: lines) : nil
     // 모델이 더한 쇼핑·대화·지도 카테고리도 추출한다. 세 카테고리가 아니면 값이 없다(nil).
@@ -245,15 +286,21 @@ extension IndexingRun {
     }
   }
 
-  private func analysis<Output>(
+  /// 분류·OCR Vision 요청. 성공·실패를 BG 모드의 Vision 연속 실패로 센다(IndexingRun+Background.swift).
+  private mutating func analysis<Output>(
     _ operation: () async throws(ImageAnalysisError) -> Output
   ) async throws(AnalysisFailure) -> Output {
     do throws(ImageAnalysisError) {
-      return try await operation()
+      let output = try await operation()
+      self.recordVisionResult(succeeded: true)
+      return output
     } catch {
       switch error {
-      case .cancelled: throw .cancelled
-      case .failed: throw .unavailable
+      case .cancelled:
+        throw .cancelled
+      case .failed:
+        self.recordVisionResult(succeeded: false)
+        throw .unavailable
       }
     }
   }
@@ -266,14 +313,23 @@ enum Outcome {
   case unavailable
   /// 보관함에 없다.
   case gone
+  /// BG 모드라 결과로 굳히지 않고 미룬다(바코드 확인 실패·분류 보강 거부). 1단계는 저장하지 않고, 2단계는 대기로 둔다.
+  case deferred
 }
 
 /// 인덱싱을 멈추는 이유.
 enum IndexingStop: Error {
+  /// Task 취소 또는 닫힌 저장소 문(실행을 멈췄다).
   case cancelled
   case storeFailed
   /// 사진을 읽을 권한이 없다.
   case notReadable
+  /// BG 모드에서 양보했다(발열).
+  case yielded
+  /// BG 모드에서 Vision 이 잇달아 실패했다.
+  case visionStopped
+  /// BG 모드에서 사진 조회가 비었는데 저장된 결과가 있다(지우지 않고 앞 실행에 넘긴다).
+  case libraryEmpty
 }
 
 /// 이미지 한 장을 분석하지 못한 이유.

@@ -107,9 +107,11 @@ struct LibraryModelNotificationSettingsTests {
       notification: notification,
       widgetTimeline: nil,
       tripPlace: nil,
+      backgroundIndexing: nil,
       calendar: .seoul,
       now: { clock.now }
     )
+    model.sceneBecameActive()
     let appear = Task { await model.onAppear() }
     await waitUntil { notification.pendingRequests.map(\.id) == ReminderFixture.expectedIDsFor1029 }
 

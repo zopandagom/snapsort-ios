@@ -18,12 +18,50 @@ public protocol IndexingClient: Sendable {
   /// 2단계·소급 추출·소급 보강 도중 온 보관함 변경은 배치 경계에서 먼저 반영한다(새 이미지 1단계).
   /// 비교 기준은 지금 읽을 수 있는 이미지이므로, 제한 접근(`.limited`)이면 고르지 않은 이미지의 결과도 지운다.
   /// 화면 안내("선택한 사진만 분류합니다")와 같게 고른 사진만 분류하고, 다시 전체 접근을 주면 처음부터 분석한다.
-  /// 처음 비교를 마친 뒤에도 보관함 변경을 계속 반영하므로, 받는 쪽이 구독을 끝내야(Task 취소) 멈춘다.
+  /// 실행은 한 번에 하나다: 여럿이 구독하면(BG 작업의 `runInBackground` 포함) 같은 실행을 함께 받는다.
+  /// 처음 비교를 마친 뒤에도 보관함 변경을 계속 반영하므로, 받는 쪽이 모두 구독을 끝내야(Task 취소) 멈춘다.
+  /// 앱이 비활성이면(`appActivityChanged(isActive: false)`) BG 작업이 쥐지 않는 한 멈추고, 그동안 진행률을 보내지 않다가
+  /// 다시 활성이 되면 둔 최신 값을 한 번 보내고 새 실행(전체 다시 비교)으로 이어 간다.
   /// 받는 쪽이 늦게 읽으면 지난 진행률은 버리고 가장 최근 값만 남긴다.
   /// 사진을 읽을 권한이 없으면(`PhotoAccessState.canRead` 거짓) 저장 결과를 그대로 두고 스트림을 끝낸다.
-  /// 저장소를 읽거나 쓰지 못하면 멈추고 스트림을 끝낸다. 다음 `run()` 에서 저장된 데까지 건너뛰고 이어서 분석한다
+  /// 저장소를 읽거나 쓰지 못하면 멈추고 스트림을 끝낸다. 단, 앱이 비활성인 동안 멈추면 스트림을 끝내지 않고 다시 활성이 될 때 새 실행으로 잇는다. 다음 `run()` 에서 저장된 데까지 건너뛰고 이어서
+  /// 분석한다
   /// (1단계를 마친 이미지는 다시 분류하지 않고 2단계만 이어 한다).
   /// 단, 소급 추출·소급 보강(대상 조회·읽기·저장)만 실패하면 멈추지 않는다. 이번 실행에서는 그 소급만 멈추고 분류·글자 읽기는 이어 가며,
   /// 다음 실행이나 전체 다시 비교에서 소급을 다시 시도한다.
   func run() -> AsyncStream<IndexingProgress>
+
+  /// 앱이 앞에 있는지 알린다. 부른 순서대로 바로 반영한다(동기). 처음 값은 true 이고, 같은 값이 다시 오면 아무것도 하지 않는다.
+  /// false 면 BG 작업이 쥐지 않은 실행을 멈추고(그 실행의 저장소 출입을 닫는다) 앞 구독자에게 진행률을 보내지 않고 최신 값만 둔다.
+  /// true 면 실행을 새로 시작하고(전체 다시 비교. BG 모드로 돌던 실행은 멈추고 새로 시작) 둔 최신 값을 앞 구독자에게 한 번 보낸다.
+  /// 이미지 분석(`ImageAnalysisClient.appActivityChanged`)에도 같은 값을 알린다(특징 벡터의 시한 차단·계산 장치).
+  func appActivityChanged(isActive: Bool)
+
+  /// 멈춘 실행들이 저장소에서 손을 뗄 때까지(진행 중 저장소 호출이 끝날 때까지) 기다린다. 멈춘 실행이 없으면 바로 돌아온다.
+  /// 이것이 돌아온 뒤 멈춘 실행은 저장소를 부르지 않는다. 도는 실행(앞·BG)은 기다리지 않는다.
+  func waitUntilStoreReleased() async
+
+  /// BG 작업이 실행을 쥔다. 앞 구독자와 같은 실행 하나를 함께 쓰고, 앱이 비활성이면 BG 모드로 돈다(docs/ARCHITECTURE.md §4 인덱싱).
+  /// 할 일이 없어지면(변경을 기다리는 지점) 돌아오고, BG 모드에서 미룬 것이 있으면 `hasRemainingWork` 가 참이다.
+  /// 부른 Task 가 취소되거나 `shouldYield()` 가 참이 되거나(BG 모드에서 배치 경계마다 본다) BG 모드에서 Vision 이 잇달아 실패하거나
+  /// BG 모드의 처음 비교에서 사진 조회가 비었는데 저장된 결과가 있거나(지우지 않고 멈춘다) 저장소가 실패하면
+  /// 진행 중 저장소 호출이 끝난 뒤 `hasRemainingWork == true` 로 돌아온다. 읽기 권한이 없으면 false 다.
+  /// `progress` 는 BG 가 쥔 동안의 모든 진행률을 앱 활성 여부와 관계없이 받는다.
+  func runInBackground(
+    shouldYield: @escaping @Sendable () -> Bool,
+    progress: @escaping @Sendable (IndexingProgress) -> Void
+  ) async -> IndexingBackgroundResult
+}
+
+/// BG 실행(`IndexingClient.runInBackground`) 결과.
+public struct IndexingBackgroundResult: Sendable, Equatable {
+  /// 다시 예약할 일이 남았는지.
+  public let hasRemainingWork: Bool
+  /// BG 가 쥔 동안 인덱서가 저장소에 쓴 것이 있는지(위젯 갱신 요청 조건. 위젯과 무관한 여행 교체는 넣지 않는다).
+  public let didChangeStore: Bool
+
+  public init(hasRemainingWork: Bool, didChangeStore: Bool) {
+    self.hasRemainingWork = hasRemainingWork
+    self.didChangeStore = didChangeStore
+  }
 }

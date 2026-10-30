@@ -68,7 +68,8 @@ extension IndexingRun {
       }
       if !receipts.isEmpty {
         let batch = receipts
-        try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveReceipts(batch) }
+        try await self
+          .store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.saveReceipts(batch) }
       }
       self.pendingReceiptIDs.subtract(batchIDs)
     } catch {

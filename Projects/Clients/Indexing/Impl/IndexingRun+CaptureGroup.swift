@@ -52,7 +52,8 @@ extension IndexingRun {
       }
       if !groups.isEmpty {
         let batch = groups
-        try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.saveCaptureGroups(batch) }
+        try await self
+          .store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.saveCaptureGroups(batch) }
       }
       self.pendingCaptureGroupIDs.subtract(batchIDs)
     } catch {

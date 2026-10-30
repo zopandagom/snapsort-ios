@@ -38,7 +38,8 @@ struct Fixture {
   let batchSize: Int
   let textBatchSize: Int
 
-  /// 위 Fake 를 조합한 인덱서. 상태가 없는 값이라 부를 때마다 만들어도 같다.
+  /// 위 Fake 를 조합한 인덱서. 부를 때마다 새 실행기를 가진 값을 만든다(실행을 따로 돈다).
+  /// 앞 구독·BG 실행이 실행 하나를 함께 쓰는지 볼 때는 한 값을 받아 두고 쓴다.
   var indexing: IndexingClientImpl {
     IndexingClientImpl(
       photoLibrary: LargestFailingPhotoLibrary(

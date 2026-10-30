@@ -10,6 +10,8 @@ import PhotoStoreInterface
 struct FeaturePrintOptions {
   /// 분석 Fake 가 벡터를 쓸 수 있는지.
   var isAvailable = false
+  /// 앱이 뒤에 있을 때(마지막 앱 활성 알림이 false) 쓸 수 있는지. nil 이면 `isAvailable` 과 같다.
+  var isAvailableInBackground: Bool?
   /// 벡터 요청에 실패하는 이미지(`Fixture.featurePrintFailures` 로 테스트 도중 바꿀 수 있다).
   var failures: Set<ImageAsset.ID> = []
   /// 썸네일이 대체 버전(iCloud 전용 사진의 작은 버전)으로 읽히는 이미지.

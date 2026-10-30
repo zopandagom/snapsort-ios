@@ -8,7 +8,8 @@ import TripPlaceInterface
 /// Map·PhotoStore Interface 를 조합하고 Apple 프레임워크를 직접 쓰지 않는다. 보내는 값은 반올림 중심점과 로캘뿐이다.
 /// 요청은 한 번에 하나(상세 요청과는 따로), 요청 사이 간격을 두고, 실패·시한이면 회차를 멈추고 최소 간격 뒤에 다시 묻는다.
 /// 시한을 넘긴 요청이 돌아오지 않은 동안은 새 요청을 내지 않는다(오프라인 요청 누적 방지).
-/// 상태는 앱 실행 동안 하나라 App 이 하나만 만든다. 좌표·장소 이름은 로그에 남기지 않는다.
+/// 앱이 뒤로 가면 저장소 출입을 막는다(`holdStoreAccess`): 막은 동안 회차는 바로 돌아오고 늦게 온 응답은 쓰지 않고 버린다.
+/// 상태는 앱 실행 동안 하나라 App 이 하나만 만들어 앞(보관함)과 BG 작업이 함께 쓴다(간격·쉼·상한 공유). 좌표·장소 이름은 로그에 남기지 않는다.
 public actor TripPlaceClientImpl: TripPlaceClient {
   typealias Now = @Sendable () -> ContinuousClock.Instant
   typealias Sleep = @Sendable (TripPlaceSleep, Duration) async throws -> Void
@@ -32,6 +33,12 @@ public actor TripPlaceClientImpl: TripPlaceClient {
   private var notFound: Set<TripPlaceRequest> = []
   private var nextToken = 0
   private var subscribers: [UUID: AsyncStream<Void>.Continuation] = [:]
+  /// 저장소 출입을 막았는지(`holdStoreAccess`).
+  private(set) var isStoreAccessHeld = false
+  /// 진행 중 저장소 호출 수. 막을 때 이것이 0 이 될 때까지 기다린다.
+  private var storeCallsInFlight = 0
+  /// 진행 중 저장소 호출이 끝나기를 기다리는 `holdStoreAccess`.
+  private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
 
   public init(map: any MapClient, photoStore: any PhotoStoreClient) {
     self.init(
@@ -62,7 +69,7 @@ public actor TripPlaceClientImpl: TripPlaceClient {
   }
 
   public func prefetchPlaces(locale: Locale) async {
-    guard !self.isRunning else { return }
+    guard !self.isRunning, !self.isStoreAccessHeld else { return }
     self.isRunning = true
     defer { self.isRunning = false }
     guard await self.canStartRound() else { return }
@@ -104,6 +111,8 @@ public actor TripPlaceClientImpl: TripPlaceClient {
   /// 이번 회차에 물을 키: 최신 여행부터, 같은 키는 한 번, 이 로캘 이름(`.named`·`.unnamed`)이 캐시에 없고
   /// 항목 없음을 받지 않은 것을 상한까지. 저장소를 읽지 못하거나 부른 Task 가 취소되면 nil(요청을 내지 않았으니 쉼도 두지 않는다).
   private func targets(localeIdentifier: String) async -> [RoundedCoordinate]? {
+    guard self.enterStore() else { return nil }
+    defer { self.exitStore() }
     guard let trips = try? await self.photoStore.trips(), !Task.isCancelled else { return nil }
     // 저장소는 시작↑·끝↑ 순이라 뒤집으면 여행 목록과 같은 최신순이다.
     var seen: Set<RoundedCoordinate> = []
@@ -139,8 +148,10 @@ public actor TripPlaceClientImpl: TripPlaceClient {
   }
 
   /// 묻기 직전에 캐시를 다시 본다(그사이 상세가 받았을 수 있다). 아직 이름이 없으면 true, 생겼으면 false,
-  /// 읽지 못하거나 부른 Task 가 취소되면 nil.
+  /// 읽지 못하거나 부른 Task 가 취소되거나 저장소 출입을 막았으면 nil.
   private func isStillMissing(_ key: RoundedCoordinate, localeIdentifier: String) async -> Bool? {
+    guard self.enterStore() else { return nil }
+    defer { self.exitStore() }
     guard let cached = try? await self.photoStore.places(for: [key], localeIdentifier: localeIdentifier),
           !Task.isCancelled
     else {
@@ -157,7 +168,7 @@ public actor TripPlaceClientImpl: TripPlaceClient {
     switch result {
     case .response(.saved), .response(.tripGone), .response(.notFound):
       return true
-    case .response(.failed), .response(.saveFailed):
+    case .response(.failed), .response(.saveFailed), .response(.heldBack):
       return false
     case .timedOut:
       guard self.outstanding?.token == token else {
@@ -209,6 +220,9 @@ public actor TripPlaceClientImpl: TripPlaceClient {
       if !ownsCooldown {
         self.cooldown = (until: self.now() + self.policy.failureCooldown, token: nil)
       }
+    case .heldBack:
+      // 막은 동안 온 응답은 버렸다. 쉼·항목 없음은 바꾸지 않고(다음 회차가 다시 묻는다) 간격만 기록했다.
+      break
     }
     if outcome == .notFound {
       self.notFound.insert(request)
@@ -218,6 +232,34 @@ public actor TripPlaceClientImpl: TripPlaceClient {
         continuation.yield()
       }
     }
+  }
+
+  // MARK: - 저장소 출입
+
+  public func holdStoreAccess() async {
+    self.isStoreAccessHeld = true
+    guard self.storeCallsInFlight > 0 else { return }
+    await withCheckedContinuation { self.releaseWaiters.append($0) }
+  }
+
+  public func allowStoreAccess() async {
+    self.isStoreAccessHeld = false
+  }
+
+  /// 저장소를 부르기 전에 부른다. 막았으면 false(부르지 않는다).
+  func enterStore() -> Bool {
+    guard !self.isStoreAccessHeld else { return false }
+    self.storeCallsInFlight += 1
+    return true
+  }
+
+  /// `enterStore()` 가 true 였던 저장소 호출이 끝나면 부른다. 진행 중 호출이 없어지면 기다리는 `holdStoreAccess` 를 돌려보낸다.
+  func exitStore() {
+    self.storeCallsInFlight -= 1
+    guard self.storeCallsInFlight == 0 else { return }
+    let waiters = self.releaseWaiters
+    self.releaseWaiters = []
+    waiters.forEach { $0.resume() }
   }
 
   // MARK: - 변경 신호

@@ -6,7 +6,8 @@ import IndexingInterface
 import PhotoLibraryInterface
 import PhotoStoreInterface
 
-/// 다른 Client 를 조합한 구현. 이 모듈은 Apple 데이터 프레임워크를 직접 쓰지 않는다.
+/// 다른 Client 를 조합한 구현. 이 모듈은 Apple 데이터 프레임워크를 직접 쓰지 않는다(Debug 빌드의 BG 수치 로그만 `os` `Logger`).
+/// 실행은 공유 실행기(`IndexingExecutor`) 하나가 돌린다. App 이 이 값을 하나만 만들고, 복사본은 같은 실행기를 공유한다.
 public struct IndexingClientImpl: IndexingClient {
   /// 1단계(분류)에서 한 번에 저장·삭제하는 이미지 수. 저장소는 식별자 목록 조건(`ids.contains`)으로 기존 행을 찾으므로 조건 크기를 이 수로 묶고,
   /// 중간에 멈춰도 이 수만큼만 다시 분석하게 한다. 소급 추출도 같은 저장소 조건을 쓰므로 이 수로 나눠 읽고 저장한다.
@@ -18,13 +19,8 @@ public struct IndexingClientImpl: IndexingClient {
   /// 소급 보강도 모델 호출이 OCR 과 같은 단위로 느려 이 수로 나눠 읽고 저장한다.
   static let defaultTextBatchSize = 10
 
-  private let photoLibrary: any PhotoLibraryClient
-  private let imageAnalysis: any ImageAnalysisClient
-  private let photoStore: any PhotoStoreClient
-  private let classifier: any ClassifierClient
-  private let calendar: Calendar
-  private let batchSize: Int
-  private let textBatchSize: Int
+  private let factory: IndexingRunFactory
+  private let executor: IndexingExecutor
 
   /// - Parameter classifier: 2단계의 분류 보강(규칙 분류가 기타뿐인 이미지)과 기프티콘 추출 보강에 쓰는 언어 모델.
   ///   모델을 쓸 수 없거나 모델이 실패·거부하면 규칙 결과만 저장한다.
@@ -57,45 +53,53 @@ public struct IndexingClientImpl: IndexingClient {
     batchSize: Int,
     textBatchSize: Int
   ) {
-    self.photoLibrary = photoLibrary
-    self.imageAnalysis = imageAnalysis
-    self.photoStore = photoStore
-    self.classifier = classifier
-    self.calendar = calendar
-    self.batchSize = max(batchSize, 1)
-    self.textBatchSize = max(textBatchSize, 1)
-  }
-
-  /// 화면 응답을 막지 않도록 낮은 우선순위(`.utility`)로 메인 밖에서 분석한다.
-  public func run() -> AsyncStream<IndexingProgress> {
-    let (stream, continuation) = AsyncStream.makeStream(of: IndexingProgress.self, bufferingPolicy: .bufferingNewest(1))
-    let task = Task(priority: .utility) { [self] in
-      var indexing = self.makeRun()
-      await indexing.start { continuation.yield($0) }
-      continuation.finish()
-    }
-    continuation.onTermination = { _ in task.cancel() }
-    return stream
-  }
-
-  /// `run()` 한 번의 상태를 만든다. 테스트는 진행률을 버리지 않고 모두 받으려고 이것으로 직접 돌린다
-  /// (`run()` 스트림은 늦게 읽으면 지난 값을 버린다).
-  func makeRun() -> IndexingRun {
-    IndexingRun(
-      photoLibrary: self.photoLibrary,
-      imageAnalysis: self.imageAnalysis,
-      photoStore: self.photoStore,
-      classifier: self.classifier,
-      calendar: self.calendar,
-      batchSize: self.batchSize,
-      textBatchSize: self.textBatchSize
+    let factory = IndexingRunFactory(
+      photoLibrary: photoLibrary,
+      imageAnalysis: imageAnalysis,
+      photoStore: photoStore,
+      classifier: classifier,
+      calendar: calendar,
+      batchSize: max(batchSize, 1),
+      textBatchSize: max(textBatchSize, 1)
     )
+    self.factory = factory
+    self.executor = IndexingExecutor(
+      makeRun: { gate, environment in factory.makeRun(gate: gate, environment: environment) },
+      onAppActivityChanged: { imageAnalysis.appActivityChanged(isActive: $0) },
+      isFeaturePrintAvailable: { imageAnalysis.isFeaturePrintAvailable }
+    )
+  }
+
+  /// 화면 응답을 막지 않도록 낮은 우선순위(`.utility`)로 메인 밖에서 분석한다. 실행은 공유 실행기가 돌린다.
+  public func run() -> AsyncStream<IndexingProgress> {
+    self.executor.run()
+  }
+
+  public func appActivityChanged(isActive: Bool) {
+    self.executor.appActivityChanged(isActive: isActive)
+  }
+
+  public func waitUntilStoreReleased() async {
+    await self.executor.waitUntilStoreReleased()
+  }
+
+  public func runInBackground(
+    shouldYield: @escaping @Sendable () -> Bool,
+    progress: @escaping @Sendable (IndexingProgress) -> Void
+  ) async -> IndexingBackgroundResult {
+    await self.executor.runInBackground(shouldYield: shouldYield, progress: progress)
+  }
+
+  /// 실행 한 번의 상태를 만든다(열린 문, 앞 모드). 테스트는 진행률을 버리지 않고 모두 받으려고 이것으로 직접 돌린다
+  /// (`run()` 스트림은 늦게 읽으면 지난 값을 버린다).
+  func makeRun(gate: StoreGate = StoreGate(), environment: RunEnvironment = RunEnvironment()) -> IndexingRun {
+    self.factory.makeRun(gate: gate, environment: environment)
   }
 }
 
-/// `run()` 한 번의 상태. 한 Task 안에서만 쓴다. 단계별 분석은 IndexingRun+Stages.swift, 소급은 IndexingRun+Gifticon.swift·
+/// 실행 한 번의 상태. 한 Task 안에서만 쓴다. 단계별 분석은 IndexingRun+Stages.swift, 소급은 IndexingRun+Gifticon.swift·
 /// IndexingRun+Receipt.swift·IndexingRun+CaptureGroup.swift·IndexingRun+FeaturePrint.swift·IndexingRun+ModelFill.swift
-/// 에 있다.
+/// 에, BG 모드 차이는 IndexingRun+Background.swift 에 있다. 저장소 호출은 모두 실행의 문(`gate`)을 거친다.
 struct IndexingRun {
   let photoLibrary: any PhotoLibraryClient
   let imageAnalysis: any ImageAnalysisClient
@@ -104,6 +108,10 @@ struct IndexingRun {
   let calendar: Calendar
   let batchSize: Int
   let textBatchSize: Int
+  /// 이 실행의 저장소 출입문. 실행기가 멈출 때 닫는다.
+  let gate: StoreGate
+  /// 실행기에서 읽는 모드·양보와 알림.
+  let environment: RunEnvironment
 
   /// 보관함 이미지. 여행 판정과 전체 수에 쓴다.
   var assets: [ImageAsset.ID: ImageAsset] = [:]
@@ -152,6 +160,8 @@ struct IndexingRun {
   var recognizedTextCount = 0
   /// 마지막으로 여행을 판정한 보관함. 같은 보관함으로 다시 판정·저장하지 않으려고 둔다.
   var judgedAssets: [ImageAsset.ID: ImageAsset]?
+  /// BG 모드에서 분류·OCR·바코드 Vision 요청이 잇달아 실패한 수(IndexingRun+Background.swift). 성공하면 0 으로 되돌린다.
+  var consecutiveVisionFailures = 0
 
   init(
     photoLibrary: any PhotoLibraryClient,
@@ -160,7 +170,9 @@ struct IndexingRun {
     classifier: any ClassifierClient,
     calendar: Calendar,
     batchSize: Int,
-    textBatchSize: Int
+    textBatchSize: Int,
+    gate: StoreGate = StoreGate(),
+    environment: RunEnvironment = RunEnvironment()
   ) {
     self.photoLibrary = photoLibrary
     self.imageAnalysis = imageAnalysis
@@ -169,6 +181,8 @@ struct IndexingRun {
     self.calendar = calendar
     self.batchSize = batchSize
     self.textBatchSize = textBatchSize
+    self.gate = gate
+    self.environment = environment
   }
 
   /// 처음 비교·1단계를 마친 뒤 보관함 변경, 소급 추출(기프티콘 → 영수증 → 캡처 묶음), 2단계, 벡터 소급, 소급 보강을 번갈아 한다.
@@ -176,12 +190,14 @@ struct IndexingRun {
   /// 모델을 쓸 수 없거나 모델이 실패해도, 특징 벡터를 쓸 수 없거나 실패해도 멈추지 않는다(규칙 결과·벡터 없이 이어 간다).
   /// 변경은 자식 Task 가 받아 수신함에 쌓고, 본 루프가 소급 추출·2단계·벡터 소급·소급 보강 배치 경계에서 꺼내 먼저 반영한다.
   /// 본 루프가 어느 경로로 끝나든 자식을 취소한다. 저장소 실패·권한 없음은 부모 Task 가 취소되지 않은 채 끝나므로,
-  /// 취소하지 않으면 자식이 끝나지 않는 변경 스트림에 머물러 `run()` 스트림이 끝나지 않는다.
-  mutating func start(report: (IndexingProgress) -> Void) async {
+  /// 취소하지 않으면 자식이 끝나지 않는 변경 스트림에 머물러 `run()` 스트림이 끝나지 않는다. 끝난 이유를 돌려준다.
+  @discardableResult
+  mutating func start(report: (IndexingProgress) -> Void) async -> IndexingRunEnd {
     // 처음 조회 전에 받아 두어 그 사이 변경도 놓치지 않는다. 겹쳐 오는 변경은 식별자 집합으로 반영해 결과가 같다.
     let changes = await self.photoLibrary.imageChanges()
     let inbox = ChangeInbox()
     let (signals, signal) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+    var end = IndexingRunEnd.changesEnded
     await withDiscardingTaskGroup { group in
       group.addTask {
         for await change in changes {
@@ -196,9 +212,11 @@ struct IndexingRun {
       } catch {
         // 취소면 저장하지 않은 결과(1단계·벡터 소급 최대 `batchSize`, 2단계·소급 보강 최대 `textBatchSize` 장)를 버린다.
         // 저장소 실패면 다음 실행에서 이어 한다. 읽기 권한이 없으면 저장소를 그대로 둔다.
+        end = IndexingRunEnd(error)
       }
       group.cancelAll()
     }
+    return end
   }
 
   /// 변경이 있으면 먼저 반영하고, 없으면 소급 추출 한 배치(기프티콘, 없으면 영수증, 그것도 없으면 캡처 묶음), 그것도 없으면 2단계 한 배치, 그것도 없으면
@@ -216,6 +234,7 @@ struct IndexingRun {
       if Task.isCancelled {
         throw .cancelled
       }
+      try self.yieldIfNeeded()
       let (changes, isFinished) = inbox.takeAll()
       if !changes.isEmpty {
         for change in changes {
@@ -231,6 +250,7 @@ struct IndexingRun {
       } else if isFinished {
         return
       } else {
+        self.environment.onIdle()
         _ = await waiting.next()
       }
     }
@@ -261,6 +281,11 @@ struct IndexingRun {
     let fetched = await self.photoLibrary.fetchImageAssets()
     self.assets = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     let stored = try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.indexedIDs() }
+    // BG 모드(잠긴 기기 등)에서 사진 조회가 비었는데 저장된 결과가 있으면 지우지 않고 멈춘다. 조회가 실제로 비었는지 읽지 못한 것인지
+    // 가를 수 없고, 지우면 사용함 표시 같은 사용자 상태도 함께 사라진다. 앞 실행이 다시 비교한다.
+    if fetched.isEmpty, !stored.isEmpty, self.isBackgroundMode {
+      throw .libraryEmpty
+    }
     let pending = try await self.store { () async throws(PhotoStoreError) in
       try await self.photoStore.pendingTextRecognitionIDs()
     }
@@ -296,13 +321,7 @@ struct IndexingRun {
     self.pendingCaptureGroupIDs = pendingCaptureGroups.intersection(libraryIDs)
     self.pendingModelFillIDs = pendingModelFills.intersection(libraryIDs)
     self.pendingFeaturePrintIDs = pendingFeaturePrints.intersection(libraryIDs)
-    self.consecutiveFeaturePrintFailures = 0
-    self.isFeaturePrintSuspended = false
-    self.consecutiveModelFailures = 0
-    self.isModelSuspended = false
-    self.skippedIDs = []
-    self.textSkippedIDs = []
-    self.goneTextIDs = []
+    self.resetRunState()
     try await self.delete(stored.subtracting(libraryIDs))
     try await self.replaceTripsIfChanged()
     report(self.progress)
@@ -310,6 +329,17 @@ struct IndexingRun {
     var seen = Set<ImageAsset.ID>()
     let targets = fetched.filter { seen.insert($0.id).inserted && !self.indexedIDs.contains($0.id) }
     try await self.classifyAll(targets, report: report)
+  }
+
+  /// 전체 비교를 시작할 때 이번 실행의 연속 실패·중단·건너뜀 상태를 비운다.
+  private mutating func resetRunState() {
+    self.consecutiveFeaturePrintFailures = 0
+    self.isFeaturePrintSuspended = false
+    self.consecutiveModelFailures = 0
+    self.isModelSuspended = false
+    self.skippedIDs = []
+    self.textSkippedIDs = []
+    self.goneTextIDs = []
   }
 
   /// 증분 변경을 반영한다. 이미 반영한 변경이 다시 와도 결과가 같다.
@@ -348,47 +378,5 @@ struct IndexingRun {
       seen.insert(asset.id).inserted && !self.indexedIDs.contains(asset.id) && !self.skippedIDs.contains(asset.id)
     }
     try await self.classifyAll(targets, report: report)
-  }
-
-  // MARK: - 저장소
-
-  func delete(_ ids: Set<ImageAsset.ID>) async throws(IndexingStop) {
-    let ids = ids.sorted()
-    for start in stride(from: 0, to: ids.count, by: self.batchSize) {
-      let batch = Set(ids[start ..< min(start + self.batchSize, ids.count)])
-      try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.delete(ids: batch) }
-    }
-  }
-
-  /// 여행 판정은 메타데이터만 보므로 분석을 기다리지 않고 보관함이 바뀔 때마다 전체를 다시 판정한다.
-  /// 이미 반영한 변경이 다시 와서 보관함이 그대로면 다시 판정·저장하지 않는다.
-  mutating func replaceTripsIfChanged() async throws(IndexingStop) {
-    guard self.assets != self.judgedAssets else { return }
-    let trips = TravelDetector.trips(in: Array(self.assets.values), calendar: self.calendar)
-    try await self.store { () async throws(PhotoStoreError) in try await self.photoStore.replaceTrips(trips) }
-    self.judgedAssets = self.assets
-  }
-
-  func store<Output>(
-    _ operation: () async throws(PhotoStoreError) -> Output
-  ) async throws(IndexingStop) -> Output {
-    do {
-      return try await operation()
-    } catch {
-      throw .storeFailed
-    }
-  }
-
-  /// 저장 수는 보관함에 있는 것만 센다. 2단계 `notFound` 뒤 그 삭제 변경보다 새 사진 추가가 먼저 반영돼도
-  /// 저장 수가 전체 수를 넘어 새 사진을 분류하기 전에 1단계를 마친 것처럼 보이지 않게 한다.
-  var progress: IndexingProgress {
-    IndexingProgress(
-      totalCount: self.assets.count,
-      indexedCount: self.indexedIDs.count { self.assets[$0] != nil },
-      skippedCount: self.skippedIDs.count,
-      pendingTextCount: self.pendingTextIDs.count,
-      recognizedTextCount: self.recognizedTextCount,
-      skippedTextCount: self.textSkippedIDs.count
-    )
   }
 }

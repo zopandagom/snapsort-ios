@@ -37,7 +37,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 2 | ImageAnalysis(Vision 이미지 분류·OCR), PhotoStore(SwiftData), Indexing(증분 인덱서), (PhotoLibrary 확장: 위치·날짜·크기 메타데이터, 앨범 조회) | Core, SampleRecorder(Debug 전용) |
 | 3 | Classifier(FoundationModels), Notification, (ImageAnalysis 확장: 바코드) | |
 | 4 | Map(지도 앱 열기, 역지오코딩(여행 폴더 상세·미리 받기)), Pasteboard(이 기기만 복사), WidgetTimeline(위젯 갱신 요청), (PhotoStore 확장: 장소 캐시·여행 사진·기간 캡처 조회, 영수증 추출 값·목록 조회, 캡처 묶음 추출 값·목록 조회, 검색 목록 조회, 최근 스크린샷 보관·조회, 특징 벡터 저장·비슷한 사진 조회, App Group 저장 위치·옛 위치에서 옮기기·위젯용 읽기 전용 열기), (PhotoLibrary 확장: 삭제), (ImageAnalysis 확장: 특징 벡터), (Indexing 확장: 특징 벡터 1단계·소급) | DesignSystem, Library 확장(카테고리 화면, 기프티콘 목록·캡처 행동, 여행 폴더, 영수증 목록, 쇼핑·대화·지도 묶기, 검색, 정리 도우미(기프티콘 정리·최근 스크린샷·비슷한 사진)), ExpiryWidget(만료 임박 위젯), Extension `Widget`(위젯 조립 지점) |
-| 5 | TripPlace(여행 장소 이름 미리 받기, Map·PhotoStore 조합), (PhotoLibrary 확장: restricted 상태) | Onboarding 확장 |
+| 5 | TripPlace(여행 장소 이름 미리 받기, Map·PhotoStore 조합), BackgroundIndexing(앱이 뒤에 있거나 닫혀 있을 때의 분류: 뒤로 갈 때 멈춤·BG 처리 작업, Indexing·TripPlace·WidgetTimeline 조합), (PhotoLibrary 확장: restricted 상태), (Indexing 확장: 실행 하나·BG 실행), (TripPlace 확장: 저장소 출입 막기), (ImageAnalysis 확장: 벡터 시한 차단 앞·뒤) | Onboarding 확장, Library 확장(앱이 뒤로 감·앞으로 옴 이벤트) |
 
 ## 작업 진행 방식
 1. 로드맵의 주차 목표와 완료 기준을 확인 → 작업 단위로 쪼갠다.
@@ -71,6 +71,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | Foundation Models 미지원 기기 비율이 높음 | 규칙 기반 분류만으로도 쓸 만한 품질을 W2 에서 확보. AI 는 정확도 향상 요소로 취급 |
 | 한국 기프티콘 형식이 다양 (카카오, 네이버, 편의점 등) | 만료일·교환처 추출을 Core 순수 함수(`GifticonExtractor`)로 두고 발급처별 형식을 지어낸 OCR 줄로 테스트(정확도 픽스처는 OCR 줄이 가려져 있다, CONVENTIONS §3). 실기기 정확도는 추출 값을 저장한 뒤 확인 |
 | 대용량 보관함(수만 장)에서 분석 시간 | 식별자만 먼저 조회, 증분 분석, 진행률 표시. 썸네일로 분석하고 OCR 은 필요한 이미지에만. Debug 기록 도구의 속도 모드로 1만 장 기준 측정 |
+| 백그라운드 분류(`BGProcessingTask`)가 시뮬레이터에서 돌지 않고, 언제 도는지 시스템이 정함 | 스케줄러·작업·앱 상태 대역으로 순서를 테스트하고, 실기기에서 확인한다: lldb 로 강제 실행·만료 흉내(끈 앱을 BG 로 띄운 뒤 열면 개수·대표가 곧 보이고 멈춤 안내 없음), 밤새 충전 중 실제 실행, 분류 중 홈으로 나가기 반복의 0xdead10cc, 잠긴 기기의 Vision·OCR·모델 거부, 재부팅 뒤 첫 잠금 해제 전, BG(CPU)·앞 특징 벡터 거리 차이 (ARCHITECTURE §4 인덱싱 확인 못 한 값) |
 | iCloud 저장 공간 최적화로 원본이 기기에 없음 | 네트워크로 원본을 받지 않고(`isNetworkAccessAllowed = false`) 기기에 있는 버전만 쓴다. 분류·OCR 대상 판정용 바코드 확인은 썸네일, OCR·바코드 크게 보기는 기기에 있는 가장 큰 버전 |
 | iOS 사진 앱의 검색·여행 추억과 기능이 겹침 | 차별점은 위 "사진 앱과의 차별 기능" 절에 둔다 |
 | 차별 기능 추가로 출시 일정이 빠듯함 | 주마다 진행 상황을 점검하고, 늦어지면 출시 후로 미룰 항목을 사용자와 다시 정한다 |

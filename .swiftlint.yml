@@ -53,8 +53,8 @@ custom_rules:
   system_framework_only_in_impl:
     name: "Apple 데이터 프레임워크는 Client Impl 에서만"
     included: "Projects/(App|Extensions|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
-    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
-    message: "사진·OCR·AI·저장소·결제·알림 프레임워크는 Client Impl 안에서만 사용합니다. Interface 나 Core 에 값 타입을 정의하세요."
+    regex: "^\\s*(@\\w+(\\([^)]*\\))?\\s+)*((public|package|internal|fileprivate|private)\\s+)?import\\s+((typealias|struct|class|enum|protocol|let|var|func)\\s+)?(Photos|PhotosUI|Vision|FoundationModels|SwiftData|StoreKit|UserNotifications|BackgroundTasks)(\\.\\w+)*\\s*(//[^\\n]*|/\\*[^\\n]*)?$"
+    message: "사진·OCR·AI·저장소·결제·알림·BG 작업 프레임워크는 Client Impl 안에서만 사용합니다. Interface 나 Core 에 값 타입을 정의하세요."
     severity: error
 
   widget_center_only_in_impl:
@@ -64,6 +64,15 @@ custom_rules:
     regex: "\\bWidgetCenter\\b"
     excluded_match_kinds: [comment, doccomment]
     message: "위젯 갱신 요청은 WidgetTimelineClient 로 합니다. View·Feature 가 WidgetCenter 를 직접 부르면 보관함의 값이 바뀔 때만 요청하는 중복 제거와 테스트를 거치지 않습니다(App init 의 1회 요청도 Client 로 합니다) (docs/ARCHITECTURE.md §4 만료 임박 위젯)."
+    severity: error
+
+  background_task_only_in_impl:
+    name: "앱 실행 시간 빌리기는 Client Impl 에서만"
+    # UIKit·Foundation 은 여러 레이어가 import 하므로 import 가 아니라 이름을 막는다(widget_center_only_in_impl 과 같은 방식).
+    included: "Projects/(App|Extensions|Features|Shared|Clients/[^/]+/(Interface|Testing))/"
+    regex: "\\b(beginBackgroundTask|performExpiringActivity)\\b"
+    excluded_match_kinds: [comment, doccomment]
+    message: "앱 실행 시간 빌리기는 BackgroundIndexing Client Impl 에서만 합니다. 앱이 뒤로 갈 때 진행 중 저장이 끝날 때까지 빌리고 돌려주는 순서를 한곳에서 맞추고 테스트합니다 (docs/ARCHITECTURE.md §4 인덱싱)."
     severity: error
 
   shared_independent_of_clients:

@@ -93,7 +93,8 @@ struct LibraryFeatureExampleApp: App {
       ? NotificationClientFake.previewDenied()
       : NotificationClientFake.previewNotDetermined(),
     widgetTimeline: nil,
-    tripPlace: TripPlaceClientFake()
+    tripPlace: TripPlaceClientFake(),
+    backgroundIndexing: nil
   )
   @State private var coverModel = LibraryCoverModel(photoLibrary: Self.photoLibrary)
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)

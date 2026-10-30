@@ -24,11 +24,18 @@ public protocol ImageAnalysisClient: Sendable {
 
   /// 비슷한 사진 비교용 특징 벡터를 이 기기에서 만들 수 있는지. 시뮬레이터는 false 다(Vision 이 실패하거나 멈추거나
   /// 모든 사진에 같은 벡터를 준다, docs/ARCHITECTURE.md §4 정리 도우미 실측). false 면 부르는 쪽이 계산·대기 조회를 하지 않는다.
-  /// 요청이 시한(Impl `FeaturePrinting.timeout`)을 넘기면 이 프로세스가 끝날 때까지 false 가 된다. 부르는 쪽은 부를 때마다 묻는다.
+  /// 지금 만들 수 있는지다. 앱이 앞에 있는 동안 요청이 시한(Impl `FeaturePrinting.timeout`)을 넘기면 이 프로세스가 끝날 때까지 false 가 된다.
+  /// 뒤에 있는 동안(또는 요청 도중 뒤로 간 적이 있는 요청이) 넘기면 이 프로세스에서 앱이 뒤에 있을 때만 false 다. 부르는 쪽은 부를 때마다 묻는다.
   var isFeaturePrintAvailable: Bool { get }
 
   /// 썸네일(`ImageSize.thumbnail`, 대체 버전이 아닌 것)에서 `ImageFeaturePrint.version` 의 요청으로 특징 벡터를 만든다.
+  /// 앱이 뒤에 있으면 CPU 로 계산한다(docs/ARCHITECTURE.md §4 정리 도우미).
   /// 쓸 수 없는 기기에서는 Vision 을 부르지 않고 `.failed` 를 던진다. 요청이 시한을 넘겨도 `.failed` 다.
   /// 호출한 Task 가 취소되면 `.cancelled` 를 던진다.
   func featurePrint(_ image: AnalysisImage) async throws(ImageAnalysisError) -> ImageFeaturePrint
+
+  /// 앱이 앞에 있는지 알린다. 특징 벡터의 시한 차단을 앞·뒤로 나누고 뒤에서는 CPU 로 계산하는 데 쓴다. 처음 값은 true 다.
+  /// 부르는 곳은 Indexing 실행기 하나이고 값이 바뀔 때만 부른다. 프로세스에 하나라 같은 프로세스의 모든 구현 값이 같이 본다(Impl).
+  /// 구현은 자기 잠금만 쥐고 다른 Client 를 부르지 않는다(실행기가 자기 잠금 안에서 부른다).
+  func appActivityChanged(isActive: Bool)
 }
