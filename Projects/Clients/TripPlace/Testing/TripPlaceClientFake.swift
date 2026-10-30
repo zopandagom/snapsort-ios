@@ -3,13 +3,27 @@ import Synchronization
 import TripPlaceInterface
 
 /// 테스트와 Example 앱용 대역. 미리 받기 회차를 부른 로캘을 기록하고, 정한 동안 매달렸다가 돌아온다.
-/// 캐시 쓰기 신호는 `sendPlaceChange()` 로 흉내 낸다.
+/// 캐시 쓰기 신호는 `sendPlaceChange()` 로 흉내 낸다. 회차 시작·취소와 저장소 출입 막기·열기를 순서대로 기록한다(`events`, `onEvent`).
 /// 기록과 구독이 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class TripPlaceClientFake: TripPlaceClient {
+  /// 호출 기록. 여러 대역의 호출 순서를 함께 보려면 `onEvent` 로 한곳에 모은다.
+  public enum Event: Sendable, Equatable {
+    /// `prefetchPlaces(locale:)` 를 불렀다.
+    case prefetchStarted
+    /// `prefetchPlaces(locale:)` 가 `onPrefetch` 를 기다린 뒤 부른 Task 가 취소돼 있었다.
+    case prefetchCancelled
+    /// `prefetchPlaces(locale:)` 가 돌아왔다.
+    case prefetchReturned
+    case holdStoreAccess
+    case allowStoreAccess
+  }
+
   private let onPrefetch: @Sendable (Int) async -> Void
+  private let onEvent: @Sendable (Event) -> Void
   private let state = Mutex(State())
 
   private struct State {
+    var events: [Event] = []
     var prefetchLocaleIdentifiers: [String] = []
     var cancelledPrefetchCount = 0
     var nextSubscriberID = 0
@@ -18,8 +32,18 @@ public final class TripPlaceClientFake: TripPlaceClient {
 
   /// - Parameter onPrefetch: `prefetchPlaces(locale:)` 가 로캘을 기록한 뒤, 돌아오기 전에 기다려 부른다. 인자는 호출 번호(0부터)다.
   ///   오래 걸리는 회차를 흉내 낸다. 취소를 흉내 내려면 Task 취소를 받는 기다림(`Task.sleep` 등)을 쓴다.
-  public init(onPrefetch: @escaping @Sendable (Int) async -> Void = { _ in }) {
+  /// - Parameter onEvent: 호출마다 기록과 같은 순서로 부른다.
+  public init(
+    onPrefetch: @escaping @Sendable (Int) async -> Void = { _ in },
+    onEvent: @escaping @Sendable (Event) -> Void = { _ in }
+  ) {
     self.onPrefetch = onPrefetch
+    self.onEvent = onEvent
+  }
+
+  /// 호출을 부른 순서대로.
+  public var events: [Event] {
+    self.state.withLock { $0.events }
   }
 
   /// `prefetchPlaces(locale:)` 에 넘긴 로캘 식별자를 부른 순서대로.
@@ -40,12 +64,24 @@ public final class TripPlaceClientFake: TripPlaceClient {
   public func prefetchPlaces(locale: Locale) async {
     let index = self.state.withLock { state in
       state.prefetchLocaleIdentifiers.append(locale.identifier)
+      state.events.append(.prefetchStarted)
       return state.prefetchLocaleIdentifiers.count - 1
     }
+    self.onEvent(.prefetchStarted)
     await self.onPrefetch(index)
     if Task.isCancelled {
       self.state.withLock { $0.cancelledPrefetchCount += 1 }
+      self.record(.prefetchCancelled)
     }
+    self.record(.prefetchReturned)
+  }
+
+  public func holdStoreAccess() async {
+    self.record(.holdStoreAccess)
+  }
+
+  public func allowStoreAccess() async {
+    self.record(.allowStoreAccess)
   }
 
   public func placeChanges() async -> AsyncStream<Void> {
@@ -60,6 +96,11 @@ public final class TripPlaceClientFake: TripPlaceClient {
     }
     self.state.withLock { $0.subscribers[id] = continuation }
     return stream
+  }
+
+  private func record(_ event: Event) {
+    self.state.withLock { $0.events.append(event) }
+    self.onEvent(event)
   }
 
   // MARK: - 신호 흉내

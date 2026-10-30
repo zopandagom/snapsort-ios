@@ -16,6 +16,7 @@ extension TripPlaceClientImpl {
   }
 
   /// 요청 Task 본문. 받은 것을 캐시에 쓰고 끝낸다. 회차가 이미 끝났어도(시한·취소) 같게 처리해 늦은 응답도 쓰고 알린다.
+  /// 저장소 출입을 막은 뒤 온 응답(항목 없음 포함)은 쓰지 않고 버린다(`.heldBack`).
   private func perform(_ request: TripPlaceRequest, token: Int) async -> TripPlaceRequestOutcome {
     let outcome: TripPlaceRequestOutcome
     do {
@@ -23,7 +24,9 @@ extension TripPlaceClientImpl {
         near: request.key,
         locale: Locale(identifier: request.localeIdentifier)
       )
-      if let info {
+      if self.isStoreAccessHeld {
+        outcome = .heldBack
+      } else if let info {
         outcome = await self.save(info, for: request)
       } else {
         // 항목 없음은 캐시하지 않는다(기존 규칙). 같은 실행 동안만 다시 묻지 않는다.
@@ -37,6 +40,8 @@ extension TripPlaceClientImpl {
   }
 
   private func save(_ info: PlaceInfo, for request: TripPlaceRequest) async -> TripPlaceRequestOutcome {
+    guard self.enterStore() else { return .heldBack }
+    defer { self.exitStore() }
     do {
       let saved = try await self.photoStore.savePlace(
         info.name.map(CachedPlaceName.named) ?? .unnamed,
@@ -121,6 +126,8 @@ enum TripPlaceRequestOutcome: Sendable {
   case failed
   /// 저장소에 쓰지 못했다.
   case saveFailed
+  /// 저장소 출입을 막은 뒤 와서 쓰지 않고 버렸다. 쉼·항목 없음은 바꾸지 않는다(다음 회차가 다시 묻는다).
+  case heldBack
 }
 
 enum TripPlaceRaceResult: Sendable {

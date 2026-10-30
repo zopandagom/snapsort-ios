@@ -13,4 +13,11 @@ public protocol TripPlaceClient: Sendable {
   /// 미리 받기가 장소 캐시에 쓸 때마다 하나(회차가 끝난 뒤 늦게 온 응답 포함). 구독을 끝내면(Task 취소) 끝난다.
   /// 받는 쪽이 늦게 읽으면 여러 번의 쓰기가 하나로 합쳐진다.
   func placeChanges() async -> AsyncStream<Void>
+
+  /// 장소 캐시 읽기·쓰기를 막고, 진행 중 저장소 호출이 끝날 때까지 기다린다. 앱이 뒤로 가 저장소에서 손을 떼야 할 때 부른다.
+  /// 막은 동안 회차는 저장소를 읽지 않고 바로 돌아오고, 늦게 온 응답은 캐시에 쓰지 않고 버린다(다음 회차가 다시 묻는다. 간격 기록은 그대로 한다).
+  func holdStoreAccess() async
+
+  /// 막은 저장소 출입을 다시 연다.
+  func allowStoreAccess() async
 }
