@@ -29,6 +29,10 @@ public enum Env {
     "com.apple.security.application-groups": .array([.string(Self.appGroupIdentifier)]),
   ])
 
+  /// 앱이 닫혀 있을 때의 분류 BG 처리 작업 식별자. 이름의 단일 출처이며, Swift 코드는 Info.plist 의
+  /// `BGTaskSchedulerPermittedIdentifiers` 첫 값으로 읽는다 (docs/ARCHITECTURE.md §4 인덱싱).
+  public static let backgroundIndexingTaskIdentifier = "com.zopandagom.snapsort.indexing"
+
   static func bundleId(_ name: String) -> String {
     "\(self.bundleIdPrefix).\(name.lowercased())"
   }
@@ -51,6 +55,9 @@ public extension Project {
           infoPlist: .extendingDefault(with: infoPlist.merging([
             "UILaunchScreen": [:],
             Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
+            // 분류 BG 처리 작업(충전 중). 식별자는 App 이 이 목록에서 읽는다.
+            "BGTaskSchedulerPermittedIdentifiers": [.string(Env.backgroundIndexingTaskIdentifier)],
+            "UIBackgroundModes": ["processing"],
           ]) { $1 }),
           buildableFolders: ["Sources", "Resources"],
           entitlements: Env.appGroupEntitlements,

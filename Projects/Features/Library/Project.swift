@@ -13,6 +13,7 @@ let project = Project.feature(
     .pasteboard,
     .widgetTimeline,
     .tripPlace,
+    .backgroundIndexing,
   ],
   shared: [.core, .designSystem]
 )

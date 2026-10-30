@@ -25,6 +25,7 @@ let project = Project.app(
     .client(impl: .tripPlace),
     .client(impl: .pasteboard),
     .client(impl: .widgetTimeline),
+    .client(impl: .backgroundIndexing),
     // 만료 임박 위젯. App 의 PlugIns 에 임베드된다.
     .appExtension(.widget),
   ]
