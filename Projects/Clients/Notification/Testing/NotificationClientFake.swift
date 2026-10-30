@@ -64,6 +64,11 @@ public final class NotificationClientFake: NotificationClient {
     self.state.withLock { $0.pending.values.sorted { $0.id < $1.id } }
   }
 
+  /// `authorizationStatus()` 를 부른 횟수.
+  public var authorizationStatusCount: Int {
+    self.state.withLock { $0.authorizationStatusCount }
+  }
+
   /// `requestAuthorization()` 을 부른 횟수.
   public var requestAuthorizationCount: Int {
     self.state.withLock { $0.requestAuthorizationCount }

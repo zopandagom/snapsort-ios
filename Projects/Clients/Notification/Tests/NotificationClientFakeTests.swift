@@ -28,6 +28,7 @@ struct NotificationClientFakeTests {
     #expect(requested == .authorized)
     #expect(after == .authorized)
     #expect(fake.requestAuthorizationCount == 1)
+    #expect(fake.authorizationStatusCount == 2)
   }
 
   @Test("요청 뒤 상태를 정하지 않으면 그대로다")
