@@ -44,7 +44,8 @@ public protocol IndexingClient: Sendable {
   /// BG 작업이 실행을 쥔다. 앞 구독자와 같은 실행 하나를 함께 쓰고, 앱이 비활성이면 BG 모드로 돈다(docs/ARCHITECTURE.md §4 인덱싱).
   /// 할 일이 없어지면(변경을 기다리는 지점) 돌아오고, BG 모드에서 미룬 것이 있으면 `hasRemainingWork` 가 참이다.
   /// 부른 Task 가 취소되거나 `shouldYield()` 가 참이 되거나(BG 모드에서 배치 경계마다 본다) BG 모드에서 Vision 이 잇달아 실패하거나
-  /// 저장소가 실패하면 진행 중 저장소 호출이 끝난 뒤 `hasRemainingWork == true` 로 돌아온다. 읽기 권한이 없으면 false 다.
+  /// BG 모드의 처음 비교에서 사진 조회가 비었는데 저장된 결과가 있거나(지우지 않고 멈춘다) 저장소가 실패하면
+  /// 진행 중 저장소 호출이 끝난 뒤 `hasRemainingWork == true` 로 돌아온다. 읽기 권한이 없으면 false 다.
   /// `progress` 는 BG 가 쥔 동안의 모든 진행률을 앱 활성 여부와 관계없이 받는다.
   func runInBackground(
     shouldYield: @escaping @Sendable () -> Bool,
