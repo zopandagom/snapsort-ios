@@ -316,13 +316,7 @@ struct IndexingRun {
     self.pendingCaptureGroupIDs = pendingCaptureGroups.intersection(libraryIDs)
     self.pendingModelFillIDs = pendingModelFills.intersection(libraryIDs)
     self.pendingFeaturePrintIDs = pendingFeaturePrints.intersection(libraryIDs)
-    self.consecutiveFeaturePrintFailures = 0
-    self.isFeaturePrintSuspended = false
-    self.consecutiveModelFailures = 0
-    self.isModelSuspended = false
-    self.skippedIDs = []
-    self.textSkippedIDs = []
-    self.goneTextIDs = []
+    self.resetRunState()
     try await self.delete(stored.subtracting(libraryIDs))
     try await self.replaceTripsIfChanged()
     report(self.progress)
@@ -330,6 +324,17 @@ struct IndexingRun {
     var seen = Set<ImageAsset.ID>()
     let targets = fetched.filter { seen.insert($0.id).inserted && !self.indexedIDs.contains($0.id) }
     try await self.classifyAll(targets, report: report)
+  }
+
+  /// 전체 비교를 시작할 때 이번 실행의 연속 실패·중단·건너뜀 상태를 비운다.
+  private mutating func resetRunState() {
+    self.consecutiveFeaturePrintFailures = 0
+    self.isFeaturePrintSuspended = false
+    self.consecutiveModelFailures = 0
+    self.isModelSuspended = false
+    self.skippedIDs = []
+    self.textSkippedIDs = []
+    self.goneTextIDs = []
   }
 
   /// 증분 변경을 반영한다. 이미 반영한 변경이 다시 와도 결과가 같다.
