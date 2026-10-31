@@ -79,6 +79,7 @@ struct Fixture {
   ///   - featurePrint: 특징 벡터 쓸 수 있음·실패·대체 버전 썸네일·훅과 저장소의 벡터 소급 호출 실패·한도(`FeaturePrintOptions`).
   ///     기본은 쓸 수 없음이라 벡터 요청이 없다.
   ///   - barcode: 1단계 바코드 확인의 이미지별 결과·훅(`BarcodeOptions`). 기본은 바코드 없음이다.
+  ///   - isClassificationAvailableInBackground: 앱이 뒤에 있을 때(마지막 앱 활성 알림이 false) 분석 Fake 가 분류할 수 있는지.
   ///   - accessState: 사진 접근 권한.
   ///   - classifier: 언어 모델. 없으면 쓸 수 없는 Fake.
   ///   - largestErrors: 원본(`.largestAvailable`)만 읽기 실패. 2단계 실패를 흉내 낸다.
@@ -111,6 +112,7 @@ struct Fixture {
     captureGroup: CaptureGroupStoreOptions = CaptureGroupStoreOptions(),
     featurePrint: FeaturePrintOptions = FeaturePrintOptions(),
     barcode: BarcodeOptions = BarcodeOptions(),
+    isClassificationAvailableInBackground: Bool = true,
     accessState: PhotoAccessState = .authorized,
     classifier: ClassifierClientFake = ClassifierClientFake(isModelAvailable: false),
     batchSize: Int = IndexingClientImpl.defaultBatchSize,
@@ -148,7 +150,10 @@ struct Fixture {
     self.classifier = classifier
     self.featurePrintFailures = FailingIDs(featurePrint.failures)
     self.analysis = Self.analysis(
-      classify: Self.classifier(idsByWidth: idsByWidth, labels: labels, failures: failing, onClassify: onClassify),
+      classify: (
+        Self.classifier(idsByWidth: idsByWidth, labels: labels, failures: failing, onClassify: onClassify),
+        isClassificationAvailableInBackground
+      ),
       recognizeText: Self.recognizer(
         idsByWidth: idsByWidth,
         text: text,

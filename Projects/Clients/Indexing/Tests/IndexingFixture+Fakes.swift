@@ -58,9 +58,13 @@ extension Fixture {
     }
   }
 
-  /// 분석 Fake. 특징 벡터는 `featurePrint` 설정대로 쓸 수 있음을 정하고 `featurePrinter` 로 결과를 만든다.
+  /// 분석 Fake. 분류는 `classify` 의 결과와 뒤에서 분류할 수 있는지(`isAvailableInBackground`)로 정한다.
+  /// 특징 벡터는 `featurePrint` 설정대로 쓸 수 있음을 정하고 `featurePrinter` 로 결과를 만든다.
   static func analysis(
-    classify: @escaping @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>,
+    classify: (
+      handler: @Sendable (AnalysisImage) async -> Result<[ImageLabel], ImageAnalysisError>,
+      isAvailableInBackground: Bool
+    ),
     recognizeText: @escaping @Sendable (AnalysisImage) async -> Result<[RecognizedTextLine], ImageAnalysisError>,
     detectBarcodes: @escaping @Sendable (AnalysisImage) async -> Result<[DetectedBarcode], ImageAnalysisError>,
     featurePrint: (options: FeaturePrintOptions, failures: FailingIDs),
@@ -68,7 +72,7 @@ extension Fixture {
   ) -> ImageAnalysisClientFake {
     let later = Later<ImageAnalysisClientFake>()
     let analysis = ImageAnalysisClientFake(
-      classify: classify,
+      classify: classify.handler,
       recognizeText: recognizeText,
       detectBarcodes: detectBarcodes,
       isFeaturePrintAvailable: featurePrint.options.isAvailable,
@@ -78,7 +82,8 @@ extension Fixture {
         failures: featurePrint.failures,
         analysis: later,
         onFeaturePrint: featurePrint.options.onFeaturePrint
-      )
+      ),
+      isClassificationAvailableInBackground: classify.isAvailableInBackground
     )
     later.set(analysis)
     return analysis

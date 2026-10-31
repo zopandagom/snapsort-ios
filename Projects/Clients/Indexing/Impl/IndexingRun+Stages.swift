@@ -19,6 +19,10 @@ extension IndexingRun {
   // MARK: - 1단계: 분류
 
   /// 이미지를 차례로 분류하고 `batchSize` 장마다 저장하고 진행률을 보낸다. 1단계 도중에는 보관함 변경을 보지 않는다.
+  /// 분류할 수 없으면(`ImageAnalysisClient.isClassificationAvailable`. 뒤에서 세션이 없거나, 세션이 없고 시한을 넘기고 돌아오지 않은 작업이 둘 이상이라 그것이 돌아올
+  /// 때까지 멈춤)
+  /// 남은 대상을 저장하지 않고 이번 실행에서 미룬다(건너뜀으로 세어 진행률이 1단계를 벗어난다). false 를 처음 본 장부터 남은 대상을 한 번에 미룬다.
+  /// 앞의 멈춤은 실행 도중 풀릴 수 있지만(돌아오지 않은 작업이 늦게 돌아옴) 이미 미룬 장은 다음 실행이 분류한다.
   mutating func classifyAll(
     _ targets: [ImageAsset],
     report: (IndexingProgress) -> Void
@@ -27,9 +31,15 @@ extension IndexingRun {
     var pending: [IndexedImage] = []
     var processedSinceReport = 0
     var foundGone = false
-    for asset in targets {
+    for (index, asset) in targets.enumerated() {
       if Task.isCancelled {
         throw .cancelled
+      }
+      guard self.imageAnalysis.isClassificationAvailable else {
+        let held = targets[index...]
+        self.skippedIDs.formUnion(held.map(\.id))
+        self.environment.record(.classificationHeld(held.count))
+        break
       }
       switch try await self.classify(asset) {
       case let .indexed(image):
