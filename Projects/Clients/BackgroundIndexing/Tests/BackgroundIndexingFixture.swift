@@ -1,3 +1,4 @@
+import BackgroundIndexingInterface
 import Foundation
 import IndexingInterface
 import Synchronization
@@ -51,28 +52,49 @@ final class Gate: Sendable {
 }
 
 final class IndexingDouble: IndexingClient {
-  private let log: EventLog
-  private let progress: [IndexingProgress]
-  private let result: IndexingBackgroundResult
-  /// nil 이면 진행률을 보낸 뒤 바로 돌아오고, 있으면 열리거나 취소될 때까지 기다린다.
-  private let gate: Gate?
-  private let shouldYield = Mutex<(@Sendable () -> Bool)?>(nil)
+  /// `runInBackground` 호출 하나의 동작: 진행률을 보낸 뒤 문이 있으면 열리거나 취소될 때까지 매달리고, 없으면 결과로 돌아온다.
+  struct Call: Sendable {
+    var progress: [IndexingProgress] = []
+    var result = IndexingBackgroundResult(hasRemainingWork: false, didChangeStore: false)
+    var gate: Gate?
+  }
 
+  private struct State {
+    var calls = 0
+    var shouldYield: (@Sendable () -> Bool)?
+    var running: (@Sendable (IndexingProgress) -> Void)?
+  }
+
+  private let log: EventLog
+  private let defaultCall: Call
+  private let calls: [Call]
+  /// 있으면 `waitUntilStoreReleased` 가 열릴 때까지 기다린다.
+  private let releaseGate: Gate?
+  private let state = Mutex(State())
+
+  /// - Parameter calls: 부른 순서대로 쓸 동작. 다 쓰면 `progress`·`result`·`gate` 로 만든 동작을 쓴다.
   init(
     log: EventLog,
     progress: [IndexingProgress] = [],
     result: IndexingBackgroundResult = IndexingBackgroundResult(hasRemainingWork: false, didChangeStore: false),
-    gate: Gate? = nil
+    gate: Gate? = nil,
+    calls: [Call] = [],
+    releaseGate: Gate? = nil
   ) {
     self.log = log
-    self.progress = progress
-    self.result = result
-    self.gate = gate
+    self.defaultCall = Call(progress: progress, result: result, gate: gate)
+    self.calls = calls
+    self.releaseGate = releaseGate
   }
 
   /// 마지막 `runInBackground` 에 넘긴 양보 확인을 지금 부른 값.
   var shouldYieldNow: Bool? {
-    self.shouldYield.withLock { $0 }?()
+    self.state.withLock { $0.shouldYield }?()
+  }
+
+  /// 마지막 `runInBackground` 의 진행률 콜백에 값을 하나 보낸다(돌아온 뒤에도 보낸다. 실행기는 hold 를 놓으면 보내지 않으므로 그 전에 부른다).
+  func sendProgress(_ progress: IndexingProgress) {
+    self.state.withLock { $0.running }?(progress)
   }
 
   func run() -> AsyncStream<IndexingProgress> {
@@ -85,51 +107,31 @@ final class IndexingDouble: IndexingClient {
 
   func waitUntilStoreReleased() async {
     self.log.append("waitUntilStoreReleased")
+    if let releaseGate {
+      _ = await releaseGate.wait()
+    }
   }
 
   func runInBackground(
     shouldYield: @escaping @Sendable () -> Bool,
     progress: @escaping @Sendable (IndexingProgress) -> Void
   ) async -> IndexingBackgroundResult {
+    let index = self.state.withLock { state in
+      defer { state.calls += 1 }
+      state.shouldYield = shouldYield
+      state.running = progress
+      return state.calls
+    }
     self.log.append("runInBackground")
-    self.shouldYield.withLock { $0 = shouldYield }
-    for value in self.progress {
+    let call = index < self.calls.count ? self.calls[index] : self.defaultCall
+    for value in call.progress {
       progress(value)
     }
-    if let gate = self.gate, await !gate.wait() {
+    if let gate = call.gate, await !gate.wait() {
       self.log.append("runInBackground.cancelled")
       return IndexingBackgroundResult(hasRemainingWork: true, didChangeStore: false)
     }
-    return self.result
-  }
-}
-
-final class TripPlaceDouble: TripPlaceClient {
-  private let log: EventLog
-  private let gate: Gate?
-
-  init(log: EventLog, gate: Gate? = nil) {
-    self.log = log
-    self.gate = gate
-  }
-
-  func prefetchPlaces(locale _: Locale) async {
-    self.log.append("prefetch")
-    if let gate = self.gate, await !gate.wait() {
-      self.log.append("prefetch.cancelled")
-    }
-  }
-
-  func placeChanges() async -> AsyncStream<Void> {
-    AsyncStream { $0.finish() }
-  }
-
-  func holdStoreAccess() async {
-    self.log.append("hold")
-  }
-
-  func allowStoreAccess() async {
-    self.log.append("allow")
+    return call.result
   }
 }
 
@@ -153,11 +155,22 @@ final class SchedulerDouble: BackgroundTaskScheduling {
     let requiresNetworkConnectivity: Bool
   }
 
+  struct ContinuedSubmission: Equatable {
+    let identifier: String
+    let title: String
+    let subtitle: String
+  }
+
   private let log: EventLog
   var submitError: (any Error)?
+  var continuedRegisterResult = true
+  var continuedSubmitError: (any Error)?
   private(set) var registeredIdentifiers: [String] = []
+  private(set) var registeredContinuedIdentifiers: [String] = []
   private(set) var submissions: [Submission] = []
+  private(set) var continuedSubmissions: [ContinuedSubmission] = []
   private var handler: (@MainActor (any BackgroundProcessingTask) -> Void)?
+  private var continuedHandler: (@MainActor (any ContinuedProcessingTask) -> Void)?
 
   init(log: EventLog) {
     self.log = log
@@ -167,6 +180,23 @@ final class SchedulerDouble: BackgroundTaskScheduling {
     self.registeredIdentifiers.append(identifier)
     self.handler = handler
     return true
+  }
+
+  func registerContinued(
+    identifier: String,
+    handler: @escaping @MainActor (any ContinuedProcessingTask) -> Void
+  ) -> Bool {
+    self.registeredContinuedIdentifiers.append(identifier)
+    self.continuedHandler = handler
+    return self.continuedRegisterResult
+  }
+
+  func submitContinued(identifier: String, title: String, subtitle: String) throws {
+    self.log.append("submitContinued")
+    self.continuedSubmissions.append(ContinuedSubmission(identifier: identifier, title: title, subtitle: subtitle))
+    if let error = self.continuedSubmitError {
+      throw error
+    }
   }
 
   func submit(identifier: String, requiresExternalPower: Bool, requiresNetworkConnectivity: Bool) throws {
@@ -184,6 +214,11 @@ final class SchedulerDouble: BackgroundTaskScheduling {
   /// 시스템이 작업을 실행한 것처럼 등록한 핸들러를 부른다.
   func launch(_ task: TaskDouble) {
     self.handler?(task)
+  }
+
+  /// 시스템이 계속 처리 작업을 실행한 것처럼 등록한 핸들러를 부른다.
+  func launchContinued(_ task: ContinuedTaskDouble) {
+    self.continuedHandler?(task)
   }
 }
 
@@ -248,11 +283,14 @@ final class ThermalDouble: Sendable {
 @MainActor
 struct Coordinator {
   static let identifier = "com.zopandagom.snapsort.indexing"
+  static let continuedIdentifier = "com.zopandagom.snapsort.continuedIndexing.run"
 
   let log: EventLog
   let scheduler: SchedulerDouble
   let application: ApplicationDouble
   let thermal: ThermalDouble
+  let indexing: IndexingDouble?
+  let tripPlace: TripPlaceDouble?
   let impl: BackgroundIndexingClientImpl
 
   init(
@@ -260,6 +298,7 @@ struct Coordinator {
     indexing: (EventLog) -> IndexingDouble? = { IndexingDouble(log: $0) },
     tripPlace: (EventLog) -> TripPlaceDouble? = { TripPlaceDouble(log: $0) },
     taskIdentifier: String? = Coordinator.identifier,
+    continuedIdentifier: String? = Coordinator.continuedIdentifier,
     isActive: Bool = true
   ) {
     self.log = log
@@ -267,11 +306,14 @@ struct Coordinator {
     self.application = ApplicationDouble(log: log, isActive: isActive)
     let thermal = ThermalDouble()
     self.thermal = thermal
+    self.indexing = indexing(log)
+    self.tripPlace = tripPlace(log)
     self.impl = BackgroundIndexingClientImpl(
-      indexing: indexing(log),
-      tripPlace: tripPlace(log),
+      indexing: self.indexing,
+      tripPlace: self.tripPlace,
       widgetTimeline: WidgetTimelineDouble(log: log),
       taskIdentifier: taskIdentifier,
+      continuedTaskIdentifier: continuedIdentifier,
       locale: { Locale(identifier: "ko_KR") },
       scheduler: self.scheduler,
       application: self.application,
@@ -291,6 +333,8 @@ struct Coordinator {
 extension IndexingProgress {
   static let classifying = IndexingProgress(totalCount: 10, indexedCount: 2, skippedCount: 0)
   static let recognizingText = IndexingProgress(totalCount: 10, indexedCount: 10, skippedCount: 0, pendingTextCount: 3)
+  /// `recognizingText` 다음 끝(글자 3장 읽음).
+  static let finished = IndexingProgress(totalCount: 10, indexedCount: 10, skippedCount: 0, recognizedTextCount: 3)
 }
 
 /// 조건이 될 때까지 짧게 잠들며 기다린다. 조정자의 Task 는 끝나는 시점이 스케줄링에 달렸으므로 시간으로 제한한다
