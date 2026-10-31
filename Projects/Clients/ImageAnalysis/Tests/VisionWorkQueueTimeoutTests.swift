@@ -76,14 +76,15 @@ struct VisionWorkQueueTimeoutTests {
       }
     }
     let scheduled = await timer.next()
+    // 두 Task 가 같은 지역 Mutex 를 직접 잡으면 Swift 6.2(Xcode 26) 영역 검사가 막으므로 Sendable 값으로 미리 만든다.
+    let waitingHooks = VisionWorkQueue.Hooks(enqueued: { enqueueSignal.yield() })
+    let waitingBody: @Sendable () -> Int = {
+      calls.withLock { $0 += 1 }
+      return 2
+    }
     let waiting = (0 ..< 2).map { _ in
       Task {
-        await WorkOutcome.of {
-          try await queue.run(timeout: .seconds(5), hooks: VisionWorkQueue.Hooks(enqueued: { enqueueSignal.yield() })) {
-            calls.withLock { $0 += 1 }
-            return 2
-          }
-        }
+        await WorkOutcome.of { try await queue.run(timeout: .seconds(5), hooks: waitingHooks, waitingBody) }
       }
     }
     var enqueueIterator = enqueues.makeAsyncIterator()
@@ -161,12 +162,12 @@ struct VisionWorkQueueTimeoutTests {
     let hookCalled = Mutex(false)
     let (enqueues, enqueueSignal) = AsyncStream.makeStream(of: Void.self)
 
+    // 두 Task 가 같은 지역 Mutex 를 직접 잡으면 Swift 6.2(Xcode 26) 영역 검사가 막으므로 Sendable 값으로 미리 만든다.
+    let firstHooks = VisionWorkQueue.Hooks(timedOut: { _ in hookCalled.withLock { $0 = true } })
+    let readHookCalled: @Sendable () -> Bool = { hookCalled.withLock { $0 } }
     let first = Task {
       await WorkOutcome.of {
-        try await queue.run(
-          timeout: .seconds(5),
-          hooks: VisionWorkQueue.Hooks(timedOut: { _ in hookCalled.withLock { $0 = true } })
-        ) {
+        try await queue.run(timeout: .seconds(5), hooks: firstHooks) {
           blocker.wait()
           return 1
         }
@@ -178,7 +179,7 @@ struct VisionWorkQueueTimeoutTests {
         try await queue
           .run(timeout: .seconds(5), hooks: VisionWorkQueue.Hooks(enqueued: { enqueueSignal.yield() })) { 2 }
       }
-      return (outcome, hookCalled.withLock { $0 })
+      return (outcome, readHookCalled())
     }
     var enqueueIterator = enqueues.makeAsyncIterator()
     await enqueueIterator.next()
