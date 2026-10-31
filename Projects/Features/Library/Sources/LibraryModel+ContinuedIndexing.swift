@@ -13,30 +13,12 @@ public enum ContinuedIndexingNotice: Sendable, Equatable {
 }
 
 public extension LibraryModel {
-  /// 계속 처리 분류 상태. `.idle` 일 때만 진행 카드 버튼을 보인다.
-  var continuedIndexingState: ContinuedIndexingState {
-    self.backgroundIndexing.continuedState
-  }
-
-  /// 버튼으로 요청했는데 시작하지 못했을 때의 안내. 다음 탭에 지운다. "잠시 뒤 다시"(`.tryLater`)는 앱이 앞으로 오거나
-  /// 분류·글자 읽기가 끝나도 지운다(누르지 않은 다음 카드에 남지 않게). 쓸 수 없음(`.unavailable`)은 이 실행 동안 둔다.
-  var continuedIndexingNotice: ContinuedIndexingNotice? {
-    self.backgroundIndexing.notice
-  }
-
   /// 진행 카드의 "홈으로 나가도 계속" 버튼을 보일지: 계속 처리 분류를 요청할 수 있고, 분류나 글자 읽기가 돌고 있다(멈춤·다 함은 아님).
   var showsContinueInBackgroundButton: Bool {
     guard self.continuedIndexingState == .idle, self.isIndexing, !self.isIndexingStopped,
           let progress = self.indexingProgress
     else { return false }
     return !progress.isFinished
-  }
-
-  /// 진행 카드의 "홈으로 나가도 계속"을 눌렀다. 계속 처리 분류를 요청한다(앱이 앞에 있고 버튼이 보일 때만).
-  /// 시작하면 버튼이 사라지고, 시작하지 못하면 안내를 둔다(이 실행에서 쓸 수 없으면 버튼도 사라진다).
-  func continueInBackgroundTapped() {
-    guard self.showsContinueInBackgroundButton, self.isSceneActive else { return }
-    self.backgroundIndexing.requestTapped()
   }
 
   /// 시스템 진행 화면(잠금 화면·다이내믹 아일랜드)의 제목과 부제. 개수와 고정 문구만 담는다(사진·텍스트·장소 없음).
