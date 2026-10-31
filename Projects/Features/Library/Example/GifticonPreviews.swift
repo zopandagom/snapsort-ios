@@ -59,10 +59,12 @@ enum ExampleScenario: String {
   case indexingPreparing
   /// 사진 분류는 끝나고 글자를 읽는 중이다. 인덱싱 카드가 2단계(문서 스캔 그림·라일락 막대)다.
   case indexingRecognizingText
-  /// 분류 중 카드의 "홈으로 나가도 계속"을 누르면 지금은 시작할 수 없어 "지금은 시작할 수 없습니다" 안내가 보인다(기본은 눌러 시작해 버튼이 사라진다).
+  /// 분류 중 카드의 "홈으로 나가도 계속"을 누르면 지금은 시작할 수 없어 "지금은 시작할 수 없습니다" 안내가 보인다(기본은 눌러 시작해 버튼 대신 "홈으로 나가도 이어서 분류합니다" 안내 줄이 보인다).
   case continuedTryLater
   /// 분류 중 카드의 "홈으로 나가도 계속"을 누르면 이 기기에서 쓸 수 없어 버튼이 사라지고 안내가 보인다.
   case continuedUnavailable
+  /// 계속 처리 분류가 이미 돌고 있어(첫 분류 자동 요청처럼) 분류 중 카드에 버튼 대신 "홈으로 나가도 이어서 분류합니다" 안내 줄이 보인다.
+  case continuedActive
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard

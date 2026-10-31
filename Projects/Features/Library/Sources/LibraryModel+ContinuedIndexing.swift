@@ -15,9 +15,18 @@ public enum ContinuedIndexingNotice: Sendable, Equatable {
 public extension LibraryModel {
   /// 진행 카드의 "홈으로 나가도 계속" 버튼을 보일지: 계속 처리 분류를 요청할 수 있고, 분류나 글자 읽기가 돌고 있다(멈춤·다 함은 아님).
   var showsContinueInBackgroundButton: Bool {
-    guard self.continuedIndexingState == .idle, self.isIndexing, !self.isIndexingStopped,
-          let progress = self.indexingProgress
-    else { return false }
+    self.continuedIndexingState == .idle && self.isContinuableIndexing
+  }
+
+  /// 진행 카드에 "홈으로 나가도 이어서 분류합니다" 안내 줄을 보일지: 계속 처리 분류가 요청돼 돌고 있고(첫 분류 자동 요청이든 버튼이든),
+  /// 분류나 글자 읽기가 돌고 있다. 버튼과 상태만 달라 둘이 함께 보이지 않는다.
+  var showsContinuingInBackgroundNotice: Bool {
+    self.continuedIndexingState == .active && self.isContinuableIndexing
+  }
+
+  /// 분류나 글자 읽기가 돌고 있다(멈춤·다 함은 아님). 버튼·안내 줄을 둘 진행 카드가 보이는 조건이다.
+  private var isContinuableIndexing: Bool {
+    guard self.isIndexing, !self.isIndexingStopped, let progress = self.indexingProgress else { return false }
     return !progress.isFinished
   }
 

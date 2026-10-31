@@ -11,11 +11,11 @@ import Testing
 /// 계속 처리 분류: 첫 분류 자동 요청, 진행 카드의 "홈으로 나가도 계속" 버튼, 시스템 진행 화면 문구 (docs/ARCHITECTURE.md §4 인덱싱).
 @MainActor
 struct LibraryModelContinuedIndexingTests {
-  private static let classifying = IndexingProgress(totalCount: 3, indexedCount: 1, skippedCount: 0)
-  private static let classifyingMore = IndexingProgress(totalCount: 3, indexedCount: 2, skippedCount: 0)
-  private static let finished = IndexingProgress(totalCount: 3, indexedCount: 3, skippedCount: 0)
+  static let classifying = IndexingProgress(totalCount: 3, indexedCount: 1, skippedCount: 0)
+  static let classifyingMore = IndexingProgress(totalCount: 3, indexedCount: 2, skippedCount: 0)
+  static let finished = IndexingProgress(totalCount: 3, indexedCount: 3, skippedCount: 0)
 
-  private static func model(
+  static func model(
     photoLibrary: PhotoLibraryClientFake,
     indexing: IndexingClientFake,
     backgroundIndexing: BackgroundIndexingClientFake
@@ -32,31 +32,31 @@ struct LibraryModelContinuedIndexingTests {
   }
 
   /// 앱이 앞으로 온 뒤 화면 진입을 시작하고, 인덱싱 구독이 선 뒤에 돌아온다.
-  private static func appear(_ model: LibraryModel, indexing: IndexingClientFake) async -> Task<Void, Never> {
+  static func appear(_ model: LibraryModel, indexing: IndexingClientFake) async -> Task<Void, Never> {
     model.sceneBecameActive()
     let appear = Task { await model.onAppear() }
     await waitUntil { indexing.activeRunCount == 1 }
     return appear
   }
 
-  private static func send(_ progress: IndexingProgress, to model: LibraryModel, indexing: IndexingClientFake) async {
+  static func send(_ progress: IndexingProgress, to model: LibraryModel, indexing: IndexingClientFake) async {
     indexing.sendProgress(progress)
     await waitUntil { model.indexingProgress == progress }
   }
 
-  private static func requestCount(_ backgroundIndexing: BackgroundIndexingClientFake) -> Int {
+  static func requestCount(_ backgroundIndexing: BackgroundIndexingClientFake) -> Int {
     backgroundIndexing.events.filter { $0 == .continuedIndexingRequested }.count
   }
 
   /// 화면 진입이 도는 Model 과 그 인덱서.
-  private struct Running {
+  struct Running {
     let model: LibraryModel
     let indexing: IndexingClientFake
     let appear: Task<Void, Never>
   }
 
   /// 처음부터 권한이 허용된 화면(재실행)에 진행률 하나를 보낸 상태.
-  private static func indexingModel(
+  static func indexingModel(
     backgroundIndexing: BackgroundIndexingClientFake,
     progress: IndexingProgress = Self.classifying
   ) async -> Running {
