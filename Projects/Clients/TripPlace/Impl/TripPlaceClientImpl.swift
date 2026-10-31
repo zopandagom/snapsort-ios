@@ -9,7 +9,8 @@ import TripPlaceInterface
 /// 요청은 한 번에 하나(상세 요청과는 따로), 요청 사이 간격을 두고, 실패·시한이면 회차를 멈추고 최소 간격 뒤에 다시 묻는다.
 /// 시한을 넘긴 요청이 돌아오지 않은 동안은 새 요청을 내지 않는다(오프라인 요청 누적 방지).
 /// 앱이 뒤로 가면 저장소 출입을 막는다(`holdStoreAccess`): 막은 동안 회차는 바로 돌아오고 늦게 온 응답은 쓰지 않고 버린다.
-/// 상태는 앱 실행 동안 하나라 App 이 하나만 만들어 앞(보관함)과 BG 작업이 함께 쓴다(간격·쉼·상한 공유). 좌표·장소 이름은 로그에 남기지 않는다.
+/// 상태는 앱 실행 동안 하나라 App 이 하나만 만들어 앞(보관함)과 BG 작업(처리·계속 처리)이 함께 쓴다(간격·쉼·상한 공유). 좌표·장소 이름은 로그에 남기지 않는다.
+/// 회차는 키 단위 진행(개수만)을 알린다. 계속 처리 작업이 시스템 진행 화면에 더한다.
 public actor TripPlaceClientImpl: TripPlaceClient {
   typealias Now = @Sendable () -> ContinuousClock.Instant
   typealias Sleep = @Sendable (TripPlaceSleep, Duration) async throws -> Void
@@ -68,23 +69,33 @@ public actor TripPlaceClientImpl: TripPlaceClient {
     self.isLowPowerMode = isLowPowerMode
   }
 
-  public func prefetchPlaces(locale: Locale) async {
+  public func prefetchPlaces(
+    locale: Locale,
+    progress: @escaping @Sendable (TripPlacePrefetchProgress) -> Void
+  ) async {
     guard !self.isRunning, !self.isStoreAccessHeld else { return }
     self.isRunning = true
     defer { self.isRunning = false }
     guard await self.canStartRound() else { return }
     let localeIdentifier = locale.identifier
     guard let targets = await self.targets(localeIdentifier: localeIdentifier) else { return }
-    for key in targets {
+    progress(TripPlacePrefetchProgress(doneCount: 0, totalCount: targets.count))
+    for (index, key) in targets.enumerated() {
+      let done = TripPlacePrefetchProgress(doneCount: index + 1, totalCount: targets.count)
       guard await self.waitForInterval() else { return }
       switch await self.isStillMissing(key, localeIdentifier: localeIdentifier) {
-      case nil: return
-      case false?: continue
-      case true?: break
+      case nil:
+        return
+      case false?:
+        progress(done)
+        continue
+      case true?:
+        break
       }
       let started = self.startRequest(TripPlaceRequest(key: key, localeIdentifier: localeIdentifier))
       let result = await self.first(of: started.task, timeout: self.policy.timeout)
       guard self.shouldContinue(after: result, token: started.token) else { return }
+      progress(done)
     }
   }
 
