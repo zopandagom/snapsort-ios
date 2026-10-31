@@ -26,7 +26,8 @@ public enum ContinuedIndexingState: Sendable, Equatable {
   case unsupported
   /// 요청할 수 있다.
   case idle
-  /// 제출했고 아직 끝나지 않았다(핸들러 대기·실행·마무리 포함).
+  /// 제출했고 아직 끝나지 않았다(핸들러 대기·실행·마무리 포함). 핸들러가 오기 전에 앱이 앞으로 오면 `.idle` 로 돌아가 다시 요청할 수 있다
+  /// (늦게 온 핸들러는 시작한다, docs/ARCHITECTURE.md §4 인덱싱).
   case active
 }
 
