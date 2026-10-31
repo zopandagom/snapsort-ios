@@ -59,7 +59,7 @@ struct SnapSortApp: App {
     // (docs/ARCHITECTURE.md §4 위치·지도 원칙 ①). 앱 실행 동안 하나를 보관함 화면과 BG 작업이 함께 써, 빈도 제한(간격·최소 간격·상한·쉼)이
     // 화면 진입과 BG 실행을 넘어 이어진다.
     let tripPlace = photoStore.map { TripPlaceClientImpl(map: map, photoStore: $0) }
-    // 앱이 뒤에 있거나 닫혀 있을 때의 분류(BG 처리 작업). 핸들러는 앱이 실행을 마치기 전에 등록해야 해서 여기서 한다
+    // 앱이 뒤에 있거나 닫혀 있을 때의 분류(BG 처리 작업·사용자가 시작한 계속 처리 작업). 처리 작업 핸들러는 앱이 실행을 마치기 전에 등록해야 해서 여기서 한다
     // (조립 지점의 부수효과, docs/ARCHITECTURE.md §4 인덱싱). 저장소가 없어도 등록한다(예약된 작업이 핸들러 없이 오지 않게).
     let backgroundIndexing = Self.registeredBackgroundIndexing(indexing, tripPlace, widgetTimeline)
     self._libraryModel = State(initialValue: LibraryModel(
@@ -120,19 +120,22 @@ struct SnapSortApp: App {
     )
   }
 
-  /// BG 처리 작업 조정자를 만들고 핸들러를 등록한다. 식별자 이름의 단일 출처는 Tuist `Env` 이고 Info.plist
-  /// `BGTaskSchedulerPermittedIdentifiers` 첫 값으로 읽는다(App Group 이름과 같은 방식). 없으면 BG 작업을 등록·제출하지 않는다.
+  /// BG 작업 조정자를 만들고 처리 작업·계속 처리 작업 핸들러를 한 번에 등록한다(같은 식별자 두 번 등록은 앱을 죽인다).
+  /// 식별자 이름의 단일 출처는 Tuist `Env` 이고 Info.plist `BGTaskSchedulerPermittedIdentifiers` 를 `TaskIdentifiers` 로 읽는다
+  /// (와일드카드가 아닌 값 = 처리 작업, `.*` 로 끝나는 값 = 계속 처리 작업. App Group 이름과 같은 방식). 없는 쪽은 등록·제출하지 않는다.
   private static func registeredBackgroundIndexing(
     _ indexing: IndexingClientImpl?,
     _ tripPlace: TripPlaceClientImpl?,
     _ widgetTimeline: WidgetTimelineClientImpl
   ) -> BackgroundIndexingClientImpl {
-    let identifiers = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String]
+    let permitted = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String]
+    let identifiers = BackgroundIndexingClientImpl.TaskIdentifiers(permitted: permitted ?? [])
     let backgroundIndexing = BackgroundIndexingClientImpl(
       indexing: indexing,
       tripPlace: tripPlace,
       widgetTimeline: widgetTimeline,
-      taskIdentifier: identifiers?.first
+      taskIdentifier: identifiers.processing,
+      continuedTaskIdentifier: identifiers.continued
     )
     backgroundIndexing.registerLaunchHandler()
     return backgroundIndexing

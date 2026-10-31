@@ -3,12 +3,15 @@ import IndexingInterface
 /// BG 모드에서만 다른 인덱서 동작 (docs/ARCHITECTURE.md §4 인덱싱).
 /// 앱이 비활성이고 BG 작업이 실행을 쥐면 BG 모드다. 모드는 부를 때마다 실행기에서 읽어 앞(활성)이 우선한다.
 /// - 1단계 바코드 확인 실패: 바코드 없음으로 저장하지 않고 그 장을 이번 실행에서 미룬다(IndexingRun+Barcode.swift).
+/// - 이미지 분석이 분류할 수 없으면(`isClassificationAvailable`. 앞에서 불러 둔 요청이 없거나, 세션이 없고 시한을 넘기고 돌아오지 않은 작업이 둘 이상이라 그것이 돌아올 때까지 멈춤)
+///   남은 1단계 대상을 저장하지 않고 이번 실행에서 미룬다(IndexingRun+Stages.swift, 이 미룸은 앞 실행에서도 같다). 다시 예약 사유는 아니다
+///   (앞에서 다음 실행이 분류한다).
 /// - 분류 보강이 거부(`.rejected`, 속도 제한 포함)되거나 모델 차단 중이면 규칙 결과로 저장하지 않고 그 장을 대기로 남긴다(IndexingRun+ModelFill.swift).
 /// - 분류·OCR·바코드 Vision 요청이 잇달아 실패하면 실행을 멈춘다(`.visionStopped`). 이미지 읽기 실패와 특징 벡터 실패는 세지 않는다
 ///   (벡터는 선택 기능이라 분류·OCR 을 멈출 근거가 아니다. 벡터는 실행 안 연속 실패 차단만 따른다).
 /// - 처음 비교에서 사진 조회가 비었는데 저장된 결과가 있으면 지우지 않고 멈춘다(`.libraryEmpty`, 잠긴 기기에서 읽지 못했을 수 있다).
 /// - 배치 경계(본 루프 맨 위·1단계 저장 직후)에서 양보(`shouldYield`, 발열)를 본다.
-/// 특징 벡터는 BG 모드에서도 같게 요청한다(뒤에서는 이미지 분석이 CPU 로 계산하고 뒤 시한 차단을 따른다).
+/// 특징 벡터는 BG 모드에서도 같게 요청한다(뒤에서는 이미지 분석이 앞에서 불러 둔 요청으로만 만들고 뒤 시한 차단을 따른다).
 extension IndexingRun {
   /// BG 모드에서 분류·OCR·바코드 Vision 요청이 이 수만큼 잇달아 실패하면 실행을 멈춘다. 임시 값이다.
   static let maxConsecutiveBackgroundVisionFailures = 3
@@ -53,6 +56,8 @@ struct RunEnvironment: Sendable {
   var onIdle: @Sendable () -> Void = {}
   /// BG 수치·미룸 기록.
   var record: @Sendable (BackgroundRunEvent) -> Void = { _ in }
+  /// 2단계 배치 안 장마다의 저장 전 진행률. BG hold 에만 간다(앞 구독자·최신 값·보관 값에는 넣지 않는다. 계속 처리 작업의 진행 간격을 좁힌다).
+  var reportToHolds: @Sendable (IndexingProgress) -> Void = { _ in }
 }
 
 /// 실행이 실행기에 알리는 일. 실행기가 BG 가 쥔 동안의 수를 세고(Debug 수치 로그) 미룸이 있었는지 본다.
@@ -74,6 +79,8 @@ enum BackgroundRunEvent: Sendable {
   case featurePrint
   /// 특징 벡터 요청이 실패했다.
   case featurePrintFailure
+  /// 이미지 분석이 분류할 수 없어 1단계에서 미룬 장 수.
+  case classificationHeld(Int)
 }
 
 /// BG 가 쥔 동안의 수 (Debug 수치 로그).
@@ -86,8 +93,10 @@ struct BackgroundRunStats: Sendable, Equatable {
   var visionFailures = 0
   var featurePrints = 0
   var featurePrintFailures = 0
+  var classificationHeld = 0
 
   /// 다시 예약할 미룸이 있었는지. 벡터 대기는 넣지 않는다(뒤 차단은 프로세스 끝까지라 같은 프로세스에서 다시 예약해도 못 만든다).
+  /// 분류 미룸도 넣지 않는다(뒤에서는 분류 요청을 새로 불러오지 않아 다시 떠도 같은 일을 되풀이한다. 앞에서 다음 실행이 분류한다).
   var hasDeferred: Bool {
     self.barcodeDeferred > 0 || self.modelDeferred > 0
   }
@@ -102,6 +111,7 @@ struct BackgroundRunStats: Sendable, Equatable {
     case .visionFailure: self.visionFailures += 1
     case .featurePrint: self.featurePrints += 1
     case .featurePrintFailure: self.featurePrintFailures += 1
+    case let .classificationHeld(count): self.classificationHeld += count
     }
   }
 }

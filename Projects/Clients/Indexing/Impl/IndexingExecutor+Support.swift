@@ -101,6 +101,7 @@ extension IndexingExecutor {
           featurePrints=\(stats.featurePrints, privacy: .public) \
           featurePrintFailures=\(stats.featurePrintFailures, privacy: .public) \
           featurePrintAvailable=\(isFeaturePrintAvailable, privacy: .public) \
+          classificationHeld=\(stats.classificationHeld, privacy: .public) \
           active=\(log.isAppActive ? 1 : 0, privacy: .public) \
           seconds=\(log.seconds, privacy: .public) end=\(log.end, privacy: .public)
           """

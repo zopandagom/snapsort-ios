@@ -55,4 +55,18 @@ extension IndexingRun {
       skippedTextCount: self.textSkippedIDs.count
     )
   }
+
+  /// 2단계 배치 안에서 저장 전에 읽은 `count` 장을 읽은 것으로 센 진행률. 읽은 장은 저장 전까지 대기(`pendingTextIDs`)에 남아 있어
+  /// 그만큼 대기에서 뺀다. BG hold 에만 보낸다(`RunEnvironment.reportToHolds`).
+  func progress(unsavedRecognized count: Int) -> IndexingProgress {
+    let saved = self.progress
+    return IndexingProgress(
+      totalCount: saved.totalCount,
+      indexedCount: saved.indexedCount,
+      skippedCount: saved.skippedCount,
+      pendingTextCount: saved.pendingTextCount - count,
+      recognizedTextCount: saved.recognizedTextCount + count,
+      skippedTextCount: saved.skippedTextCount
+    )
+  }
 }

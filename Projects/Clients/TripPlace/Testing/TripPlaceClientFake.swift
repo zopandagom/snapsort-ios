@@ -3,7 +3,8 @@ import Synchronization
 import TripPlaceInterface
 
 /// 테스트와 Example 앱용 대역. 미리 받기 회차를 부른 로캘을 기록하고, 정한 동안 매달렸다가 돌아온다.
-/// 캐시 쓰기 신호는 `sendPlaceChange()` 로 흉내 낸다. 회차 시작·취소와 저장소 출입 막기·열기를 순서대로 기록한다(`events`, `onEvent`).
+/// 캐시 쓰기 신호는 `sendPlaceChange()`, 회차 진행 알림은 `sendPrefetchProgress(_:)` 로 흉내 낸다.
+/// 회차 시작·취소와 저장소 출입 막기·열기를 순서대로 기록한다(`events`, `onEvent`).
 /// 기록과 구독이 호출 사이에 남아야 하므로 상태를 Mutex 로 보호하는 class 다.
 public final class TripPlaceClientFake: TripPlaceClient {
   /// 호출 기록. 여러 대역의 호출 순서를 함께 보려면 `onEvent` 로 한곳에 모은다.
@@ -26,6 +27,8 @@ public final class TripPlaceClientFake: TripPlaceClient {
     var events: [Event] = []
     var prefetchLocaleIdentifiers: [String] = []
     var cancelledPrefetchCount = 0
+    /// 도는 회차의 진행 콜백. 회차가 돌아오면 비운다.
+    var runningProgress: (@Sendable (TripPlacePrefetchProgress) -> Void)?
     var nextSubscriberID = 0
     var subscribers: [Int: AsyncStream<Void>.Continuation] = [:]
   }
@@ -61,14 +64,16 @@ public final class TripPlaceClientFake: TripPlaceClient {
     self.state.withLock { $0.subscribers.count }
   }
 
-  public func prefetchPlaces(locale: Locale) async {
+  public func prefetchPlaces(locale: Locale, progress: @escaping @Sendable (TripPlacePrefetchProgress) -> Void) async {
     let index = self.state.withLock { state in
       state.prefetchLocaleIdentifiers.append(locale.identifier)
       state.events.append(.prefetchStarted)
+      state.runningProgress = progress
       return state.prefetchLocaleIdentifiers.count - 1
     }
     self.onEvent(.prefetchStarted)
     await self.onPrefetch(index)
+    self.state.withLock { $0.runningProgress = nil }
     if Task.isCancelled {
       self.state.withLock { $0.cancelledPrefetchCount += 1 }
       self.record(.prefetchCancelled)
@@ -104,6 +109,12 @@ public final class TripPlaceClientFake: TripPlaceClient {
   }
 
   // MARK: - 신호 흉내
+
+  /// 도는 `prefetchPlaces(locale:progress:)` 호출의 진행 콜백에 값을 하나 보낸다. 도는 호출이 없거나 이미 돌아왔으면 버린다.
+  /// 회차가 매달린 동안(`onPrefetch` 를 기다리는 중) 부른다.
+  public func sendPrefetchProgress(_ progress: TripPlacePrefetchProgress) {
+    self.state.withLock { $0.runningProgress }?(progress)
+  }
 
   /// 지금 구독 중인 모든 `placeChanges()` 에 캐시 쓰기 신호를 하나 보낸다.
   public func sendPlaceChange() {

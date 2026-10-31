@@ -19,6 +19,10 @@ extension IndexingRun {
   // MARK: - 1단계: 분류
 
   /// 이미지를 차례로 분류하고 `batchSize` 장마다 저장하고 진행률을 보낸다. 1단계 도중에는 보관함 변경을 보지 않는다.
+  /// 분류할 수 없으면(`ImageAnalysisClient.isClassificationAvailable`. 뒤에서 세션이 없거나, 세션이 없고 시한을 넘기고 돌아오지 않은 작업이 둘 이상이라 그것이 돌아올
+  /// 때까지 멈춤)
+  /// 남은 대상을 저장하지 않고 이번 실행에서 미룬다(건너뜀으로 세어 진행률이 1단계를 벗어난다). false 를 처음 본 장부터 남은 대상을 한 번에 미룬다.
+  /// 앞의 멈춤은 실행 도중 풀릴 수 있지만(돌아오지 않은 작업이 늦게 돌아옴) 이미 미룬 장은 다음 실행이 분류한다.
   mutating func classifyAll(
     _ targets: [ImageAsset],
     report: (IndexingProgress) -> Void
@@ -27,9 +31,15 @@ extension IndexingRun {
     var pending: [IndexedImage] = []
     var processedSinceReport = 0
     var foundGone = false
-    for asset in targets {
+    for (index, asset) in targets.enumerated() {
       if Task.isCancelled {
         throw .cancelled
+      }
+      guard self.imageAnalysis.isClassificationAvailable else {
+        let held = targets[index...]
+        self.skippedIDs.formUnion(held.map(\.id))
+        self.environment.record(.classificationHeld(held.count))
+        break
       }
       switch try await self.classify(asset) {
       case let .indexed(image):
@@ -123,6 +133,7 @@ extension IndexingRun {
   // MARK: - 2단계: 글자 읽기
 
   /// OCR 대기 이미지 중 최신 `textBatchSize` 장을 읽어 바꿔 저장하고 진행률을 보낸다.
+  /// 배치 안에서는 장마다(마지막 장 뒤는 빼고) 저장 전 진행률을 BG hold 에만 보낸다(`RunEnvironment.reportToHolds`).
   /// 원본을 읽거나 OCR 하지 못하면 저장 결과를 1단계 결과(대기)로 두고 이번 실행에서 미룬다.
   /// 보관함에 없다고 나오면(`notFound`) 저장 결과는 지우지 않고(삭제는 보관함 변경이 한다) 전체 수·여행에서만 뺀다.
   /// 그 이미지가 삭제 없이 다시 추가되면 `apply` 가 대기로 되돌린다(`goneTextIDs`).
@@ -138,7 +149,7 @@ extension IndexingRun {
     let storedByID = Dictionary(stored.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     var recognized: [IndexedImage] = []
     var foundGone = false
-    for id in batchIDs {
+    for (index, id) in batchIDs.enumerated() {
       if Task.isCancelled {
         throw .cancelled
       }
@@ -149,8 +160,14 @@ extension IndexingRun {
         // 읽은 결과는 저장한 뒤 멈춘다. 남은 장은 대기로 남는다.
         break
       }
+      // 마지막 장 뒤에는 보내지 않는다(곧 저장 뒤 `report` 가 같은 수를 보낸다). 그래서 배치의 다음 장이 대기에 남아 이 값은 끝이 아니다
+      // (`isFinished` 는 저장 뒤 값에서만). 읽은 장은 저장과 같은 조건으로 센다.
+      if index < batchIDs.count - 1 {
+        let unsaved = recognized.count { self.assets[$0.id] != nil }
+        self.environment.reportToHolds(self.progress(unsavedRecognized: unsaved))
+      }
     }
-    // 삭제는 배치 사이에만 반영하므로 방어용이다. 지워진 이미지의 행을 다시 만들지 않는다.
+    // 삭제는 배치 사이에만 반영하므로 방어용이다. 지워진 이미지의 행을 다시 만들지 않는다. 장마다 값의 수도 이 조건으로 센다.
     let images = recognized.filter { self.assets[$0.id] != nil }
     if !images.isEmpty {
       try await self.store(write: true) { () async throws(PhotoStoreError) in try await self.photoStore.save(images) }

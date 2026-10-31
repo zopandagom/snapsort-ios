@@ -10,6 +10,8 @@ import Synchronization
 /// (ImageAnalysis `VisionFailure`, Classifier 취소 규칙) 늦게 돌아온 요청의 실패로는 기록에 닿지 않는다. 남는 경로는 둘이다:
 /// 문을 닫기 전에 들어간 저장의 장 수 기록과 쓰기 표시(실제로 저장소를 바꿨으므로 위젯 갱신 근거로 받는다), 그리고 모델 차단 중 미룸
 /// (모델을 부르지 않고 바로 기록해 OCR 직후의 짧은 동기 구간에서 멈추면 닿는다. 그때 BG 가 한 번 더 예약될 뿐 저장 결과는 같다).
+/// BG 작업이 도는 실행에 붙으면 그 실행의 최신 진행률을 그 hold 에 한 번 먼저 보낸다.
+/// 2단계 배치 안 장마다의 저장 전 진행률은 hold 에만 보낸다(최신 값·보관 값·앞 구독자는 저장 뒤 값만 본다).
 /// 앱이 비활성인 동안 앞 구독자에게 진행률을 보내지 않고 최신 값만 두었다가 다시 활성이 되면 한 번 보낸다(보관함 화면이 백그라운드에서
 /// 저장소를 다시 읽지 않게). 비활성 중 실행이 스스로 끝나도 앞 구독자 스트림은 끝내지 않고 다시 활성이 될 때 새 실행으로 잇는다.
 /// 상태는 Mutex 하나로 지키고, Task 취소·continuation 재개·진행률 전달은 잠금 밖에서 한다(취소 처리기가 잠금을 다시 잡지 않게).
@@ -112,6 +114,10 @@ final class IndexingExecutor: Sendable {
       var effects = Effects()
       state.holds[id] = Hold(continuation: nil, shouldYield: shouldYield, progress: progress)
       self.reconcile(&state, &effects)
+      // 도는 실행에 붙으면 최신 진행률을 이 hold 에 한 번 먼저 보낸다(계속 처리 작업이 시작하자마자 확정 진행률을 보이게).
+      if let current = state.current, !current.isIdle, let latest = current.latest {
+        effects.progressToHolds = (latest, [progress])
+      }
       return effects
     }
     guard let registered else {
@@ -176,6 +182,18 @@ final class IndexingExecutor: Sendable {
       } else {
         state.heldProgress = progress
       }
+      effects.progressToHolds = (progress, state.holds.values.map(\.progress))
+      return effects
+    }
+    effects.perform()
+  }
+
+  /// 2단계 배치 안 장마다의 저장 전 진행률. hold 에만 보내고 최신 값(`latest`)·유휴·보관 값·앞 구독자는 건드리지 않는다
+  /// (나중에 붙는 hold 와 앞으로 올 때의 값은 저장된 상태여야 하고, 앞 화면이 저장하지 않은 장마다 저장소를 다시 읽지 않게).
+  private func reportToHolds(_ id: UUID, _ progress: IndexingProgress) {
+    let effects = self.state.withLock { state -> Effects in
+      var effects = Effects()
+      guard state.current?.id == id else { return effects }
       effects.progressToHolds = (progress, state.holds.values.map(\.progress))
       return effects
     }
@@ -279,7 +297,8 @@ extension IndexingExecutor {
         return checks.contains { $0() }
       },
       onIdle: { self.runIdle(id) },
-      record: { self.record($0) }
+      record: { self.record($0) },
+      reportToHolds: { self.reportToHolds(id, $0) }
     )
     let task = Task(priority: .utility) { [makeRun] in
       for previous in previousGates {

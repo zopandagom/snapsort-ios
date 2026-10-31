@@ -15,7 +15,7 @@ public struct IndexingProgress: Sendable, Equatable {
   public let totalCount: Int
   /// 1단계를 마치고(분류해) 저장한 이미지 수. OCR 대기 이미지도 들어간다.
   public let indexedCount: Int
-  /// 이번 실행 1단계에서 읽거나 분석하지 못해 미룬 이미지 수 (iCloud 에만 있음, 손상된 파일 등).
+  /// 이번 실행 1단계에서 읽거나 분석하지 못해 미룬 이미지 수 (iCloud 에만 있음, 손상된 파일, 분류할 수 없음 등).
   /// 저장하지 않으므로 다음 실행에서 다시 시도한다.
   public let skippedCount: Int
   /// 저장됐고 OCR 을 기다리는 이미지 수. 이번 실행 2단계에서 미룬 이미지는 빠진다.

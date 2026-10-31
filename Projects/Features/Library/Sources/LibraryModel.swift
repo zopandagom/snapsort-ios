@@ -33,14 +33,6 @@ public final class LibraryModel {
   /// 카테고리별 대표 사진 식별자(`PhotoStoreClient.categoryCovers(limit:)`). 개수(`categoryCounts`)와 같은 읽기·같은 세대로 바뀐다.
   /// 저장소를 읽지 못하면 개수와 함께 지난 값을 둔다. LibraryView 가 바뀔 때마다 `LibraryCoverModel.coversChanged(_:)` 로 넘긴다.
   public private(set) var coverIDs: [ImageCategory: [ImageAsset.ID]] = [:]
-  /// 알림 권한. 아직 읽지 않았거나 알림·저장소가 없으면 nil.
-  public private(set) var notificationAuthorization: NotificationAuthorization?
-  /// 지금 예약할 만료 알림이 하나 이상인지(같은 `now` 로 계산한 planner 결과가 비어 있지 않음). 권한과 관계없이 계산한다.
-  /// 오늘·내일(09:00 뒤) 만료처럼 알림이 하나도 안 나오는 기프티콘만 있으면 거짓이라, 허용해도 예약이 0 개인 버튼을 보이지 않는다.
-  /// 마지막으로 저장소를 읽은 결과이고, 읽지 못하면 지난 값을 둔다.
-  public private(set) var hasPlannedReminder = false
-  /// 권한 팝업이 떠 있는 동안 참. 버튼을 숨겨 두 번 요청하지 않게 한다.
-  public private(set) var isRequestingNotificationAuthorization = false
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
   /// 인덱싱이 멈출 때. 그때마다 이 Model 은 개수와 대표 사진(`coverIDs`)을 다시 읽는다. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색
   /// 결과·정리 화면·최근 스크린샷 화면이
@@ -52,13 +44,6 @@ public final class LibraryModel {
   /// 여행 폴더 상세·검색 결과에만 넘긴다(`storeRevision` 은 캐시를 읽지 않는 화면까지 다시 읽게 해 쓰지 않는다).
   /// 앱이 뒤에 있는 동안(BG 작업의 미리 받기 포함)의 쓰기는 모아 두었다가 앞으로 올 때 한 번 올린다(뒤에서 화면들이 저장소를 읽지 않게).
   public private(set) var placeRevision = 0
-  /// 앱이 앞에 있는지(scenePhase). 처음 `sceneBecameActive()` 전에는 거짓이다. 거짓인 동안 화면 진입(`onAppear()`)은 시작을 미루고
-  /// 날짜 변경(`dayChanged()`)은 무시한다(BG 작업이 앱을 띄우거나 깨울 때 저장소를 읽지 않게, docs/ARCHITECTURE.md §4 인덱싱).
-  /// LibraryView 도 이 값으로 날짜·시간대 변경을 다른 Model 에 넘길지 정한다.
-  public var isSceneActive: Bool {
-    self.sceneActivation.isActive
-  }
-
   /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
   static let coverLimit = 4
 
@@ -72,23 +57,14 @@ public final class LibraryModel {
   /// `runIndexing()` 을 시작할 때마다 하나씩 올린다. 화면을 나갔다 바로 들어오면 취소된 지난 Task 가
   /// 늦게 깨어날 수 있으므로, 인덱싱 상태는 지금 번호의 Task 만 바꾼다.
   @ObservationIgnored private var indexingGeneration = 0
-  /// 만료 알림을 지금 상태로 다시 맞추라는 신호. `runReminderSync()` 가 구독하는 동안만 의미가 있다.
-  @ObservationIgnored private var reminderSyncRequests: AsyncStream<Void>.Continuation?
-  /// `runReminderSync()` 를 시작할 때마다 하나씩 올린다. 화면을 나갔다 바로 들어와 지난 동기화가 늦게 깨어나도 상태와 예약을 바꾸지 않게 한다.
-  @ObservationIgnored private var reminderGeneration = 0
-  /// 권한 요청을 시작할 때마다 하나씩 올린다. 요청과 겹친 동기화가 요청 전에 읽은 권한으로 상태를 덮지 않게 한다.
-  @ObservationIgnored private var authorizationRequestCount = 0
   @ObservationIgnored private let placePrefetch: LibraryPlacePrefetch
   @ObservationIgnored private let sceneActivation = LibrarySceneActivation()
-  @ObservationIgnored private let backgroundIndexing: (any BackgroundIndexingClient)?
+  @ObservationIgnored private let backgroundIndexing: LibraryBackgroundIndexing
+  @ObservationIgnored private let reminderSync: LibraryReminderSync
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
   @ObservationIgnored private let photoStore: (any PhotoStoreClient)?
-  @ObservationIgnored private let notification: (any NotificationClient)?
-  @ObservationIgnored private let widgetReload: LibraryWidgetReload
-  @ObservationIgnored private let calendar: Calendar
-  @ObservationIgnored private let now: @Sendable () -> Date
 
   /// 권한 상태는 동기로 읽을 수 있으므로 init 에서 읽어 첫 프레임부터 배너가 보이게 한다.
   /// App 은 온보딩 전에 이 Model 을 만들므로, 화면 진입 때도 다시 읽는다.
@@ -101,7 +77,9 @@ public final class LibraryModel {
   ///   - widgetTimeline: 만료 임박 위젯 갱신 요청. 만료 알림 동기화가 위젯에 보일 값이 바뀐 것을 볼 때만 요청한다.
   ///   알림이나 저장소가 없으면 동기화가 돌지 않으므로 위젯 갱신도 하지 않는다.
   ///   - tripPlace: 여행 장소 이름 미리 받기. 1단계(분류)를 마친 뒤 계기마다 회차를 돌린다. 저장소가 없으면 App 이 nil 을 넘긴다.
-  ///   - backgroundIndexing: 앱이 뒤에 있거나 닫혀 있을 때의 분류. 앱이 뒤로 가고 앞으로 올 때 알린다. nil 이면(Example) 알리지 않는다.
+  ///   - backgroundIndexing: 앱이 뒤에 있거나 닫혀 있을 때의 분류. 앱이 뒤로 가고 앞으로 올 때 알리고, 계속 처리 분류를 요청한다
+  ///   (첫 분류는 자동, 그 뒤는 진행 카드 버튼, LibraryModel+ContinuedIndexing.swift). nil 이면 알리지 않고 버튼도 없다(Example 은 Fake 로 버튼·안내를
+  /// 본다).
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
   ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
@@ -120,12 +98,11 @@ public final class LibraryModel {
     self.photoLibrary = photoLibrary
     self.indexing = indexing
     self.photoStore = photoStore
-    self.notification = notification
-    self.widgetReload = LibraryWidgetReload(widgetTimeline: widgetTimeline, calendar: calendar)
-    self.calendar = calendar
-    self.now = now
+    self.reminderSync = LibraryReminderSync(
+      notification: notification, photoStore: photoStore, widgetTimeline: widgetTimeline, calendar: calendar, now: now
+    )
     self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
-    self.backgroundIndexing = backgroundIndexing
+    self.backgroundIndexing = LibraryBackgroundIndexing(client: backgroundIndexing, access: photoLibrary.accessState())
     self.isLimited = photoLibrary.accessState() == .limited
   }
 
@@ -147,7 +124,7 @@ public final class LibraryModel {
     await withDiscardingTaskGroup { group in
       group.addTask { await self.observeImages() }
       group.addTask { await self.runIndexing() }
-      group.addTask { await self.runReminderSync() }
+      group.addTask { await self.reminderSync.run() }
       group.addTask { await self.placePrefetch.run { self.placeRevision += 1 } }
     }
   }
@@ -169,46 +146,38 @@ public final class LibraryModel {
   }
 
   /// 알림 권한을 요청하고, 허용하면 만료 알림을 예약한다. 버튼은 권한을 정하지 않았을 때만 보인다.
+  /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다.
   public func notificationsTapped() async {
-    guard let notification = self.notification, self.notificationAuthorization == .notDetermined,
-          !self.isRequestingNotificationAuthorization
-    else { return }
-    self.isRequestingNotificationAuthorization = true
-    self.authorizationRequestCount += 1
-    let status = await notification.requestAuthorization()
-    self.isRequestingNotificationAuthorization = false
-    self.notificationAuthorization = status
-    // 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다.
-    self.requestReminderSync()
+    await self.reminderSync.requestAuthorization()
   }
 
   /// 설정 앱의 이 앱 알림 설정을 연다. 알림을 거부했을 때만. 설정에서 허용하고 돌아오면 `sceneBecameActive()` 의 동기화가 예약한다.
   public func notificationSettingsTapped() async {
-    guard let notification = self.notification, self.notificationAuthorization == .denied else { return }
-    await notification.openSettings()
+    await self.reminderSync.openSettings()
   }
 
   /// 앱이 앞으로 왔다(scenePhase `.active`). 처음 앞으로 오면 미뤄 둔 화면 진입을 시작한다. 멈춘 분류를 다시 열고
   /// (인덱서가 둔 최신 진행률이 오면 개수를 다시 읽는다), 뒤에 있는 동안 장소 캐시 쓰기가 있었으면 한 번 알린다.
   /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
   /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
-  /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다).
+  /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다). 계속 처리 분류 상태도 다시 읽는다.
   public func sceneBecameActive() {
-    self.backgroundIndexing?.appDidBecomeActive()
+    self.backgroundIndexing.sceneBecameActive()
     if self.placePrefetch.sceneBecameActive() {
       self.placeRevision += 1
     }
-    self.requestReminderSync()
+    self.reminderSync.request()
     // 미뤄 둔 진입의 첫 동기화가 위 요청을 대신한다(루프가 아직 없어 위 요청은 버려진다).
     self.sceneActivation.becameActive()
   }
 
-  /// 앱이 뒤로 갔다(scenePhase `.background`, 처음 값 포함). 미리 받기 회차를 멈추고 분류를 멈춰 BG 작업에 넘긴다(docs/ARCHITECTURE.md §4 인덱싱).
-  /// 분류 구독은 끊지 않아 앞으로 오면 멈춤 안내 없이 이어진다. 이미 돌고 있는 화면 진입의 일도 멈추지 않는다.
+  /// 앱이 뒤로 갔다(scenePhase `.background`, 처음 값 포함). 미리 받기 회차를 멈추고 분류를 멈춰 BG 작업에 넘긴다(계속 처리 분류가 쥐고 있으면
+  /// 이어 간다, docs/ARCHITECTURE.md §4 인덱싱). 분류 구독은 끊지 않아 앞으로 오면 멈춤 안내 없이 이어진다. 이미 돌고 있는 화면 진입의 일도
+  /// 멈추지 않는다. 첫 진행률 전이면 첫 분류 자동 요청을 끝낸다.
   public func sceneEnteredBackground() {
     self.sceneActivation.enteredBackground()
     self.placePrefetch.sceneEnteredBackground()
-    self.backgroundIndexing?.appDidEnterBackground()
+    self.backgroundIndexing.sceneEnteredBackground()
   }
 
   /// 기기 로캘이 바뀌었다. 도는 미리 받기 회차를 멈추고(진행 중 요청은 끝까지 간다) 새 로캘로 회차를 요청한다.
@@ -218,14 +187,14 @@ public final class LibraryModel {
 
   /// 기프티콘 사용 여부가 바뀌었다. 사용한 기프티콘은 알리지 않으므로 만료 알림을 다시 맞춘다.
   public func gifticonUsageChanged() {
-    self.requestReminderSync()
+    self.reminderSync.request()
   }
 
   /// 날짜나 시간대가 바뀌었다(앱이 앞에 있는 동안 자정을 넘김 등). 오늘이 바뀌면 원하는 알림·`hasPlannedReminder` 가 바뀌므로 다시 맞춘다.
   /// 앱이 앞에 있지 않으면(BG 작업이 깨운 프로세스 등) 무시한다. 앞으로 올 때 `sceneBecameActive()` 가 동기화를 요청한다.
   public func dayChanged() {
     guard self.isSceneActive else { return }
-    self.requestReminderSync()
+    self.reminderSync.request()
   }
 
   // MARK: - Private
@@ -280,10 +249,11 @@ public final class LibraryModel {
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
       self.placePrefetch.indexingProgressChanged(phase: progress.phase)
+      self.backgroundIndexing.indexingProgressChanged(progress, isSceneActive: self.isSceneActive)
       // 개수·대표를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
-      self.requestReminderSync()
+      self.reminderSync.request()
     }
     guard self.isCurrent(generation) else { return }
     self.isIndexing = false
@@ -293,7 +263,7 @@ public final class LibraryModel {
     await self.refreshCategoryCounts(generation: generation)
     guard self.isCurrent(generation), !Task.isCancelled else { return }
     self.storeRevision += 1
-    self.requestReminderSync()
+    self.reminderSync.request()
     self.isIndexingStopped = true
   }
 
@@ -323,71 +293,6 @@ public final class LibraryModel {
     generation == self.indexingGeneration
   }
 
-  /// 동기화 요청을 하나씩 차례로 처리해 동기화가 겹치지 않게 한다. 도는 중 들어온 요청 여러 개는 끝난 뒤 한 번으로 합친다
-  /// (요청은 "지금 상태로 다시 맞춰라"라서 합쳐도 된다). 알림이나 저장소가 없으면 시작하지 않는다.
-  private func runReminderSync() async {
-    guard let notification = self.notification, let photoStore = self.photoStore else { return }
-    self.reminderGeneration += 1
-    let generation = self.reminderGeneration
-    let (requests, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
-    self.reminderSyncRequests = continuation
-    // 화면 진입 동기화.
-    continuation.yield()
-    for await _ in requests {
-      guard self.isCurrentReminderSync(generation) else { return }
-      await self.syncReminders(notification: notification, photoStore: photoStore, generation: generation)
-    }
-  }
-
-  private func requestReminderSync() {
-    self.reminderSyncRequests?.yield()
-  }
-
-  /// 권한을 읽고, 저장소의 만료 예정으로 원하는 알림을 계산해 대기 알림과의 식별자 차이만 지우고 더한다.
-  /// 저장소를 읽지 못하거나 추출 대기가 있으면 예약을 바꾸지 않는다(판단은 `ExpiryReminderPlanner.changes`,
-  /// docs/ARCHITECTURE.md §4 만료 알림). 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 루프가 상태와 예약을 바꾸지 않게 한다.
-  /// 같은 읽기로 위젯에 보일 요약을 계산해, 지난 요청 때와 다를 때만 위젯 갱신을 요청한다(알림 권한과 관계없이,
-  /// docs/ARCHITECTURE.md §4 만료 임박 위젯). 저장소를 읽지 못하면 요청하지 않는다.
-  private func syncReminders(
-    notification: any NotificationClient,
-    photoStore: any PhotoStoreClient,
-    generation: Int
-  ) async {
-    // 권한 요청과 겹쳐 요청 전에 읽은 값이거나 팝업 중에 읽은 값(미정)이면 상태를 덮지 않는다.
-    // 아래 판단도 이번에 읽은 값으로 해, 지난 값이면 예약하지 않고 요청이 끝난 뒤의 동기화에 맡긴다.
-    let requestCount = self.authorizationRequestCount
-    let wasRequesting = self.isRequestingNotificationAuthorization
-    let status = await notification.authorizationStatus()
-    guard self.isCurrentReminderSync(generation) else { return }
-    if requestCount == self.authorizationRequestCount, !wasRequesting, !self.isRequestingNotificationAuthorization {
-      self.notificationAuthorization = status
-    }
-
-    let now = self.now()
-    let pendingExtractionIDs: Set<ImageAsset.ID>
-    let expiries: [GifticonExpiry]
-    do throws(PhotoStoreError) {
-      // 추출 대기를 먼저 읽는다. 한 실행 안에서 추출 대기는 줄기만 하므로, 비었다고 읽은 뒤에는 만료 예정에서 빠질 이미지가 생기지 않는다.
-      pendingExtractionIDs = try await photoStore.gifticonExtractionPendingIDs()
-      expiries = try await photoStore.upcomingGifticonExpiries(from: LocalDate(now, calendar: self.calendar))
-    } catch {
-      return
-    }
-    guard self.isCurrentReminderSync(generation) else { return }
-    self.widgetReload.expiriesRead(expiries, isChecking: !pendingExtractionIDs.isEmpty, now: now)
-    let desired = ExpiryReminderPlanner.reminders(for: expiries, now: now, calendar: self.calendar)
-      .map { $0.notificationRequest(calendar: self.calendar) }
-    self.hasPlannedReminder = !desired.isEmpty
-
-    await Self.applyReminderChanges(
-      desired, status: status, hasPendingExtraction: !pendingExtractionIDs.isEmpty, notification: notification
-    ) { self.isCurrentReminderSync(generation) }
-  }
-
-  private func isCurrentReminderSync(_ generation: Int) -> Bool {
-    generation == self.reminderGeneration
-  }
-
   /// 권한 상태도 다시 읽어, 앱 실행 중 설정에서 바뀐 제한 접근 상태를 배너에 반영한다.
   private func reloadImages() async {
     self.refreshLimitedAccess()
@@ -396,5 +301,39 @@ public final class LibraryModel {
 
   private func refreshLimitedAccess() {
     self.isLimited = self.photoLibrary.accessState() == .limited
+  }
+}
+
+public extension LibraryModel {
+  /// 알림 권한. 도우미 `LibraryReminderSync.authorization` 참고.
+  var notificationAuthorization: NotificationAuthorization? { self.reminderSync.authorization }
+  /// 지금 예약할 만료 알림이 있는지. 도우미 `LibraryReminderSync.hasPlannedReminder` 참고.
+  var hasPlannedReminder: Bool { self.reminderSync.hasPlannedReminder }
+  /// 권한 팝업이 떠 있는지. 도우미 `LibraryReminderSync.isRequestingAuthorization` 참고.
+  var isRequestingNotificationAuthorization: Bool { self.reminderSync.isRequestingAuthorization }
+
+  /// 앱이 앞에 있는지(scenePhase). 처음 `sceneBecameActive()` 전에는 거짓이다. 거짓인 동안 화면 진입(`onAppear()`)은 시작을 미루고
+  /// 날짜 변경(`dayChanged()`)은 무시한다(BG 작업이 앱을 띄우거나 깨울 때 저장소를 읽지 않게, docs/ARCHITECTURE.md §4 인덱싱).
+  /// LibraryView 도 이 값으로 날짜·시간대 변경을 다른 Model 에 넘길지 정한다.
+  var isSceneActive: Bool {
+    self.sceneActivation.isActive
+  }
+
+  /// 계속 처리 분류 상태. `.idle` 일 때만 진행 카드 버튼을 보인다.
+  var continuedIndexingState: ContinuedIndexingState {
+    self.backgroundIndexing.continuedState
+  }
+
+  /// 버튼으로 요청했는데 시작하지 못했을 때의 안내. 다음 탭에 지운다. "잠시 뒤 다시"(`.tryLater`)는 앱이 앞으로 오거나
+  /// 분류·글자 읽기가 끝나도 지운다(누르지 않은 다음 카드에 남지 않게). 쓸 수 없음(`.unavailable`)은 이 실행 동안 둔다.
+  var continuedIndexingNotice: ContinuedIndexingNotice? {
+    self.backgroundIndexing.notice
+  }
+
+  /// 진행 카드의 "홈으로 나가도 계속"을 눌렀다. 계속 처리 분류를 요청한다(앱이 앞에 있고 버튼이 보일 때만).
+  /// 시작하면 버튼이 사라지고, 시작하지 못하면 안내를 둔다(이 실행에서 쓸 수 없으면 버튼도 사라진다).
+  func continueInBackgroundTapped() {
+    guard self.showsContinueInBackgroundButton, self.isSceneActive else { return }
+    self.backgroundIndexing.requestTapped()
   }
 }

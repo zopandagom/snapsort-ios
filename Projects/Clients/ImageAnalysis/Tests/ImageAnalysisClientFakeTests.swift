@@ -2,6 +2,7 @@ import Core
 import CoreGraphics
 import ImageAnalysisInterface
 import ImageAnalysisTesting
+import Synchronization
 import Testing
 
 struct ImageAnalysisClientFakeTests {
@@ -189,5 +190,91 @@ struct ImageAnalysisClientFakeTests {
 
       #expect(await task.value == .cancelled, "\(operation)")
     }
+  }
+
+  @Test("분류는 기본으로 앞·뒤 모두 할 수 있다")
+  func classificationAvailableByDefault() async throws {
+    let labels = [ImageLabel(identifier: "food", confidence: 0.8)]
+    let fake = ImageAnalysisClientFake(classifyResult: .success(labels))
+
+    fake.appActivityChanged(isActive: false)
+
+    #expect(fake.isClassificationAvailable)
+    #expect(try await fake.classify(.stub(), minimumConfidence: 0.1) == labels)
+  }
+
+  @Test("뒤에서 분류할 수 없게 정하면 뒤에 있을 때만 false 이고, 그때 분류는 handler 없이 실패하며 요청은 기록한다")
+  func classificationUnavailableInBackground() async throws {
+    let labels = [ImageLabel(identifier: "food", confidence: 0.8)]
+    let calls = Mutex(0)
+    let fake = ImageAnalysisClientFake(
+      classify: { _ in
+        calls.withLock { $0 += 1 }
+        return .success(labels)
+      },
+      recognizeText: { _ in .success([]) },
+      isClassificationAvailableInBackground: false
+    )
+
+    #expect(fake.isClassificationAvailable)
+    fake.appActivityChanged(isActive: false)
+    #expect(!fake.isClassificationAvailable)
+    await #expect(throws: ImageAnalysisError.failed) { try await fake.classify(.stub(), minimumConfidence: 0.1) }
+    #expect(fake.requests == [.classify(minimumConfidence: 0.1)])
+    #expect(calls.withLock { $0 } == 0)
+
+    fake.appActivityChanged(isActive: true)
+    #expect(fake.isClassificationAvailable)
+    #expect(try await fake.classify(.stub(), minimumConfidence: 0.1) == labels)
+  }
+
+  @Test("뒤에서 분류할 수 없음으로 바꾸면 그 뒤 뒤에서만 false 다")
+  func makesClassificationUnavailableInBackground() {
+    let fake = ImageAnalysisClientFake()
+
+    fake.makeClassificationUnavailableInBackground()
+
+    #expect(fake.isClassificationAvailable)
+    fake.appActivityChanged(isActive: false)
+    #expect(!fake.isClassificationAvailable)
+  }
+
+  @Test("뒤에서 분류할 수 없을 때 취소된 Task 면 취소를 던진다")
+  func classificationUnavailableCancelled() async {
+    let fake = ImageAnalysisClientFake(isClassificationAvailableInBackground: false)
+    fake.appActivityChanged(isActive: false)
+    let task = Task { () async -> ImageAnalysisError? in
+      withUnsafeCurrentTask { $0?.cancel() }
+      do throws(ImageAnalysisError) {
+        _ = try await fake.classify(.stub(), minimumConfidence: 0.1)
+        return nil
+      } catch {
+        return error
+      }
+    }
+
+    #expect(await task.value == .cancelled)
+  }
+
+  @Test("분류할 수 없음으로 바꾸면 앞·뒤 모두 false 이고, 분류는 handler 없이 실패하며 요청은 기록한다")
+  func makesClassificationUnavailable() async {
+    let calls = Mutex(0)
+    let fake = ImageAnalysisClientFake(
+      classify: { _ in
+        calls.withLock { $0 += 1 }
+        return .success([ImageLabel(identifier: "food", confidence: 0.8)])
+      },
+      recognizeText: { _ in .success([]) }
+    )
+
+    fake.makeClassificationUnavailable()
+
+    #expect(!fake.isClassificationAvailable)
+    await #expect(throws: ImageAnalysisError.failed) { try await fake.classify(.stub(), minimumConfidence: 0.1) }
+    fake.appActivityChanged(isActive: false)
+    #expect(!fake.isClassificationAvailable)
+    await #expect(throws: ImageAnalysisError.failed) { try await fake.classify(.stub(), minimumConfidence: 0.1) }
+    #expect(fake.requests == [.classify(minimumConfidence: 0.1), .classify(minimumConfidence: 0.1)])
+    #expect(calls.withLock { $0 } == 0)
   }
 }

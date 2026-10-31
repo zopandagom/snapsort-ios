@@ -1,6 +1,7 @@
 import Foundation
 import Synchronization
 import Testing
+import TripPlaceInterface
 import TripPlaceTesting
 
 struct TripPlaceClientFakeTests {
@@ -80,5 +81,36 @@ struct TripPlaceClientFakeTests {
       .allowStoreAccess,
     ])
     #expect(forwarded.withLock { $0 } == fake.events)
+  }
+
+  @Test("진행 알림은 도는 회차에만 가고, 회차가 없거나 돌아온 뒤에는 버린다")
+  func sendsPrefetchProgressOnlyToRunningRound() async {
+    let release = Mutex(false)
+    let fake = TripPlaceClientFake { _ in
+      while !release.withLock({ $0 }), !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(1))
+      }
+    }
+    let received = Mutex<[TripPlacePrefetchProgress]>([])
+
+    fake.sendPrefetchProgress(TripPlacePrefetchProgress(doneCount: 0, totalCount: 9))
+    let round = Task {
+      await fake.prefetchPlaces(locale: Locale(identifier: "ko_KR")) { value in
+        received.withLock { $0.append(value) }
+      }
+    }
+    while fake.prefetchLocaleIdentifiers.isEmpty {
+      await Task.yield()
+    }
+    fake.sendPrefetchProgress(TripPlacePrefetchProgress(doneCount: 0, totalCount: 2))
+    fake.sendPrefetchProgress(TripPlacePrefetchProgress(doneCount: 1, totalCount: 2))
+    release.withLock { $0 = true }
+    await round.value
+    fake.sendPrefetchProgress(TripPlacePrefetchProgress(doneCount: 2, totalCount: 2))
+
+    #expect(received.withLock { $0 } == [
+      TripPlacePrefetchProgress(doneCount: 0, totalCount: 2),
+      TripPlacePrefetchProgress(doneCount: 1, totalCount: 2),
+    ])
   }
 }
