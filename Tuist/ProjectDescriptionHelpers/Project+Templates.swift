@@ -30,8 +30,12 @@ public enum Env {
   ])
 
   /// 앱이 닫혀 있을 때의 분류 BG 처리 작업 식별자. 이름의 단일 출처이며, Swift 코드는 Info.plist 의
-  /// `BGTaskSchedulerPermittedIdentifiers` 첫 값으로 읽는다 (docs/ARCHITECTURE.md §4 인덱싱).
+  /// `BGTaskSchedulerPermittedIdentifiers` 를 `BackgroundIndexingClientImpl.TaskIdentifiers` 로 읽는다
+  /// (와일드카드가 아닌 값 = 처리 작업, `.*` 로 끝나는 값 = 계속 처리 작업, docs/ARCHITECTURE.md §4 인덱싱).
   public static let backgroundIndexingTaskIdentifier = "com.zopandagom.snapsort.indexing"
+  /// 사용자가 시작한 계속 처리 분류(`BGContinuedProcessingTask`)의 와일드카드 식별자. 이름의 단일 출처이며,
+  /// Impl 이 `*` 자리에 고정 접미사를 붙인 구체 식별자로 등록·제출한다(와일드카드 그대로는 등록되지 않는다).
+  public static let continuedIndexingTaskIdentifierPattern = "com.zopandagom.snapsort.continuedIndexing.*"
 
   static func bundleId(_ name: String) -> String {
     "\(self.bundleIdPrefix).\(name.lowercased())"
@@ -55,8 +59,11 @@ public extension Project {
           infoPlist: .extendingDefault(with: infoPlist.merging([
             "UILaunchScreen": [:],
             Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
-            // 분류 BG 처리 작업(충전 중). 식별자는 App 이 이 목록에서 읽는다.
-            "BGTaskSchedulerPermittedIdentifiers": [.string(Env.backgroundIndexingTaskIdentifier)],
+            // 분류 BG 처리 작업(충전 중)과 계속 처리 작업(사용자 시작). 식별자는 App 이 이 목록에서 읽는다.
+            "BGTaskSchedulerPermittedIdentifiers": [
+              .string(Env.backgroundIndexingTaskIdentifier),
+              .string(Env.continuedIndexingTaskIdentifierPattern),
+            ],
             "UIBackgroundModes": ["processing"],
           ]) { $1 }),
           buildableFolders: ["Sources", "Resources"],
