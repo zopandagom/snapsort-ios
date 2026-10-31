@@ -91,14 +91,20 @@ extension BackgroundIndexingClientImpl {
       return
     }
     self.continuedPhase = .running
-    let context = TaskContext(continued: task, text: text)
+    // 회차는 미리 받기가 있을 때만 돈다. 그때만 회차 몫을 처음부터 전체에 넣는다.
+    let context = TaskContext(
+      continued: task,
+      text: text,
+      meterWeights: self.meterWeights,
+      reservesPlaceRound: self.tripPlace != nil
+    )
     self.continuedTask = context
     // 핸들러 전에 뒤로 가 빌린 시간이 남았으면 이제 이 작업이 실행을 쥔다.
     self.endAssertion()
     self.setExpirationHandler(task)
     task.updateProgress(completed: 0, total: 0)
     self.requestSettle()
-    // 배치마다 하나라 적고, 재시작 감지에 순서·누락 없는 값이 필요하다.
+    // 배치마다(2단계는 장마다, 장당 약 2초) 하나라 적고, 재시작 감지에 순서·누락 없는 값이 필요하다.
     let (signals, signalContinuation) = AsyncStream.makeStream(of: ContinuedSignal.self, bufferingPolicy: .unbounded)
     context.work = Task {
       let result = await self.runWork(indexing: indexing, context: context, signals: signalContinuation)
@@ -146,9 +152,12 @@ extension BackgroundIndexingClientImpl {
     self.show(context)
   }
 
-  /// 진행률은 받을 때마다, 제목·부제는 바뀔 때만 보낸다.
+  /// 진행률은 받을 때마다, 제목·부제는 바뀔 때만 보낸다. 막대는 추정 시간 가중 단위이고 부제는 실제 개수다(`ContinuedIndexingMeter`).
   private func show(_ context: TaskContext) {
     guard let display = context.display else { return }
+    #if DEBUG
+      context.recordStage(context.meter.status?.stage, at: .now)
+    #endif
     display.updateProgress(completed: context.meter.completed, total: context.meter.total)
     guard let status = context.meter.status, let text = context.text else { return }
     let title = text.title(status)

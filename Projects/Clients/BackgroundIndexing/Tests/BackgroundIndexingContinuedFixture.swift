@@ -119,3 +119,16 @@ extension ContinuedIndexingText {
     subtitle: { "\($0.doneCount)/\($0.totalCount)" }
   )
 }
+
+extension ContinuedIndexingMeter.Weights {
+  /// 모든 단위 1, 글자 예약·장소 예약 없음: 진행 표시가 실제 장·키 개수의 합이 된다(가중 전 계산과 같은 수).
+  /// 사전 무게가 매우 커서 글자 비율 추정이 0 에 머물러(테스트의 개수에서는 반올림하면 0) 남은 분류에 글자 몫을 넣지 않는다.
+  static let unit = Self(
+    classify: 1,
+    text: 1,
+    placeKey: 1,
+    textShare: 0,
+    textSharePrior: 1_000_000_000,
+    placeReserveKeys: 0
+  )
+}

@@ -43,6 +43,8 @@ public final class BackgroundIndexingClientImpl: BackgroundIndexingClient {
   let scheduler: any BackgroundTaskScheduling
   let application: any BackgroundExecution
   let thermalState: @Sendable () -> ProcessInfo.ThermalState
+  /// 계속 처리 진행 표시의 단위 무게.
+  let meterWeights: ContinuedIndexingMeter.Weights
 
   var isAppActive = true
   /// 처리 작업이 실행기를 쥔 동안.
@@ -99,7 +101,8 @@ public final class BackgroundIndexingClientImpl: BackgroundIndexingClient {
     locale: @escaping @Sendable () -> Locale,
     scheduler: any BackgroundTaskScheduling,
     application: any BackgroundExecution,
-    thermalState: @escaping @Sendable () -> ProcessInfo.ThermalState
+    thermalState: @escaping @Sendable () -> ProcessInfo.ThermalState,
+    meterWeights: ContinuedIndexingMeter.Weights = .default
   ) {
     self.indexing = indexing
     self.tripPlace = tripPlace
@@ -110,6 +113,7 @@ public final class BackgroundIndexingClientImpl: BackgroundIndexingClient {
     self.scheduler = scheduler
     self.application = application
     self.thermalState = thermalState
+    self.meterWeights = meterWeights
   }
 
   /// BG 작업 핸들러(처리·계속 처리)를 등록한다. 앱이 실행을 마치기 전(App init)에 한 번 부른다. 식별자가 nil 이면 그 종류는 등록하지 않고,

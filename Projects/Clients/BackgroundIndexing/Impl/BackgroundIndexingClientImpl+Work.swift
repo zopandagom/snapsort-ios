@@ -195,7 +195,8 @@ extension BackgroundIndexingClientImpl {
     [.serious, .critical].contains(state)
   }
 
-  /// 작업 끝의 Debug 수치 로그. 정수·고정 문자열만 남긴다(문구·식별자 없음). 처리 작업은 기존 `end` 줄, 계속 처리는 `continued end` 줄.
+  /// 작업 끝의 Debug 수치 로그. 정수·고정 문자열만 남긴다(문구·식별자 없음). 처리 작업은 기존 `end` 줄,
+  /// 계속 처리는 `continued meter`(단위·단계 시간)·`continued end` 줄.
   func logEnd(_ context: TaskContext, _ result: IndexingBackgroundResult) {
     #if DEBUG
       let now = ContinuousClock.now
@@ -209,6 +210,18 @@ extension BackgroundIndexingClientImpl {
         return
       }
       let tailSeconds = context.finishedAt.map { Int((now - $0).components.seconds) } ?? 0
+      // 단계별 초 ÷ 장·키 수로 단위 무게를 다시 정할 근거(겹치는 장소 회차는 보인 단계에 든다).
+      context.recordStage(nil, at: now)
+      let meter = context.meter
+      Self.logger.notice("""
+      continued meter units=\(meter.completed, privacy: .public) total=\(meter.total, privacy: .public) \
+      classified=\(meter.classifiedCount, privacy: .public) texts=\(meter.textCount, privacy: .public) \
+      places=\(meter.placeDone, privacy: .public) \
+      textSharePermille=\(Int((meter.textShare * 1000).rounded()), privacy: .public) \
+      classifySeconds=\(Int(context.classifyDuration.components.seconds), privacy: .public) \
+      textSeconds=\(Int(context.textDuration.components.seconds), privacy: .public) \
+      placeSeconds=\(Int(context.placeDuration.components.seconds), privacy: .public)
+      """)
       Self.logger.notice("""
       continued end reached=\(context.reachedFinished ? 1 : 0, privacy: .public) \
       remaining=\(result.hasRemainingWork ? 1 : 0, privacy: .public) \

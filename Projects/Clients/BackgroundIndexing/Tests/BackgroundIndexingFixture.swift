@@ -299,7 +299,8 @@ struct Coordinator {
     tripPlace: (EventLog) -> TripPlaceDouble? = { TripPlaceDouble(log: $0) },
     taskIdentifier: String? = Coordinator.identifier,
     continuedIdentifier: String? = Coordinator.continuedIdentifier,
-    isActive: Bool = true
+    isActive: Bool = true,
+    meterWeights: ContinuedIndexingMeter.Weights = .unit
   ) {
     self.log = log
     self.scheduler = SchedulerDouble(log: log)
@@ -317,7 +318,8 @@ struct Coordinator {
       locale: { Locale(identifier: "ko_KR") },
       scheduler: self.scheduler,
       application: self.application,
-      thermalState: { thermal.value }
+      thermalState: { thermal.value },
+      meterWeights: meterWeights
     )
   }
 

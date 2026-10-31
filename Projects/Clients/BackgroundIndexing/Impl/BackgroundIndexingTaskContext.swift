@@ -45,7 +45,7 @@ extension BackgroundIndexingClientImpl {
     var isCompleted = false
     /// 계속 처리 작업이 분류·글자 읽기 끝(`IndexingProgress.isFinished`)을 받았는지.
     var reachedFinished = false
-    var meter = ContinuedIndexingMeter()
+    var meter: ContinuedIndexingMeter
     /// 마지막으로 보인 제목·부제.
     var shownTitle: String?
     var shownSubtitle: String?
@@ -54,6 +54,12 @@ extension BackgroundIndexingClientImpl {
       var lastSignalAt = ContinuousClock.now
       var maxGap: Duration = .zero
       var finishedAt: ContinuousClock.Instant?
+      /// 마지막으로 보인 단계와 그 단계를 보이기 시작한 시각, 단계별 머문 시간 합(`continued meter` 줄).
+      var shownStage: ContinuedIndexingStatus.Stage?
+      var shownStageAt = ContinuousClock.now
+      var classifyDuration: Duration = .zero
+      var textDuration: Duration = .zero
+      var placeDuration: Duration = .zero
     #endif
 
     init(task: any BackgroundProcessingTask) {
@@ -61,13 +67,23 @@ extension BackgroundIndexingClientImpl {
       self.kind = .processing
       self.display = nil
       self.text = nil
+      self.meter = ContinuedIndexingMeter()
     }
 
-    init(continued task: any ContinuedProcessingTask, text: ContinuedIndexingText) {
+    /// - Parameters:
+    ///   - meterWeights: 진행 표시 단위 무게.
+    ///   - reservesPlaceRound: 미리 받기 회차가 돌 수 있다(회차 몫을 처음부터 전체에 넣는다).
+    init(
+      continued task: any ContinuedProcessingTask,
+      text: ContinuedIndexingText,
+      meterWeights: ContinuedIndexingMeter.Weights,
+      reservesPlaceRound: Bool
+    ) {
       self.task = task
       self.kind = .continued
       self.display = task
       self.text = text
+      self.meter = ContinuedIndexingMeter(weights: meterWeights, reservesPlaceRound: reservesPlaceRound)
     }
 
     /// 완료는 한 번만 알린다.
@@ -76,5 +92,25 @@ extension BackgroundIndexingClientImpl {
       self.isCompleted = true
       self.task.setTaskCompleted(success: success)
     }
+
+    #if DEBUG
+      /// 보인 단계가 바뀌면 앞 단계에 머문 시간을 더한다. nil 은 보일 단계 없음(분류·글자 읽기 끝 뒤 회차 없음).
+      func recordStage(_ stage: ContinuedIndexingStatus.Stage?, at now: ContinuousClock.Instant) {
+        guard stage != self.shownStage else { return }
+        let elapsed = now - self.shownStageAt
+        switch self.shownStage {
+        case .classifying:
+          self.classifyDuration += elapsed
+        case .recognizingText:
+          self.textDuration += elapsed
+        case .fetchingPlaceNames:
+          self.placeDuration += elapsed
+        case .preparing, nil:
+          break
+        }
+        self.shownStage = stage
+        self.shownStageAt = now
+      }
+    #endif
   }
 }
