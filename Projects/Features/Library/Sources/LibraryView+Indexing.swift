@@ -14,7 +14,10 @@ extension LibraryView {
   /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
   /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
   /// 1·2단계 카드 아래에는 계속 처리 분류 버튼("홈으로 나가도 계속")과, 눌렀는데 시작하지 못했을 때의 안내 줄을 둔다
-  /// (버튼 조건은 `LibraryModel.showsContinueInBackgroundButton`). 시스템 진행 표시가 도는 동안은 버튼만 숨기고 따로 표시하지 않는다.
+  /// (버튼 조건은 `LibraryModel.showsContinueInBackgroundButton`). 버튼은 나타날 때 빛이 번진다(`snapGlow()`, 동작 줄이기면 테두리만).
+  /// 1·2단계 카드는 다른 분기라 단계가 바뀌면 버튼이 새로 나타나 다시 번진다(의도).
+  /// 계속 처리 분류가 도는 동안(첫 분류 자동 요청이든 버튼이든)은 버튼 대신 "홈으로 나가도 이어서 분류합니다" 안내 줄을 둔다
+  /// (`LibraryModel.showsContinuingInBackgroundNotice`).
   @ViewBuilder
   var indexingSection: some View {
     if self.model.isIndexingStopped {
@@ -94,7 +97,7 @@ extension LibraryView {
   }
 
   /// 인덱싱 안내 카드. 목록 섹션의 footer 였던 안내는 카드 안 아래에 작은 보조 글자로 둔다.
-  /// `continuable` 이면 footer 아래에 계속 처리 분류 버튼 자리를 둔다(보일 조건은 Model).
+  /// `continuable` 이면 footer 아래에 계속 처리 분류 버튼이나, 계속 처리 분류가 도는 동안의 안내 줄 자리를 둔다(보일 조건은 Model).
   private func indexingCard(
     continuable: Bool = false,
     @ViewBuilder content: () -> some View,
@@ -115,7 +118,12 @@ extension LibraryView {
         }
         .buttonStyle(.snapSecondary)
         .font(.subheadline)
+        .snapGlow()
         .padding(.top, 4)
+      } else if continuable, self.model.showsContinuingInBackgroundNotice {
+        Label("홈으로 나가도 이어서 분류합니다", systemImage: "house")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

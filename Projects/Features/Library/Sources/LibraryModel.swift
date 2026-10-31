@@ -319,7 +319,7 @@ public extension LibraryModel {
     self.sceneActivation.isActive
   }
 
-  /// 계속 처리 분류 상태. `.idle` 일 때만 진행 카드 버튼을 보인다.
+  /// 계속 처리 분류 상태. `.idle` 이면 진행 카드 버튼을, `.active` 면 "홈으로 나가도 이어서 분류합니다" 안내 줄을 보인다.
   var continuedIndexingState: ContinuedIndexingState {
     self.backgroundIndexing.continuedState
   }

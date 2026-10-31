@@ -96,7 +96,10 @@ struct LibraryFeatureExampleApp: App {
       : NotificationClientFake.previewNotDetermined(),
     widgetTimeline: nil,
     tripPlace: TripPlaceClientFake(),
-    backgroundIndexing: BackgroundIndexingClientFake(continuedRequestResult: Self.continuedRequestResult)
+    backgroundIndexing: BackgroundIndexingClientFake(
+      continuedIndexingState: Self.scenario == .continuedActive ? .active : .idle,
+      continuedRequestResult: Self.continuedRequestResult
+    )
   )
   /// 진행 카드의 "홈으로 나가도 계속"을 눌렀을 때의 결과. 시나리오로 안내 줄 두 가지를 본다.
   private static let continuedRequestResult: ContinuedIndexingRequestResult = switch Self.scenario {
