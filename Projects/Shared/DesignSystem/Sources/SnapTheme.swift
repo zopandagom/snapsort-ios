@@ -3,6 +3,8 @@ import UIKit
 
 public extension View {
   /// 화면 루트에 한 번 붙인다: rounded 글꼴, 강조색, 본문·보조 글자색. 하위의 `.secondary` 는 `SnapColor.inkSecondary` 가 된다.
+  /// 본문 글자색이 버튼 tint 를 덮으므로 색을 정하지 않은 글자 버튼과 툴바 `Menu` 라벨에는 `.foregroundStyle(.tint)` 를 준다
+  /// (툴바 Menu 는 물려받은 글자색을 흰색으로 그린다).
   func snapTheme() -> some View {
     self
       .fontDesign(.rounded)
