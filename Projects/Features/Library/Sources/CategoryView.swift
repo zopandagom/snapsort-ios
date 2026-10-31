@@ -40,6 +40,8 @@ public struct CategoryView: View {
               }
             } label: {
               Label("묶기", systemImage: "rectangle.3.group")
+                // 루트 `snapTheme()` 의 본문 글자색을 물려받으면 유리 툴바 Menu 가 흰색으로 그린다.
+                .foregroundStyle(.tint)
             }
           }
         }

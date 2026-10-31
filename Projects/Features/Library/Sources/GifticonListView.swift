@@ -43,6 +43,8 @@ public struct GifticonListView: View {
             }
           } label: {
             Label("정렬", systemImage: "arrow.up.arrow.down")
+              // 루트 `snapTheme()` 의 본문 글자색을 물려받으면 유리 툴바 Menu 가 흰색으로 그린다.
+              .foregroundStyle(.tint)
           }
         }
       }
