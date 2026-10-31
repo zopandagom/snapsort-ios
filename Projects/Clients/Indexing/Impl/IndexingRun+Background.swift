@@ -56,6 +56,8 @@ struct RunEnvironment: Sendable {
   var onIdle: @Sendable () -> Void = {}
   /// BG 수치·미룸 기록.
   var record: @Sendable (BackgroundRunEvent) -> Void = { _ in }
+  /// 2단계 배치 안 장마다의 저장 전 진행률. BG hold 에만 간다(앞 구독자·최신 값·보관 값에는 넣지 않는다. 계속 처리 작업의 진행 간격을 좁힌다).
+  var reportToHolds: @Sendable (IndexingProgress) -> Void = { _ in }
 }
 
 /// 실행이 실행기에 알리는 일. 실행기가 BG 가 쥔 동안의 수를 세고(Debug 수치 로그) 미룸이 있었는지 본다.

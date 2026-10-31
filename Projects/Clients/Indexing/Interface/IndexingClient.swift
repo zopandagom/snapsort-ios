@@ -49,7 +49,8 @@ public protocol IndexingClient: Sendable {
   /// 이미지 분석이 분류할 수 없으면(`ImageAnalysisClient.isClassificationAvailable`. 뒤에서 세션이 없거나, 세션이 없고 시한을 넘기고
   /// 돌아오지 않은 작업이 둘 이상이라 그것이 돌아올 때까지 멈춤) 남은 1단계 대상은 저장하지 않고 미루며 이것은 `hasRemainingWork` 가 아니다.
   /// `progress` 는 BG 가 쥔 동안의 모든 진행률을 앱 활성 여부와 관계없이 받는다. 걸 때 도는 실행(할 일을 마치고 쉬는 중 아님)에
-  /// 최신 진행률이 있으면 그 값을 한 번 먼저 받는다.
+  /// 최신 진행률이 있으면 그 값을 한 번 먼저 받는다(저장된 값). 2단계에서는 배치 안 장마다 저장 전 값도 받는다(끝 값은 아니다.
+  /// 앞 구독자는 저장 뒤 값만 받는다).
   func runInBackground(
     shouldYield: @escaping @Sendable () -> Bool,
     progress: @escaping @Sendable (IndexingProgress) -> Void
