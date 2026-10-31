@@ -52,13 +52,6 @@ public final class LibraryModel {
   /// 여행 폴더 상세·검색 결과에만 넘긴다(`storeRevision` 은 캐시를 읽지 않는 화면까지 다시 읽게 해 쓰지 않는다).
   /// 앱이 뒤에 있는 동안(BG 작업의 미리 받기 포함)의 쓰기는 모아 두었다가 앞으로 올 때 한 번 올린다(뒤에서 화면들이 저장소를 읽지 않게).
   public private(set) var placeRevision = 0
-  /// 앱이 앞에 있는지(scenePhase). 처음 `sceneBecameActive()` 전에는 거짓이다. 거짓인 동안 화면 진입(`onAppear()`)은 시작을 미루고
-  /// 날짜 변경(`dayChanged()`)은 무시한다(BG 작업이 앱을 띄우거나 깨울 때 저장소를 읽지 않게, docs/ARCHITECTURE.md §4 인덱싱).
-  /// LibraryView 도 이 값으로 날짜·시간대 변경을 다른 Model 에 넘길지 정한다.
-  public var isSceneActive: Bool {
-    self.sceneActivation.isActive
-  }
-
   /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
   static let coverLimit = 4
 
@@ -79,8 +72,8 @@ public final class LibraryModel {
   /// 권한 요청을 시작할 때마다 하나씩 올린다. 요청과 겹친 동기화가 요청 전에 읽은 권한으로 상태를 덮지 않게 한다.
   @ObservationIgnored private var authorizationRequestCount = 0
   @ObservationIgnored private let placePrefetch: LibraryPlacePrefetch
-  @ObservationIgnored private let sceneActivation = LibrarySceneActivation()
-  @ObservationIgnored private let backgroundIndexing: (any BackgroundIndexingClient)?
+  @ObservationIgnored let sceneActivation = LibrarySceneActivation()
+  @ObservationIgnored let backgroundIndexing: LibraryBackgroundIndexing
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
@@ -101,7 +94,9 @@ public final class LibraryModel {
   ///   - widgetTimeline: 만료 임박 위젯 갱신 요청. 만료 알림 동기화가 위젯에 보일 값이 바뀐 것을 볼 때만 요청한다.
   ///   알림이나 저장소가 없으면 동기화가 돌지 않으므로 위젯 갱신도 하지 않는다.
   ///   - tripPlace: 여행 장소 이름 미리 받기. 1단계(분류)를 마친 뒤 계기마다 회차를 돌린다. 저장소가 없으면 App 이 nil 을 넘긴다.
-  ///   - backgroundIndexing: 앱이 뒤에 있거나 닫혀 있을 때의 분류. 앱이 뒤로 가고 앞으로 올 때 알린다. nil 이면(Example) 알리지 않는다.
+  ///   - backgroundIndexing: 앱이 뒤에 있거나 닫혀 있을 때의 분류. 앱이 뒤로 가고 앞으로 올 때 알리고, 계속 처리 분류를 요청한다
+  ///   (첫 분류는 자동, 그 뒤는 진행 카드 버튼, LibraryModel+ContinuedIndexing.swift). nil 이면 알리지 않고 버튼도 없다(Example 은 Fake 로 버튼·안내를
+  /// 본다).
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
   ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
@@ -125,7 +120,7 @@ public final class LibraryModel {
     self.calendar = calendar
     self.now = now
     self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
-    self.backgroundIndexing = backgroundIndexing
+    self.backgroundIndexing = LibraryBackgroundIndexing(client: backgroundIndexing, access: photoLibrary.accessState())
     self.isLimited = photoLibrary.accessState() == .limited
   }
 
@@ -192,9 +187,9 @@ public final class LibraryModel {
   /// (인덱서가 둔 최신 진행률이 오면 개수를 다시 읽는다), 뒤에 있는 동안 장소 캐시 쓰기가 있었으면 한 번 알린다.
   /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
   /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
-  /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다).
+  /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다). 계속 처리 분류 상태도 다시 읽는다.
   public func sceneBecameActive() {
-    self.backgroundIndexing?.appDidBecomeActive()
+    self.backgroundIndexing.sceneBecameActive()
     if self.placePrefetch.sceneBecameActive() {
       self.placeRevision += 1
     }
@@ -203,12 +198,13 @@ public final class LibraryModel {
     self.sceneActivation.becameActive()
   }
 
-  /// 앱이 뒤로 갔다(scenePhase `.background`, 처음 값 포함). 미리 받기 회차를 멈추고 분류를 멈춰 BG 작업에 넘긴다(docs/ARCHITECTURE.md §4 인덱싱).
-  /// 분류 구독은 끊지 않아 앞으로 오면 멈춤 안내 없이 이어진다. 이미 돌고 있는 화면 진입의 일도 멈추지 않는다.
+  /// 앱이 뒤로 갔다(scenePhase `.background`, 처음 값 포함). 미리 받기 회차를 멈추고 분류를 멈춰 BG 작업에 넘긴다(계속 처리 분류가 쥐고 있으면
+  /// 이어 간다, docs/ARCHITECTURE.md §4 인덱싱). 분류 구독은 끊지 않아 앞으로 오면 멈춤 안내 없이 이어진다. 이미 돌고 있는 화면 진입의 일도
+  /// 멈추지 않는다. 첫 진행률 전이면 첫 분류 자동 요청을 끝낸다.
   public func sceneEnteredBackground() {
     self.sceneActivation.enteredBackground()
     self.placePrefetch.sceneEnteredBackground()
-    self.backgroundIndexing?.appDidEnterBackground()
+    self.backgroundIndexing.sceneEnteredBackground()
   }
 
   /// 기기 로캘이 바뀌었다. 도는 미리 받기 회차를 멈추고(진행 중 요청은 끝까지 간다) 새 로캘로 회차를 요청한다.
@@ -280,6 +276,7 @@ public final class LibraryModel {
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
       self.placePrefetch.indexingProgressChanged(phase: progress.phase)
+      self.backgroundIndexing.indexingProgressChanged(progress, isSceneActive: self.isSceneActive)
       // 개수·대표를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)

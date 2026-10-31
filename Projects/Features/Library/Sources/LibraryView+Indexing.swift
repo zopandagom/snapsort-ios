@@ -13,6 +13,8 @@ extension LibraryView {
   /// 동작 줄이기면 점·그림·줄무늬가 멈춘다.
   /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
   /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
+  /// 1·2단계 카드 아래에는 계속 처리 분류 버튼("홈으로 나가도 계속")과, 눌렀는데 시작하지 못했을 때의 안내 줄을 둔다
+  /// (버튼 조건은 `LibraryModel.showsContinueInBackgroundButton`). 시스템 진행 표시가 도는 동안은 버튼만 숨기고 따로 표시하지 않는다.
   @ViewBuilder
   var indexingSection: some View {
     if self.model.isIndexingStopped {
@@ -29,7 +31,7 @@ extension LibraryView {
       .snapCard()
     } else if let progress = self.model.indexingProgress, progress.phase == .classifying {
       let doneCount = progress.indexedCount + progress.skippedCount
-      self.indexingCard {
+      self.indexingCard(continuable: true) {
         SnapProgressArt(.sorting)
           .frame(maxWidth: .infinity)
           .padding(.bottom, 8)
@@ -43,12 +45,13 @@ extension LibraryView {
         if progress.skippedCount > 0 {
           Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
         }
+        self.continueInBackgroundNotice
       }
     } else if let progress = self.model.indexingProgress, progress.phase == .recognizingText {
       // 분모는 이번 실행에서 남은 일이다. 새 사진이 대기에 더해지면 늘어난다.
       let doneCount = progress.recognizedTextCount + progress.skippedTextCount
       let totalCount = doneCount + progress.pendingTextCount
-      self.indexingCard {
+      self.indexingCard(continuable: true) {
         SnapProgressArt(.reading)
           .frame(maxWidth: .infinity)
           .padding(.bottom, 8)
@@ -66,6 +69,7 @@ extension LibraryView {
         if progress.skippedCount > 0 {
           Text("읽지 못한 \(progress.skippedCount)장은 다음에 다시 시도합니다.")
         }
+        self.continueInBackgroundNotice
       }
     } else if self.model.isIndexing {
       VStack(spacing: 14) {
@@ -90,7 +94,9 @@ extension LibraryView {
   }
 
   /// 인덱싱 안내 카드. 목록 섹션의 footer 였던 안내는 카드 안 아래에 작은 보조 글자로 둔다.
+  /// `continuable` 이면 footer 아래에 계속 처리 분류 버튼 자리를 둔다(보일 조건은 Model).
   private func indexingCard(
+    continuable: Bool = false,
     @ViewBuilder content: () -> some View,
     @ViewBuilder footer: () -> some View
   ) -> some View {
@@ -101,9 +107,32 @@ extension LibraryView {
       }
       .font(.footnote)
       .foregroundStyle(.secondary)
+      if continuable, self.model.showsContinueInBackgroundButton {
+        Button {
+          self.model.continueInBackgroundTapped()
+        } label: {
+          Label("홈으로 나가도 계속", systemImage: "house")
+        }
+        .buttonStyle(.snapSecondary)
+        .font(.subheadline)
+        .padding(.top, 4)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .snapCard()
+  }
+
+  /// 계속 처리 분류를 눌렀는데 시작하지 못했을 때의 안내(footer 보조 글자). 카드 문구처럼 "~합니다" 체로 쓴다.
+  @ViewBuilder
+  private var continueInBackgroundNotice: some View {
+    switch self.model.continuedIndexingNotice {
+    case .tryLater:
+      Text("지금은 시작할 수 없습니다. 잠시 뒤 다시 눌러 주세요.")
+    case .unavailable:
+      Text("이 기기에서는 앱을 열어 둔 동안 분류하고, 홈으로 나가면 충전 중에 이어서 분류합니다.")
+    case nil:
+      EmptyView()
+    }
   }
 
   /// 멈춘 단계로 고른다. 다 분석한 뒤 증분 반영 중에 멈추면 마지막 진행률이 n/n 이므로, 개수 대신 새 사진을 분류하지 못했다고 안내한다.

@@ -1,3 +1,4 @@
+import BackgroundIndexingTesting
 import Core
 import Foundation
 import IndexingTesting
@@ -26,7 +27,7 @@ private func libraryPreview(
     notification: notification,
     widgetTimeline: nil,
     tripPlace: TripPlaceClientFake(),
-    backgroundIndexing: nil
+    backgroundIndexing: BackgroundIndexingClientFake()
   )
   // 보관함 화면 진입은 첫 `.active` 까지 기다린다. 캔버스가 scenePhase 를 어떻게 주는지와 관계없이 바로 보이게 미리 앞으로 둔다
   // (Fake 라 저장소 출입과 무관하다).

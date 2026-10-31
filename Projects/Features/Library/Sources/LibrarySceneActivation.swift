@@ -43,3 +43,12 @@ final class LibrarySceneActivation {
     return false
   }
 }
+
+public extension LibraryModel {
+  /// 앱이 앞에 있는지(scenePhase). 처음 `sceneBecameActive()` 전에는 거짓이다. 거짓인 동안 화면 진입(`onAppear()`)은 시작을 미루고
+  /// 날짜 변경(`dayChanged()`)은 무시한다(BG 작업이 앱을 띄우거나 깨울 때 저장소를 읽지 않게, docs/ARCHITECTURE.md §4 인덱싱).
+  /// LibraryView 도 이 값으로 날짜·시간대 변경을 다른 Model 에 넘길지 정한다.
+  var isSceneActive: Bool {
+    self.sceneActivation.isActive
+  }
+}

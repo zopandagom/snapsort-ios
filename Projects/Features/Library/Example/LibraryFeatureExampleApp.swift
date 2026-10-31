@@ -1,3 +1,5 @@
+import BackgroundIndexingInterface
+import BackgroundIndexingTesting
 import Core
 import DesignSystem
 import Foundation
@@ -94,8 +96,14 @@ struct LibraryFeatureExampleApp: App {
       : NotificationClientFake.previewNotDetermined(),
     widgetTimeline: nil,
     tripPlace: TripPlaceClientFake(),
-    backgroundIndexing: nil
+    backgroundIndexing: BackgroundIndexingClientFake(continuedRequestResult: Self.continuedRequestResult)
   )
+  /// 진행 카드의 "홈으로 나가도 계속"을 눌렀을 때의 결과. 시나리오로 안내 줄 두 가지를 본다.
+  private static let continuedRequestResult: ContinuedIndexingRequestResult = switch Self.scenario {
+  case .continuedTryLater: .temporarilyUnavailable
+  case .continuedUnavailable: .unavailable
+  default: .started
+  }
   @State private var coverModel = LibraryCoverModel(photoLibrary: Self.photoLibrary)
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
   @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
