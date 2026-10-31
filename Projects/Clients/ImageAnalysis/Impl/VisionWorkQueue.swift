@@ -6,7 +6,8 @@ import Synchronization
 /// (공유 요청에 `VNRequest.cancel()` 을 부르지 않는다: 그 사이 다음 호출의 작업이 시작됐으면 남의 요청을 멈출 수 있다).
 /// 작업이 시작하면 시한 타이머를 건다(큐를 기다린 시간은 세지 않는다). 타이머는 큐가 쥐어 부른 쪽이 먼저 돌아가도 터진다.
 /// 시한 안에 끝나지 않으면 큐를 버린다(종단): 기다리던 부른 쪽은 `Failure.timedOut`, 줄 선 호출과 그 뒤 새 호출은 `Failure.abandoned` 다.
-/// QoS 는 1단계가 도는 Task 와 같은 급(`.userInitiated`)이다.
+/// QoS 는 `.userInitiated` 로, 1단계를 돌리는 실행 Task(`.utility`, IndexingExecutor)보다 한 급 높다. 이 값으로 실기기 뒤 분류가 시한 초과 없이
+/// 돌았다(docs/ARCHITECTURE.md §4 인덱싱). 앞에서 다른 일과 겹치면 Vision 이 CPU 를 더 차지할 수 있다(확인 못 함).
 final class VisionWorkQueue: Sendable {
   enum Failure: Error, Equatable {
     /// 이 작업이 시한을 넘겼다.

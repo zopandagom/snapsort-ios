@@ -37,7 +37,7 @@ public struct ContinuedIndexingStatus: Sendable, Equatable {
     case preparing
     /// 1단계 분류. 수는 보관함 화면 진행 카드와 같다(분류·건너뜀 / 전체).
     case classifying
-    /// 2단계 글자 읽기. 수는 진행 카드와 같다(이번 실행 처리 / 처리 + 대기).
+    /// 2단계 글자 읽기. 식은 진행 카드와 같다(이번 실행 처리 / 처리 + 대기). 배치 안에서는 장마다 저장 전 값을 받아 카드보다 최대 한 배치 앞설 수 있다.
     case recognizingText
     /// 분류·글자 읽기를 마친 뒤 함께 돌던 여행 장소 이름 미리 받기 회차. 수는 그 회차의 키 수(회차가 아직 알리지 않았으면 0·0).
     case fetchingPlaceNames
