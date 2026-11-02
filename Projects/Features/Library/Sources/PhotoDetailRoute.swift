@@ -1,7 +1,7 @@
 import Core
 import Foundation
 
-/// 사진 상세에서 넘기는 한 장. 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장만 `gifticon` 이 있고,
+/// 사진 상세에서 넘기는 한 장. 기프티콘 목록·정리 화면의 기프티콘 후보·보관함 곧 만료 띠에서 연 장만 `gifticon` 이 있고,
 /// 이 장만 상세가 기프티콘 정보·사용함 버튼·바코드를 보인다. 다른 카테고리 격자에서 연 같은 이미지에는 주소·번호 행동만 보인다.
 public struct PhotoPage: Hashable, Sendable {
   public let asset: ImageAsset
@@ -13,7 +13,8 @@ public struct PhotoPage: Hashable, Sendable {
   }
 }
 
-/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면·여행 폴더 상세의 칸과 기프티콘·영수증 목록의 줄, 검색 결과의 사진 줄, 정리 화면의 후보 줄에서만 연다.
+/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면·여행 폴더 상세의 칸과 기프티콘·영수증 목록의 줄, 검색 결과의 사진 줄, 정리 화면의 후보 줄,
+/// 보관함 홈 곧 만료 띠의 칩에서만 연다.
 /// 누른 칸·줄이 속한 섹션 하나를 그 화면에 보이던 순서 그대로 스냅숏으로 싣는다(docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 상세는 이 섹션 안에서만 넘기고, 열려 있는 동안 원래 목록이 바뀌어도 순서는 그대로다.
 struct PhotoDetailRoute: Hashable {
@@ -62,6 +63,11 @@ enum PhotoPages {
   /// 정리 화면. 기프티콘 후보만 그 항목을 싣고, 비슷한 사진은 주소·번호 행동만.
   static func pages(candidates: [CleanupCandidate]) -> [PhotoPage] {
     candidates.map { PhotoPage(asset: $0.asset, gifticon: $0.gifticon) }
+  }
+
+  /// 보관함 홈 곧 만료 띠. 띠에 보이던 칩(상한 안) 전부가 한 섹션이고 장마다 그 기프티콘을 싣는다. "+k" 칩 몫은 장이 아니다.
+  static func pages(expiring strip: ExpiringGifticons) -> [PhotoPage] {
+    strip.items.map { PhotoPage(asset: $0.item.asset, gifticon: $0.item) }
   }
 
   /// 돌아올 때 스크롤할 섹션 위치. 같은 이미지가 두 섹션에 들 수 있는 화면(카테고리 지역별 묶기, 여행 폴더 상세)이 쓴다.
