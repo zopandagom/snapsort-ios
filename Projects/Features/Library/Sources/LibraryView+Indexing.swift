@@ -18,6 +18,11 @@ extension LibraryView {
   /// 1·2단계 카드는 다른 분기라 단계가 바뀌면 버튼이 새로 나타나 다시 번진다(의도).
   /// 계속 처리 분류가 도는 동안(첫 분류 자동 요청이든 버튼이든)은 버튼 대신 "홈으로 나가도 이어서 분류합니다" 안내 줄을 둔다
   /// (`LibraryModel.showsContinuingInBackgroundNotice`).
+  /// 큰 일을 다 마치면 잠깐 "분류 완료" 축하 카드(`LibraryModel.indexingCelebration`)를 보이고, 머무는 시간이 지나 접히면 미룬 수 카드가 남는다.
+  /// 축하 분기는 멈춤 바로 다음에 둔다. 인덱서는 앞으로 올 때의 새 실행·보관함 전체 다시 비교마다 미룬 장을 다시 남은 일로 세어
+  /// 축하 중에도 끝나지 않은 진행률이 오는데(Model 은 이때 축하를 남긴다), 진행 카드 아래에 두면 가려져 머무는 시간을 채우지 못한다.
+  /// 새 일·멈춤·화면 이탈이면 Model 이 축하를 지우므로 새 일의 진행 카드를 가리지 않는다. 머무는 시간이 지나면 다시 비교가 아직
+  /// 돌면 진행 카드, 끝났으면 미룬 수 카드로 이어진다. 나타나고 접히는 전환은 `homeGrid` 가 축하 id 를 값으로 애니메이션한다.
   @ViewBuilder
   var indexingSection: some View {
     if self.model.isIndexingStopped {
@@ -32,6 +37,8 @@ extension LibraryView {
         .font(.subheadline)
       }
       .snapCard()
+    } else if self.model.indexingCelebration != nil {
+      self.celebrationCard
     } else if let progress = self.model.indexingProgress, progress.phase == .classifying {
       let doneCount = progress.indexedCount + progress.skippedCount
       self.indexingCard(continuable: true) {
@@ -96,6 +103,36 @@ extension LibraryView {
         Text("iCloud 에만 있거나 읽을 수 없는 사진입니다.")
       }
     }
+  }
+
+  /// 분류 완료 축하 카드. 체크 원 뒤에서 반짝이(`SnapSparkleBurst`, 장식이라 VoiceOver 가 읽지 않고 동작 줄이기면 그리지 않는다)가 한 번 터진다.
+  /// 끝낸 수는 1단계와 2단계를 더해 같은 사진을 두 번 셀 수 있어 숫자를 보이지 않는다. 미룬 수가 있을 수 있어 "모두"라고 하지 않는다.
+  /// 상태 아이콘이라 SF Symbol 을 쓴다. 동작 줄이기면 투명도로만 나타나고 접힌다.
+  private var celebrationCard: some View {
+    HStack(spacing: 12) {
+      Image(systemName: "checkmark.circle.fill")
+        .font(.title2)
+        .foregroundStyle(SnapColor.accent)
+        .background {
+          SnapSparkleBurst()
+        }
+      VStack(alignment: .leading, spacing: 2) {
+        Text("분류 완료")
+          .font(.headline)
+        Text("새로 분류한 사진을 카테고리에서 볼 수 있습니다.")
+          .font(.footnote)
+          .foregroundStyle(SnapColor.accent)
+      }
+      Spacer(minLength: 0)
+    }
+    .snapCard(SnapColor.blush)
+    .accessibilityElement(children: .combine)
+    .transition(self.reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
+  }
+
+  /// 축하 카드가 나타나고 접힐 때의 애니메이션. 동작 줄이기면 투명도 전환 시간만 쓴다.
+  var celebrationAnimation: Animation {
+    self.reduceMotion ? .easeInOut(duration: SnapCelebration.reducedFade) : .snappy
   }
 
   /// 인덱싱 안내 카드. 목록 섹션의 footer 였던 안내는 카드 안 아래에 작은 보조 글자로 둔다.

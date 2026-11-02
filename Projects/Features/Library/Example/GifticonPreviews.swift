@@ -65,6 +65,15 @@ enum ExampleScenario: String {
   case continuedUnavailable
   /// 계속 처리 분류가 이미 돌고 있어(첫 분류 자동 요청처럼) 분류 중 카드에 버튼 대신 "홈으로 나가도 이어서 분류합니다" 안내 줄이 보인다.
   case continuedActive
+  /// 화면 진입 3초 뒤 Example 이 다 한 진행률(128/126/2)을 보낸다. 분류 완료 카드가 뜨고 반짝이·햅틱이 한 번 나고,
+  /// 약 2.5초 뒤 접히면 "읽지 못한 2장" 카드가 남는다. 기본 시나리오에서는 아래 "분류 마치기" 단추로 같은 것을 본다.
+  case celebrationAuto
+  /// 앱이 뒤로 가면(홈으로 나감) Example 이 다 한 진행률을 보낸다. 다시 앞으로 오면 그때 분류 완료 카드가 뜬다.
+  case celebrationInBackground
+  /// 기프티콘 목록 줄 버튼·줄 밀기로 사용함으로 바꾸는 쓰기가 늘 실패한다. 알림이 뜨고 줄은 그대로다.
+  case gifticonUsageFailing
+  /// 기프티콘 목록 줄 버튼·줄 밀기의 쓰기가 1.5초 걸린다. 쓰는 동안 그 줄의 버튼은 막히고 밀기 단추가 없으며, 다른 줄은 함께 바꿀 수 있다.
+  case gifticonUsageSlow
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard

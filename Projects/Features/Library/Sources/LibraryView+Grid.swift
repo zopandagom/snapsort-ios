@@ -7,7 +7,13 @@ import SwiftUI
 extension LibraryView {
   /// 카테고리 카드 격자. 위에서부터 인덱싱 → 알림 안내 → 빈 상태 또는 정리 도우미 → 캡처 → 사진 → 기타 → 개인정보 처리방침 링크.
   /// 검색 중에는 `SearchResultsView` 가 대신 보인다.
-  var homeGrid: some View {
+  /// `isRevealed` 는 이 화면 인스턴스에서 카드가 처음 생길 때 한 번 참이 된다(`LibraryView.hasRevealedCards`). 그때 정리 도우미 카드와
+  /// 카테고리 카드가 보이는 순서대로 떠오른다(`snapReveal`). 그 뒤 새로 생기는 카드(분류 중 새 카테고리, 상세에서 돌아옴, LazyVStack 이 다시 만듦)는
+  /// 이미 참이라 바로 보인다.
+  /// 분류 완료 축하 카드는 축하 id 가 바뀔 때만 애니메이션해(진행 카드 사이 전환 같은 다른 변화는 그대로) 아래 카드들이 함께 내려가고 올라온다.
+  /// 축하가 나타날 때 성공 햅틱을 한 번 내고(사라질 때는 없음), 2.5초 뒤 접히는 카드를 찾아가기 어려워 VoiceOver 로 알린다.
+  /// 다른 화면(push)이나 검색을 보는 동안 축하가 생기면 카드는 보이지 않은 채 접힌다. 검색 중이면 이 격자가 계층에 없어 햅틱도 없다.
+  func homeGrid(isRevealed: Bool) -> some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 20) {
         self.indexingSection
@@ -22,17 +28,36 @@ extension LibraryView {
           self.emptyCard
         } else {
           self.cleanupCard
+            .snapReveal(isRevealed, index: 0)
         }
-        self.categorySection("캡처", group: .information)
-        self.categorySection("사진", group: .photo)
-        self.categorySection("기타", group: .other)
+        self.categorySection("캡처", group: .information, isRevealed: isRevealed)
+        self.categorySection("사진", group: .photo, isRevealed: isRevealed)
+        self.categorySection("기타", group: .other, isRevealed: isRevealed)
         // 앱 안 처리방침 링크(심사 가이드라인 5.1.1(i)). 온보딩은 권한을 허용하면 다시 볼 수 없어 여기에도 둔다.
         PrivacyPolicyLink()
           .frame(maxWidth: .infinity)
       }
       .padding(.horizontal, 16)
       .padding(.bottom, 16)
+      .animation(self.celebrationAnimation, value: self.model.indexingCelebration?.id)
     }
+    .sensoryFeedback(trigger: self.model.indexingCelebration?.id) { _, new in
+      new == nil ? nil : .success
+    }
+    .onChange(of: self.model.indexingCelebration?.id) { _, id in
+      if id != nil {
+        AccessibilityNotification.Announcement("분류를 마쳤습니다").post()
+      }
+    }
+  }
+
+  /// 카드가 떠오르는 순서. 정리 도우미 카드가 0 이고, 이어서 보이는 순서대로(캡처 → 사진(여행 먼저) → 기타 섹션, 섹션 안은 `ImageCategory.allCases` 순서).
+  private func revealIndex(of category: ImageCategory) -> Int {
+    let order = [ImageCategoryGroup.information, .photo, .other].flatMap { group in
+      let categories = ImageCategory.allCases.filter { $0.group == group && self.model.categoryCounts[$0] != nil }
+      return categories.filter { $0 == .travel } + categories.filter { $0 != .travel }
+    }
+    return 1 + (order.firstIndex(of: category) ?? 0)
   }
 
   /// 큰 글씨(접근성 크기)에서는 1열로 둬 이름이 잘리지 않게 한다.
@@ -101,7 +126,7 @@ extension LibraryView {
   /// 이미지가 있는 카테고리만 카드로 보여 주고, 하나도 없으면 섹션째 숨긴다. 기프티콘 카드는 기프티콘 목록, 영수증 카드는 영수증 목록,
   /// 여행 카드는 여행 폴더 목록을 연다. 여행 카드는 "사진" 섹션 격자 위에 가로 전체로 따로 둔다.
   @ViewBuilder
-  private func categorySection(_ title: String, group: ImageCategoryGroup) -> some View {
+  private func categorySection(_ title: String, group: ImageCategoryGroup, isRevealed: Bool) -> some View {
     let rows = ImageCategory.allCases.compactMap { category in
       self.model.categoryCounts[category].map { (category: category, count: $0) }
     }
@@ -112,7 +137,7 @@ extension LibraryView {
           .font(.title3.bold())
           .accessibilityAddTraits(.isHeader)
         if let travel = rows.first(where: { $0.category == .travel }) {
-          self.card(travel.category, count: travel.count, isWide: true, titleLines: .unlimited)
+          self.card(travel.category, count: travel.count, isWide: true, titleLines: .unlimited, isRevealed: isRevealed)
           // 여행은 고른 사진만으로 판정하므로 제한 접근이면 실제 여행과 다를 수 있다 (docs/ARCHITECTURE.md §4 여행 판정).
           if self.model.isLimited {
             self.footnote("선택한 사진만으로 여행을 찾아 정확하지 않을 수 있습니다.")
@@ -122,7 +147,13 @@ extension LibraryView {
         if !gridRows.isEmpty {
           LazyVGrid(columns: self.columns, spacing: 12) {
             ForEach(gridRows, id: \.category) { row in
-              self.card(row.category, count: row.count, isWide: self.isSingleColumn, titleLines: self.gridTitleLines)
+              self.card(
+                row.category,
+                count: row.count,
+                isWide: self.isSingleColumn,
+                titleLines: self.gridTitleLines,
+                isRevealed: isRevealed
+              )
             }
           }
         }
@@ -138,7 +169,8 @@ extension LibraryView {
     _ category: ImageCategory,
     count: Int,
     isWide: Bool,
-    titleLines: LibraryCategoryCard.TitleLines
+    titleLines: LibraryCategoryCard.TitleLines,
+    isRevealed: Bool
   ) -> some View {
     LibraryCategoryCard(
       category: category,
@@ -149,6 +181,7 @@ extension LibraryView {
       titleLines: titleLines,
       zoomNamespace: self.zoomNamespace
     )
+    .snapReveal(isRevealed, index: self.revealIndex(of: category))
   }
 
   private func footnote(_ text: LocalizedStringKey) -> some View {

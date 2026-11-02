@@ -236,7 +236,8 @@ struct LibraryModelTests {
 func libraryModel(
   _ photoLibrary: any PhotoLibraryClient,
   indexing: (any IndexingClient)? = nil,
-  photoStore: (any PhotoStoreClient)? = nil
+  photoStore: (any PhotoStoreClient)? = nil,
+  celebrationSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
 ) -> LibraryModel {
   let model = LibraryModel(
     photoLibrary: photoLibrary,
@@ -245,7 +246,8 @@ func libraryModel(
     notification: nil,
     widgetTimeline: nil,
     tripPlace: nil,
-    backgroundIndexing: nil
+    backgroundIndexing: nil,
+    celebrationSleep: celebrationSleep
   )
   model.sceneBecameActive()
   return model
