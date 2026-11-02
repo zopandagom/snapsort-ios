@@ -14,7 +14,7 @@ public struct CleanupCandidate: Sendable, Hashable, Identifiable {
 
   public var id: ImageAsset.ID { self.asset.id }
 
-  /// 기프티콘 후보면 그 항목. 사진 상세(`PhotoDetailRoute.gifticon`)에 넘긴다.
+  /// 기프티콘 후보면 그 항목. 사진 상세의 장(`PhotoPage.gifticon`)에 넘긴다.
   public var gifticon: GifticonListItem? {
     if case let .gifticon(item) = self.detail {
       return item
