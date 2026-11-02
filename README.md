@@ -1,7 +1,7 @@
 # SnapSort
 
 온디바이스 AI로 사진 보관함의 이미지를 자동 분류·정리하는 iOS 앱.
-출시 앱에서 사진과 사진에서 읽은 텍스트는 기기 밖으로 나가지 않는다 (장소 이름·지도 표시를 위한 위치 좌표와 언어·지역 설정만 Apple 시스템 서비스 사용, 사용자가 누를 때만 읽은 주소를 지도 앱으로 넘김). [개인정보 처리방침](https://zopandagom.github.io/snapsort-ios/privacy/) (본문 [`site/privacy/index.html`](site/privacy/index.html)).
+출시 앱에서 사진과 사진에서 읽은 텍스트는 기기 밖으로 나가지 않는다 (장소 이름·지도 표시를 위한 위치 좌표와 언어·지역 설정만 Apple 시스템 서비스 사용(사용자가 지도를 움직이면 그 영역도), 사용자가 누를 때만 읽은 주소를 지도 앱으로 넘김). [개인정보 처리방침](https://zopandagom.github.io/snapsort-ios/privacy/) (본문 [`site/privacy/index.html`](site/privacy/index.html)).
 
 ## 핵심 기능 (MVP)
 - 전체 이미지 자동 분류 (한 장이 여러 카테고리에 속할 수 있음)
@@ -19,7 +19,7 @@
 ## 기술 스택
 - SwiftUI (규칙 기반 단방향 MV), Swift 6 strict concurrency
 - PhotoKit, Vision (이미지 분류·OCR·바코드·유사 이미지), Foundation Models (Apple Intelligence 기기), SwiftData
-- MapKit (지도 표시·장소 이름 변환, 위치 좌표와 언어·지역 설정만 Apple 로 전송)
+- MapKit (지도 표시·장소 이름 변환, 위치 좌표와 언어·지역 설정만 Apple 로 전송, 사용자가 지도를 움직이면 그 영역도)
 - WidgetKit
 - Tuist 모듈러 아키텍처 (Feature / Client Interface·Impl·Testing)
 
