@@ -180,3 +180,19 @@ private func detailPreview(gifticonIndex: Int?) -> some View {
 #Preview("상세 - 주소·번호") {
   detailPreview(gifticonIndex: nil)
 }
+
+#Preview("기프티콘 - 상세 넘기기(섹션)") {
+  // 기프티콘 목록 한 섹션에서 연 것처럼 모든 데모 줄을 장으로 싣는다. 넘기면 장마다 기프티콘 정보·바코드가 바뀌고,
+  // 3번은 작은 대체 버전 안내, 7번은 iCloud 에만 있는 장이다.
+  let photoStore = PhotoStoreClientFake.previewClassified()
+  let pages = PreviewGifticons.demos.indices.compactMap { PreviewGifticons.item($0) }
+    .map { PhotoPage(asset: $0.asset, gifticon: $0) }
+  NavigationStack {
+    PhotoDetailView(
+      model: CategoryModel(photoLibrary: PhotoLibraryClientFake.previewAuthorized, photoStore: photoStore),
+      captureModel: captureActionsPreviewModel(photoStore: photoStore),
+      pages: pages,
+      index: 2
+    )
+  }
+}

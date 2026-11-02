@@ -13,10 +13,13 @@ import SwiftUI
 /// (iOS 26 도구 막대는 글자만 있는 항목을 작은 원으로 줄여, 요약을 따로 두면 잘린다).
 /// 썸네일은 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(scope: .cleanup)`).
 /// 화면을 새로 열 때마다 새 방문 번호를 만들어, 지난 방문의 선택·안내가 보이지 않게 한다.
+/// 후보 줄의 사진 상세는 그 섹션(만료됨·사용함, 비슷한 사진은 묶음 하나) 안에서 넘긴다. 상세에서 돌아오면 마지막으로 본 후보 줄이 보이게
+/// 한 번 스크롤한다(`CategoryModel.detailReturn`, 방문 번호로 이 화면 것인지 가른다).
 public struct CleanupView: View {
   let model: CleanupModel
   let categoryModel: CategoryModel
 
+  /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이다(Model 의 방문과 상세의 돌아올 위치가 함께 쓴다).
   @State private var visit = UUID()
   @State private var dragTracker = CleanupDragTracker()
   @State private var checkColumn = CleanupCheckColumn()
@@ -107,7 +110,14 @@ public struct CleanupView: View {
             candidateIDs: sections.candidateIDs
           )
         }
-        .onAppear { self.dragTracker.proxy = proxy }
+        // 끌어 선택 자동 스크롤과 상세에서 돌아올 위치가 같은 reader 를 쓴다. 돌아와 다시 보일 때 이 방문의 돌아올 위치가 있으면
+        // 그 후보 줄이 보이게 한 번 스크롤한다(이미 보이면 움직이지 않고, 지금 후보에 없으면 아무것도 하지 않는다).
+        .onAppear {
+          self.dragTracker.proxy = proxy
+          guard let target = self.categoryModel.detailReturn, target.origin.visit == self.visit else { return }
+          self.categoryModel.detailReturnApplied(visit: self.visit)
+          proxy.scrollTo(target.id, anchor: nil)
+        }
         .onChange(of: sections, initial: true) { self.dragTracker.order = sections.candidates.map(\.id) }
     }
   }
@@ -164,9 +174,11 @@ public struct CleanupView: View {
   private func sectionView(_ section: CleanupSection) -> some View {
     switch section.kind {
     case .expiredGifticons, .usedGifticons:
+      let candidates = section.candidates
+      let pages = PhotoPages.pages(candidates: candidates)
       Section {
-        ForEach(section.candidates) { candidate in
-          self.row(candidate)
+        ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
+          self.row(candidate, route: self.route(pages: pages, index: index))
         }
       } header: {
         self.sectionHeader(section)
@@ -180,9 +192,10 @@ public struct CleanupView: View {
     case .similarPhotos:
       // 묶음 id 가 첫 후보 식별자와 같은 값이라 `scrollTo(후보 id)` 가 묶음 섹션을 가리키지 않게 다른 타입으로 둔다.
       ForEach(section.groups, id: \.listID) { group in
+        let pages = PhotoPages.pages(candidates: group.candidates)
         Section {
-          ForEach(group.candidates) { candidate in
-            self.row(candidate)
+          ForEach(Array(group.candidates.enumerated()), id: \.element.id) { index, candidate in
+            self.row(candidate, route: self.route(pages: pages, index: index))
           }
         } header: {
           VStack(alignment: .leading, spacing: 8) {
@@ -200,7 +213,11 @@ public struct CleanupView: View {
       }
     }
   }
+}
 
+// MARK: - 섹션 머리말·후보 줄·삭제 버튼
+
+extension CleanupView {
   /// 섹션 제목과 "모두 선택/모두 해제". 비슷한 사진의 "모두 선택"은 남길 장을 고르지 않는다(`bulkSelectableIDs`).
   private func sectionHeader(_ section: CleanupSection) -> some View {
     let isAllSelected = section.bulkSelectableIDs.isSubset(of: self.model.selectedIDs)
@@ -224,7 +241,12 @@ public struct CleanupView: View {
     return "\(count) · \(date.formatted(CleanupText.photoTimeStyle(calendar: self.model.calendar)))"
   }
 
-  private func row(_ candidate: CleanupCandidate) -> some View {
+  /// 상세는 누른 줄의 섹션(비슷한 사진은 묶음 하나) 안에서 넘긴다.
+  private func route(pages: [PhotoPage], index: Int) -> PhotoDetailRoute {
+    PhotoDetailRoute(pages: pages, index: index, origin: PhotoDetailOrigin(visit: self.visit, section: 0))
+  }
+
+  private func row(_ candidate: CleanupCandidate, route: PhotoDetailRoute) -> some View {
     let isSelected = self.model.selectedIDs.contains(candidate.id)
     return HStack(spacing: 12) {
       // 터치는 위에 덧댄 체크 원 열 오버레이가 받고, 버튼 동작은 VoiceOver 등 접근성 활성화와 손 스크롤로 오버레이가 막힌 때의 탭이다.
@@ -244,7 +266,7 @@ public struct CleanupView: View {
         self.checkColumn.frames[candidate.id] = $0
       }
       .onDisappear { self.checkColumn.frames[candidate.id] = nil }
-      NavigationLink(value: PhotoDetailRoute(asset: candidate.asset, gifticon: candidate.gifticon)) {
+      NavigationLink(value: route) {
         if let item = candidate.gifticon {
           CleanupCandidateRow(
             categoryModel: self.categoryModel,

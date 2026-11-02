@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 최근 스크린샷 화면: 최근 30일의 보관하지 않은 스크린샷을 한 장씩 크게 보며 "보관"하거나 "삭제 표시"하고,
 /// 표시한 것을 모아 한 번에 지운다 (docs/ARCHITECTURE.md §4 정리 도우미). 보관은 바로 저장되고, 삭제 표시는 화면을 나가면 사라진다.
-/// 이 화면은 다른 화면을 push 하지 않는다. 큰 이미지는 사진 상세와 같은 읽기(`CategoryModel.detailAppeared`)를 쓰고,
+/// 이 화면은 다른 화면을 push 하지 않는다. 큰 이미지는 사진 상세와 같은 읽기의 한 장짜리(`CategoryModel.detailAppeared(id:)`, `detailImages`)를 쓰고,
 /// 표시한 사진의 썸네일은 정리 화면과 같은 칸(`.cleanup`)을 쓴다.
 /// 화면을 새로 열 때마다 새 방문 번호를 만들어, 지난 방문의 표시·안내가 보이지 않게 한다.
 public struct CaptureInboxView: View {
@@ -230,10 +230,9 @@ private struct CaptureInboxPhoto: View {
       .frame(height: 420)
   }
 
-  /// 다른 사진의 상세 상태가 남아 있으면 쓰지 않고 불러오는 중으로 그린다.
+  /// 이 사진의 상태가 아직 없으면(읽는 중이거나 다른 사진의 상태만 남아 있으면) 불러오는 중으로 그린다.
   private var state: ImageLoadState {
-    guard let detail = self.model.detail, detail.id == self.asset.id else { return .loading }
-    return detail.state
+    self.model.detailImages[self.asset.id] ?? .loading
   }
 
   @ViewBuilder

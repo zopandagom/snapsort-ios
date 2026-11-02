@@ -5,8 +5,9 @@ import SwiftUI
 /// 영수증 목록: 월별/가게별 묶음과 섹션별 통화별 합계 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 월별은 생성일의 연·월 섹션(최신 달부터, 날짜 없음은 맨 뒤)이고, 가게별은 가장 최근 영수증이 있는 가게부터, 가게 모름 → 확인 중이 맨 뒤다.
 /// 섹션 머리 합계는 통화마다 따로 더하고(섞어 더하지 않는다), 금액 모름·확인 중 수를 함께 쓴다. 취소 전표는 합계에 넣지 않는다.
-/// 묶기는 저장하지 않는 화면 일시 상태라 이 View 가 갖는다: 새로 열면 월별, 상세에서 돌아오면 그대로다.
-/// 줄을 누르면 사진 상세로 간다(주소·번호 행동만). 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록
+/// 묶기는 저장하지 않는 화면 일시 상태라 이 View 가 갖는다: 새로 열면 월별, 상세에서 돌아오면 그대로이고
+/// 상세에서 마지막으로 본 줄이 보이게 한 번 스크롤한다(`CategoryModel.detailReturn`).
+/// 줄을 누르면 사진 상세로 간다(주소·번호 행동만, 누른 줄의 섹션 안에서 넘김). 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록
 /// `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(category:)`).
 /// 가게·금액은 사진에서 읽은 텍스트라 화면에만 보이고 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 public struct ReceiptListView: View {
@@ -14,6 +15,8 @@ public struct ReceiptListView: View {
   let categoryModel: CategoryModel
 
   @State private var grouping: ReceiptGrouping = .month
+  /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이라 돌아올 위치가 이 화면 것인지 가른다.
+  @State private var visit = UUID()
 
   public init(model: ReceiptListModel, categoryModel: CategoryModel) {
     self.model = model
@@ -67,6 +70,19 @@ public struct ReceiptListView: View {
   }
 
   private func list(_ sections: ReceiptListSections) -> some View {
+    ScrollViewReader { proxy in
+      self.listContent(sections)
+        // 상세에서 돌아와 다시 보일 때 이 방문의 돌아올 위치가 있으면 그 줄이 보이게 한 번 스크롤한다(이미 보이면 움직이지 않고,
+        // 지금 목록에 없으면 아무것도 하지 않는다).
+        .onAppear {
+          guard let target = self.categoryModel.detailReturn, target.origin.visit == self.visit else { return }
+          self.categoryModel.detailReturnApplied(visit: self.visit)
+          proxy.scrollTo(target.id, anchor: nil)
+        }
+    }
+  }
+
+  private func listContent(_ sections: ReceiptListSections) -> some View {
     SnapList {
       switch sections {
       case let .byMonth(sections):
@@ -100,9 +116,12 @@ public struct ReceiptListView: View {
     }
   }
 
+  /// 상세는 이 섹션의 줄들을 보이는 순서대로 넘긴다.
   private func rows(_ items: [ReceiptListItem]) -> some View {
-    ForEach(items) { item in
-      NavigationLink(value: PhotoDetailRoute(asset: item.asset, gifticon: nil)) {
+    let pages = PhotoPages.pages(items.map(\.asset))
+    let origin = PhotoDetailOrigin(visit: self.visit, section: 0)
+    return ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+      NavigationLink(value: PhotoDetailRoute(pages: pages, index: index, origin: origin)) {
         ReceiptRow(categoryModel: self.categoryModel, item: item, calendar: self.model.calendar)
       }
     }

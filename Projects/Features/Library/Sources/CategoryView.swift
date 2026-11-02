@@ -4,7 +4,8 @@ import SwiftUI
 
 /// 카테고리 화면: 그 카테고리 이미지를 생성일의 연·월 섹션으로 나눈 최신순 썸네일 격자 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 쇼핑·대화·지도는 툴바 메뉴로 쇼핑몰별·브랜드별 / 앱별 / 지역별 묶기를 고를 수 있다(선택은 저장하지 않는 화면 일시 상태).
-/// 칸을 누르면 사진 상세로 간다(이동 목적지는 LibraryView 가 루트에 둔다).
+/// 칸을 누르면 사진 상세로 간다(이동 목적지는 LibraryView 가 루트에 둔다). 상세는 누른 칸의 섹션 안에서 넘기고,
+/// 돌아오면 상세에서 마지막으로 본 사진의 칸이 보이게 한 번 스크롤한다(`CategoryModel.detailReturn`).
 /// 기프티콘은 이 격자 대신 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView` 로 연다.
 /// body 는 `content` 만 읽고 썸네일은 칸(`CategoryThumbnailCell`)이 읽어, 썸네일 하나가 끝날 때 섹션 전체를 다시 그리지 않는다.
 public struct CategoryView: View {
@@ -13,7 +14,10 @@ public struct CategoryView: View {
 
   /// 위쪽에 보이는 칸. 위에 새 사진이 더해져도 보던 칸이 그대로 있게 하는 화면 일시 상태다.
   /// 지역별 묶기에서는 같은 이미지가 두 섹션에 들 수 있어 섹션과 이미지 쌍으로 칸을 가른다.
+  /// 상세에서 돌아올 때의 스크롤은 이 값이 아니라 `ScrollViewReader` 로 한다(List 화면과 같은 방식).
   @State private var anchorID: GridCellID?
+  /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이라 돌아올 위치가 이 화면 것인지 가른다.
+  @State private var visit = UUID()
   /// 고른 묶기. nil 이면 월별. 새로 열면 월별이고 상세에서 돌아오면 그대로다.
   @State private var grouping: CaptureGrouping?
 
@@ -80,18 +84,20 @@ public struct CategoryView: View {
   /// 고른 묶기의 섹션. 이 카테고리에 없는 묶기면 월별이다.
   private func gridSections(_ sections: CategorySections) -> [GridSection] {
     if let grouping = self.grouping, let groups = sections.groups[grouping] {
-      return groups.map { section in
+      return groups.enumerated().map { position, section in
         GridSection(
           id: AnyHashable(section.id),
+          position: position,
           title: Text(verbatim: "\(section.title(for: grouping)) · \(section.assets.count)장"),
           assets: section.assets,
           showsCheckingFooter: section.kind == .checking
         )
       }
     }
-    return sections.months.map { section in
+    return sections.months.enumerated().map { position, section in
       GridSection(
         id: AnyHashable(section.id),
+        position: position,
         title: self.monthTitle(section),
         assets: section.assets,
         showsCheckingFooter: false
@@ -100,32 +106,46 @@ public struct CategoryView: View {
   }
 
   private func grid(_ sections: [GridSection]) -> some View {
-    ScrollView {
-      LazyVGrid(columns: ThumbnailGrid.columns, spacing: ThumbnailGrid.spacing, pinnedViews: [.sectionHeaders]) {
-        ForEach(sections, id: \.id) { section in
-          Section {
-            ForEach(section.cells) { cell in
-              NavigationLink(value: PhotoDetailRoute(asset: cell.asset)) {
-                CategoryThumbnailCell(model: self.model, asset: cell.asset, category: self.category)
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVGrid(columns: ThumbnailGrid.columns, spacing: ThumbnailGrid.spacing, pinnedViews: [.sectionHeaders]) {
+          ForEach(sections, id: \.id) { section in
+            let pages = PhotoPages.pages(section.assets)
+            let origin = PhotoDetailOrigin(visit: self.visit, section: section.position)
+            Section {
+              ForEach(section.cells) { cell in
+                NavigationLink(value: PhotoDetailRoute(pages: pages, index: cell.index, origin: origin)) {
+                  CategoryThumbnailCell(model: self.model, asset: cell.asset, category: self.category)
+                }
+                .buttonStyle(.plain)
               }
-              .buttonStyle(.plain)
-            }
-          } header: {
-            self.header(section.title)
-          } footer: {
-            if section.showsCheckingFooter {
-              Text("글자를 읽으면 묶습니다. iCloud 에만 있는 사진은 기기에 내려받은 뒤 확인합니다.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+            } header: {
+              self.header(section.title)
+            } footer: {
+              if section.showsCheckingFooter {
+                Text("글자를 읽으면 묶습니다. iCloud 에만 있는 사진은 기기에 내려받은 뒤 확인합니다.")
+                  .font(.footnote)
+                  .foregroundStyle(.secondary)
+                  .padding(.horizontal)
+                  .padding(.vertical, 8)
+              }
             }
           }
         }
+        .scrollTargetLayout()
       }
-      .scrollTargetLayout()
+      .scrollPosition(id: self.$anchorID, anchor: .top)
+      // 상세에서 돌아와 다시 보일 때 이 방문의 돌아올 위치가 있으면 그 칸이 보이게 한 번 스크롤한다(이미 보이면 움직이지 않는다).
+      // 같은 이미지가 두 섹션에 있으면(지역별) 연 섹션의 칸으로 가고, 지금 섹션들에 없으면 움직이지 않는다.
+      .onAppear {
+        guard let target = self.model.detailReturn, target.origin.visit == self.visit else { return }
+        self.model.detailReturnApplied(visit: self.visit)
+        let ids = sections.map { $0.assets.map(\.id) }
+        guard let section = PhotoPages.returnSection(of: target.id, preferred: target.origin.section, in: ids)
+        else { return }
+        proxy.scrollTo(GridCellID(section: sections[section].id, image: target.id), anchor: nil)
+      }
     }
-    .scrollPosition(id: self.$anchorID, anchor: .top)
   }
 
   /// 기기 달력·로캘로 연·월을 쓴다(Model 의 기본 달력 `.autoupdatingCurrent` 와 같다).
@@ -151,19 +171,25 @@ public struct CategoryView: View {
 /// 격자 한 섹션. 월별과 묶기별이 같은 모양으로 그린다.
 private struct GridSection {
   let id: AnyHashable
+  /// 고른 묶기의 섹션들 안 위치. 상세에서 돌아올 칸을 고를 때 쓴다(`PhotoDetailOrigin.section`).
+  let position: Int
   let title: Text
   let assets: [ImageAsset]
   /// 확인 중 섹션이면 꼬리 문구를 붙인다.
   let showsCheckingFooter: Bool
 
   var cells: [GridCell] {
-    self.assets.map { GridCell(id: GridCellID(section: self.id, image: $0.id), asset: $0) }
+    self.assets.enumerated().map { index, asset in
+      GridCell(id: GridCellID(section: self.id, image: asset.id), asset: asset, index: index)
+    }
   }
 }
 
 private struct GridCell: Identifiable {
   let id: GridCellID
   let asset: ImageAsset
+  /// 섹션 안 위치. 상세의 처음 장이다.
+  let index: Int
 }
 
 /// 격자 칸 식별. 같은 이미지가 두 섹션에 들 수 있어(지역별) 섹션과 이미지 쌍으로 가른다.
@@ -199,14 +225,6 @@ private extension CaptureGroupSection {
       }
     }
   }
-}
-
-/// 사진 상세로 가는 이동 값. 상세는 카테고리 화면·여행 폴더 상세의 칸과 기프티콘·영수증 목록의 줄, 검색 결과의 사진 줄, 정리 화면의 후보 줄에서만 연다.
-struct PhotoDetailRoute: Hashable {
-  let asset: ImageAsset
-  /// 기프티콘 목록·정리 화면에서 열 때만 그 항목. 이때만 상세가 기프티콘 정보·사용함 버튼·바코드를 보인다.
-  /// 다른 카테고리 격자에서 연 같은 이미지에는 주소·번호 행동만 보인다.
-  var gifticon: GifticonListItem?
 }
 
 /// 격자 칸 하나. 보일 때 썸네일을 읽는다. 사라지면(`.task` 취소) 읽는 중이면 취소하고, 읽었으면 Model 이 최근 64장까지 남긴다.
