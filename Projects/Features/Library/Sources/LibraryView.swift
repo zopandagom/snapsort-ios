@@ -34,6 +34,8 @@ public struct LibraryView: View {
   let cleanupModel: CleanupModel
   let captureInboxModel: CaptureInboxModel
 
+  /// 카테고리 카드·검색 결과의 카테고리 줄에서 카테고리 화면으로 가는 줌 전환의 이름 공간(`LibraryView+Grid.swift`).
+  @Namespace var zoomNamespace
   @Environment(\.scenePhase) private var scenePhase
   /// 카드 격자의 열 수·이름 줄 수를 정한다(`LibraryView+Grid.swift`).
   @Environment(\.dynamicTypeSize) var dynamicTypeSize
@@ -69,7 +71,8 @@ public struct LibraryView: View {
       LibrarySearchContainer(
         searchModel: self.searchModel,
         categoryModel: self.categoryModel,
-        isLimited: self.model.isLimited
+        isLimited: self.model.isLimited,
+        zoomNamespace: self.zoomNamespace
       ) {
         self.homeGrid
       }
@@ -87,17 +90,21 @@ public struct LibraryView: View {
       // 자동 고침이 검색 낱말을 바꾸지 않게 하려는 것이다. 검색 필드에 적용되는지는 실기기에서 확인한다.
       .autocorrectionDisabled()
       // 격자 안에 두지 않고 루트 한곳에 둔다.
+      // 카테고리 화면은 누른 카드(검색 중이면 카테고리 줄)에서 커지며 열리고, 닫으면 그 자리로 줄어든다(시스템 줌 전환).
       .navigationDestination(for: ImageCategory.self) { category in
-        switch category {
-        case .gifticon:
-          GifticonListView(model: self.gifticonListModel, categoryModel: self.categoryModel)
-        case .receipt:
-          ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
-        case .travel:
-          TripListView(model: self.tripListModel, categoryModel: self.categoryModel)
-        default:
-          CategoryView(model: self.categoryModel, category: category)
+        Group {
+          switch category {
+          case .gifticon:
+            GifticonListView(model: self.gifticonListModel, categoryModel: self.categoryModel)
+          case .receipt:
+            ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
+          case .travel:
+            TripListView(model: self.tripListModel, categoryModel: self.categoryModel)
+          default:
+            CategoryView(model: self.categoryModel, category: category)
+          }
         }
+        .navigationTransition(.zoom(sourceID: category, in: self.zoomNamespace))
       }
       .navigationDestination(for: TripFolderRoute.self) { route in
         TripDetailView(model: self.tripDetailModel, categoryModel: self.categoryModel, route: route)
@@ -221,6 +228,7 @@ private struct LibrarySearchContainer<Content: View>: View {
   let searchModel: SearchModel
   let categoryModel: CategoryModel
   let isLimited: Bool
+  let zoomNamespace: Namespace.ID
   @ViewBuilder let content: Content
 
   @Environment(\.isSearching) private var isSearching
@@ -232,7 +240,12 @@ private struct LibrarySearchContainer<Content: View>: View {
   var body: some View {
     Group {
       if self.showsSearch {
-        SearchResultsView(model: self.searchModel, categoryModel: self.categoryModel, isLimited: self.isLimited)
+        SearchResultsView(
+          model: self.searchModel,
+          categoryModel: self.categoryModel,
+          isLimited: self.isLimited,
+          zoomNamespace: self.zoomNamespace
+        )
       } else {
         self.content
       }

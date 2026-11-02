@@ -12,14 +12,18 @@ struct SearchResultsView: View {
   let model: SearchModel
   let categoryModel: CategoryModel
   let isLimited: Bool
+  /// 카테고리 줄을 카테고리 화면 줌 전환의 출발점으로 삼는 이름 공간(`LibraryView.zoomNamespace`).
+  /// 검색 중에는 카테고리 카드가 없으므로 같은 카테고리 id 가 겹치지 않는다.
+  let zoomNamespace: Namespace.ID
 
   /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이라 돌아올 위치가 이 화면 것인지 가른다.
   @State private var visit = UUID()
 
-  init(model: SearchModel, categoryModel: CategoryModel, isLimited: Bool) {
+  init(model: SearchModel, categoryModel: CategoryModel, isLimited: Bool, zoomNamespace: Namespace.ID) {
     self.model = model
     self.categoryModel = categoryModel
     self.isLimited = isLimited
+    self.zoomNamespace = zoomNamespace
   }
 
   var body: some View {
@@ -95,6 +99,7 @@ struct SearchResultsView: View {
                 CategoryLabel(category: hit.category)
               }
             }
+            .matchedTransitionSource(id: hit.category, in: self.zoomNamespace)
           }
         }
       }
