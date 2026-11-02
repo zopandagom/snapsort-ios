@@ -4,7 +4,7 @@ import MapInterface
 import UIKit
 
 /// 지도 앱 URL(`maps://`)로 여는 구현과 MapKit 역지오코딩 (docs/ARCHITECTURE.md §4 위치·지도).
-/// 주소를 지오코딩하지 않고 지도 앱의 검색어로 넘긴다. 역지오코딩에는 반올림 좌표와 장소 이름 언어(로캘)만 보낸다.
+/// 주소를 지오코딩하지 않고 지도 앱의 검색어로 넘긴다. 역지오코딩에는 반올림 좌표와 언어·지역 설정(로캘)만 보낸다.
 /// 주소·URL·좌표·장소 이름은 로그에 남기지 않는다.
 public struct MapClientImpl: MapClient {
   typealias Geocode = @Sendable (Coordinate, Locale) async throws(PlaceNameError) -> [PlaceAddress]
