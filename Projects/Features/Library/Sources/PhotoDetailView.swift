@@ -227,7 +227,7 @@ private struct PhotoPageView: View {
     case .unavailable(.notFound):
       StatusMessageView("보관함에 없는 사진입니다", systemImage: "photo.badge.exclamationmark")
     case .unavailable(.failed):
-      // 다시 시도는 두지 않는다. 다른 장으로 갔다 오거나 닫고 다시 열면 다시 읽는다.
+      // 다시 시도는 두지 않는다. 창(지금 장 ± 1) 밖까지 갔다 오거나 닫고 다시 열면 다시 읽는다.
       StatusMessageView("사진을 불러오지 못했습니다", systemImage: "exclamationmark.triangle")
     }
   }
