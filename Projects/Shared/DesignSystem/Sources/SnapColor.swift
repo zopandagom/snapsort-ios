@@ -53,4 +53,8 @@ public enum SnapColor {
   public static let inkSecondary = ColorToken(light: 0x6B5D63, dark: 0xB9AAB0)
   /// 진행 막대 줄무늬 같은 밝은 덧칠. 라이트·다크 모두 흰색이고 투명도를 낮춰 장식으로만 쓴다.
   public static let sheen = ColorToken(light: 0xFFFFFF, dark: 0xFFFFFF)
+  /// 목록 줄 밀기 단추 "사용함"의 tint. 시스템이 이 면 위에 흰 글자·아이콘을 그리므로 두 모드 모두 흰 글자 대비 4.5:1 이상인 값을 쓴다.
+  public static let swipeUse = ColorToken(light: 0xC42854, dark: 0xC42854)
+  /// 목록 줄 밀기 단추 "미사용으로"의 tint. `swipeUse` 와 같은 이유로 두 모드 같은 값이다.
+  public static let swipeRestore = ColorToken(light: 0x6B5D63, dark: 0x6B5D63)
 }

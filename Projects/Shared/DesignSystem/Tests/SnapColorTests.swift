@@ -32,6 +32,9 @@ struct SnapColorTests {
     TextPair("삭제 보조 버튼: 경고 / 경고 면", SnapColor.danger, SnapColor.dangerSoft),
     TextPair("삭제 채운 버튼: onAccent / 경고", SnapColor.onAccent, SnapColor.danger),
     TextPair("막대 삭제 버튼: 경고 / 바탕", SnapColor.danger, SnapColor.background),
+    // 시스템이 밀기 단추를 tint 면 위 흰 글자로 그린다. `sheen` 은 그 흰색 대신으로만 쓴다(글자에 직접 쓰지 않는다).
+    TextPair("밀기 단추: 시스템 흰 글자 / 사용함", SnapColor.sheen, SnapColor.swipeUse),
+    TextPair("밀기 단추: 시스템 흰 글자 / 미사용으로", SnapColor.sheen, SnapColor.swipeRestore),
   ]
 
   @Test("글자 조합은 라이트·다크 모두 대비 4.5:1 이상이다", arguments: Self.textPairs.map(\.name))
