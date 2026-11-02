@@ -211,6 +211,7 @@ public struct GifticonListView: View {
         }
         // 링크가 버튼 앞까지만이라 시스템 화살표가 줄 끝이 아니라 버튼 바로 왼쪽에 그려진다. 시안처럼 숨기고 버튼을 줄 끝에 둔다.
         .navigationLinkIndicatorVisibility(.hidden)
+        .environment(\.photoDetailOrigin, origin)
         // 머무는 줄·쓰는 중인 줄은 자리를 지킨 채 막아 두 번 쓰지 않는다(줄 모양이 흔들리지 않게 숨기지 않는다).
         self.usageRowButton(item)
           .disabled(linger != nil || self.model.updatingUsageIDs.contains(item.id))

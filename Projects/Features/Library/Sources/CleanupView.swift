@@ -286,6 +286,7 @@ extension CleanupView {
           )
         }
       }
+      .environment(\.photoDetailOrigin, route.origin)
     }
     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
       self.dragTracker.rowFrameChanged(id: candidate.id, frame: $0, model: self.model)
@@ -326,6 +327,7 @@ private struct CleanupCandidateRow: View {
       CategoryThumbnailCell(model: self.categoryModel, asset: self.item.asset, scope: .cleanup)
         .frame(width: 56, height: 56)
         .clipShape(.rect(cornerRadius: 8))
+        .photoZoomSource(self.item.asset.id, cornerRadius: 8)
       switch self.item.status {
       case .checking:
         Text("확인 중")
@@ -366,6 +368,7 @@ private struct CleanupSimilarPhotoRow: View {
       CategoryThumbnailCell(model: self.categoryModel, asset: self.candidate.asset, scope: .cleanup)
         .frame(width: 56, height: 56)
         .clipShape(.rect(cornerRadius: 8))
+        .photoZoomSource(self.candidate.asset.id, cornerRadius: 8)
       if let date = self.candidate.asset.creationDate {
         Text(date, format: CleanupText.photoTimeStyle(calendar: self.calendar))
           .font(.subheadline)

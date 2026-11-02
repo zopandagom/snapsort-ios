@@ -10,6 +10,7 @@ import SwiftUI
 /// 기프티콘 정보·사용함·바코드)을 붙인다. 지금 장의 이미지는 바코드 인식에 쓰도록 `captureModel` 로 넘긴다.
 /// 지금 장(`committedIndex`)은 스크롤이 멈췄을 때 정한다: 반쯤 끌다 되돌리면 창·패널·제목이 바뀌지 않는다.
 /// 지금 장이 바뀌면 `CategoryModel.detailPageChanged` 로 창과 돌아올 위치를 옮긴다.
+/// 연 곳의 칸·줄 썸네일에서 커지며 열리고 그 썸네일로 줄어들며 닫히는 시스템 줌 전환이라(`photoZoomDestination`), 아래로 끌어 닫기도 시스템이 한다.
 /// 닫히면(`.task` 취소) 두 Model 이 이미지와 캡처 행동 상태를 놓는다.
 public struct PhotoDetailView: View {
   let model: CategoryModel
@@ -71,6 +72,8 @@ public struct PhotoDetailView: View {
       .navigationTitle(self.title)
       .snapScreenBackground()
       .navigationBarTitleDisplayMode(.inline)
+      // 연 곳의 지금 장 썸네일에서 커지며 열리고, 닫을 때(뒤로·아래로 끌기) 그 썸네일로 줄어든다. 넘기면 돌아갈 칸도 바뀐다.
+      .photoZoomDestination(origin: self.route.origin, id: self.page?.asset.id)
       .task {
         await self.model.detailAppeared(
           ids: self.route.pages.map(\.asset.id),

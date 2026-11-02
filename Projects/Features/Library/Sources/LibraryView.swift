@@ -36,6 +36,7 @@ public struct LibraryView: View {
   let captureInboxModel: CaptureInboxModel
 
   /// 카테고리 카드·검색 결과의 카테고리 줄에서 카테고리 화면으로 가는 줌 전환의 이름 공간(`LibraryView+Grid.swift`).
+  /// 사진 상세 줌 전환(칸·줄 썸네일 ↔ 상세)에도 환경 값 `photoZoomNamespace` 로 내린다.
   @Namespace var zoomNamespace
   @Environment(\.scenePhase) private var scenePhase
   /// 카드 격자의 열 수·이름 줄 수를 정한다(`LibraryView+Grid.swift`).
@@ -127,6 +128,8 @@ public struct LibraryView: View {
       }
     }
     // 모두 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 신호를 넘긴다.
+    // 사진 상세 줌 전환(칸·줄 썸네일 ↔ 상세)의 이름 공간. 상세를 여는 화면들과 상세가 환경으로 받는다.
+    .environment(\.photoZoomNamespace, self.zoomNamespace)
     .task { await self.model.onAppear() }
     // 대표 썸네일 로더. push 로 카드가 사라져도 읽는 중인 것·읽은 것을 잃지 않고, push 동안 바뀐 대표도 읽는다.
     .task { await self.coverModel.onAppear() }

@@ -116,8 +116,10 @@ public struct CategoryView: View {
               ForEach(section.cells) { cell in
                 NavigationLink(value: PhotoDetailRoute(pages: pages, index: cell.index, origin: origin)) {
                   CategoryThumbnailCell(model: self.model, asset: cell.asset, category: self.category)
+                    .photoZoomSource(cell.asset.id)
                 }
                 .buttonStyle(.plain)
+                .environment(\.photoDetailOrigin, origin)
               }
             } header: {
               self.header(section.title)

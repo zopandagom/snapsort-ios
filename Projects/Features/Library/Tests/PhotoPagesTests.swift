@@ -108,4 +108,16 @@ struct PhotoPagesTests {
       #expect(UIImage.Orientation(orientation) == expected)
     }
   }
+
+  @Test("줌 출발점은 같은 사진이어도 방문 값이나 섹션이 다르면 다르다")
+  func zoomSourceIDSeparatesOrigins() {
+    let visit = UUID()
+    let id = self.assets[0].id
+    let source = PhotoZoomSourceID(origin: PhotoDetailOrigin(visit: visit, section: 0), id: id)
+
+    #expect(source == PhotoZoomSourceID(origin: PhotoDetailOrigin(visit: visit, section: 0), id: id))
+    #expect(source != PhotoZoomSourceID(origin: PhotoDetailOrigin(visit: visit, section: 1), id: id))
+    #expect(source != PhotoZoomSourceID(origin: PhotoDetailOrigin(visit: UUID(), section: 0), id: id))
+    #expect(source != PhotoZoomSourceID(origin: PhotoDetailOrigin(visit: visit, section: 0), id: self.assets[1].id))
+  }
 }

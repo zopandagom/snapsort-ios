@@ -160,8 +160,10 @@ public struct TripDetailView: View {
         ForEach(TripCell.cells(assets, section: position)) { cell in
           NavigationLink(value: PhotoDetailRoute(pages: pages, index: cell.index, origin: origin)) {
             CategoryThumbnailCell(model: self.categoryModel, asset: cell.asset, category: .travel)
+              .photoZoomSource(cell.asset.id)
           }
           .buttonStyle(.plain)
+          .environment(\.photoDetailOrigin, origin)
         }
       }
     }
