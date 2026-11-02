@@ -152,7 +152,7 @@ public struct CleanupView: View {
       }
       if sections.isEmpty {
         Section {
-          StatusMessageView("정리할 항목이 없습니다", systemImage: "checkmark.circle")
+          StatusMessageView(empty: "정리할 항목이 없어요")
             .listRowBackground(Color.clear)
         }
       }

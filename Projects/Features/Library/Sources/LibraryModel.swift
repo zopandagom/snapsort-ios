@@ -155,7 +155,7 @@ public final class LibraryModel {
     guard self.isIndexingStopped else { return }
     // 다시 시작하기 전에 또 눌러 신호가 남으면, 다음에 멈췄을 때 누르지 않아도 다시 시작하므로 바로 푼다.
     self.isIndexingStopped = false
-    // 다시 시작할 때까지 비는 사이에 "분류된 이미지가 없습니다"가 보이지 않게 바로 켠다.
+    // 다시 시작할 때까지 비는 사이에 "아직 나눌 사진이 없어요"가 보이지 않게 바로 켠다.
     self.isIndexing = true
     self.indexingRetries?.yield()
   }

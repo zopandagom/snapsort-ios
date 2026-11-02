@@ -105,7 +105,7 @@ public struct CaptureInboxView: View {
       }
       if assets.isEmpty {
         Section {
-          StatusMessageView("최근 30일 동안 정리할 스크린샷이 없습니다", systemImage: "checkmark.circle")
+          StatusMessageView(empty: "최근 30일 동안 정리할 스크린샷이 없어요")
             .listRowBackground(Color.clear)
         }
       } else {

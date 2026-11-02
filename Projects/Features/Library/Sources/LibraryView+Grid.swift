@@ -81,11 +81,11 @@ extension LibraryView {
     }
   }
 
+  /// 분류된 카테고리가 없을 때의 카드. 분류 중이면 이미지 수와 분류 중임을, 아니면 사진이 들어오면 나눠 둔다고 알린다.
   private var emptyCard: some View {
-    ContentUnavailableView(
-      "이미지 \(self.model.imageCount)장",
-      systemImage: "photo.stack",
-      description: Text(self.emptyDescription)
+    StatusMessageView(
+      empty: self.model.isIndexing ? "이미지 \(self.model.imageCount)장" : "아직 나눌 사진이 없어요",
+      description: self.emptyDescription
     )
     .frame(maxWidth: .infinity)
     .snapCard()
@@ -93,9 +93,9 @@ extension LibraryView {
 
   private var emptyDescription: String {
     if self.model.isIndexing {
-      "이미지를 분류하는 중입니다."
+      "이미지를 분류하는 중이에요."
     } else {
-      "분류된 이미지가 없습니다."
+      "사진이 들어오면 알아서 나눠 둘게요."
     }
   }
 

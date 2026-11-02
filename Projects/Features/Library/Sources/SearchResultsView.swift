@@ -59,7 +59,9 @@ struct SearchResultsView: View {
       if results.isEmpty {
         SnapList {
           Section {
-            ContentUnavailableView.search(text: results.query)
+            // 검색어는 검색창에 그대로 보이므로 문구에 다시 넣지 않는다.
+            StatusMessageView(empty: "검색 결과가 없어요", description: "맞춤법을 확인하거나 다른 검색어로 찾아보세요.")
+              .listRowBackground(Color.clear)
           }
           self.notices
         }
