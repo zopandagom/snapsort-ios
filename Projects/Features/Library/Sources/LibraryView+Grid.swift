@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - 카테고리 카드 격자
 
 extension LibraryView {
-  /// 카테고리 카드 격자. 위에서부터 인덱싱 → 알림 안내 → 빈 상태 또는 정리 도우미 → 캡처 → 사진 → 기타.
+  /// 카테고리 카드 격자. 위에서부터 인덱싱 → 알림 안내 → 빈 상태 또는 정리 도우미 → 캡처 → 사진 → 기타 → 개인정보 처리방침 링크.
   /// 검색 중에는 `SearchResultsView` 가 대신 보인다.
   var homeGrid: some View {
     ScrollView {
@@ -26,6 +26,9 @@ extension LibraryView {
         self.categorySection("캡처", group: .information)
         self.categorySection("사진", group: .photo)
         self.categorySection("기타", group: .other)
+        // 앱 안 처리방침 링크(심사 가이드라인 5.1.1(i)). 온보딩은 권한을 허용하면 다시 볼 수 없어 여기에도 둔다.
+        PrivacyPolicyLink()
+          .frame(maxWidth: .infinity)
       }
       .padding(.horizontal, 16)
       .padding(.bottom, 16)

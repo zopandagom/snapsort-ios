@@ -55,7 +55,7 @@ struct SnapSortApp: App {
     widgetTimeline.reloadExpiryWidget()
     let indexing = photoStore.map { Self.makeIndexing(photoLibrary, imageAnalysis, $0) }
     let map = MapClientImpl()
-    // 여행 장소 이름 미리 받기. 분류 1단계를 마친 뒤(글자 읽기와 병렬) 저장된 여행 중심점의 반올림 좌표만 한 번에 하나씩 묻는다
+    // 여행 장소 이름 미리 받기. 분류 1단계를 마친 뒤(글자 읽기와 병렬) 저장된 여행 중심점의 반올림 좌표(와 로캘)만 한 번에 하나씩 묻는다
     // (docs/ARCHITECTURE.md §4 위치·지도 원칙 ①). 앱 실행 동안 하나를 보관함 화면과 BG 작업이 함께 써, 빈도 제한(간격·최소 간격·상한·쉼)이
     // 화면 진입과 BG 실행을 넘어 이어진다.
     let tripPlace = photoStore.map { TripPlaceClientImpl(map: map, photoStore: $0) }
