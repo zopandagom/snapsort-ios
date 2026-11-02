@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>간직함 개인정보 처리방침</title>
 <style>
-  :root { color-scheme: light dark; --accent: #c2577a; }
+  /* 링크색 대비 4.5:1 이상: 밝은 모드 #a8406a(흰 바탕 5.8:1), 어두운 모드 #e98aa8(#1c1c1e 바탕 7.0:1) */
+  :root { color-scheme: light dark; --accent: #a8406a; }
+  @media (prefers-color-scheme: dark) { :root { --accent: #e98aa8; } }
   body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; line-height: 1.7; max-width: 42rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
   h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
   h2 { font-size: 1.15rem; margin-top: 2.25rem; }
