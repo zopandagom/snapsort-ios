@@ -61,7 +61,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | App Store Connect 앱 생성, 앱 이름 선점 ("간직함" / 영어 "Ganjik") | 가능한 빨리 | ☐ |
 | 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
 | 가격 정책 결정: 무료(인앱 결제 없음), 2026-10-26 결정 | W5 전 | ☑ |
-| `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시) | W6 | ☐ |
+| `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시). 매니페스트·본문(`site/privacy/index.html`)·Pages 워크플로·앱 안 링크는 레포에 있다(ARCHITECTURE §2·§4 개인정보 처리방침). 레포 설정에서 Pages(Source: GitHub Actions)를 켜고 게시 URL 이 열리며 App Store Connect 에 처리방침 URL·개인정보 라벨("데이터를 수집하지 않음")을 넣은 뒤 ☑ | W6 | ☐ |
 | 사진 권한 문구(`NSPhotoLibraryUsageDescription`)를 전체 이미지 분류·정리(삭제) 용도로 수정 | 전체 이미지 조회 PR | ☑ |
 | 스토어 스크린샷·설명·키워드 (ASO) | W6 | ☐ |
 

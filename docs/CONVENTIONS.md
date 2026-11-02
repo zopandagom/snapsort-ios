@@ -50,11 +50,12 @@
 |---|---|---|
 | 모든 분석은 기기 안에서 | `URLSession` 등 네트워크 코드 추가 (필요하면 사전 합의 후 별도 모듈) | `no_network` |
 | Foundation Models 는 온디바이스 `SystemLanguageModel` 만 쓴다 | `PrivateCloudComputeLanguageModel` (프롬프트(OCR 텍스트)를 Apple 서버로 보낸다. 문자열로 이름을 쓰는 것도 막는다) | `no_private_cloud_compute` |
-| 장소 이름 변환·지도 표시는 Apple 시스템 서비스(MapKit `MKReverseGeocodingRequest`·`Map`)로, 위치 좌표만 넘긴다. 앱이 닫혀 있거나 뒤에 있을 때의 BG 작업(처리·계속 처리)도 보내는 것은 미리 받기의 여행 반올림 중심점뿐이다(ARCHITECTURE §4 위치·지도 원칙 ①). OCR 로 읽은 주소는 사용자가 누를 때만 지도 앱으로 넘긴다 | 사진·OCR 텍스트를 사용자 동작 없이 자동으로 외부로 보내기, 서드파티 지도·지오코딩 SDK, deprecated `CLGeocoder` | |
+| 장소 이름 변환·지도 표시는 Apple 시스템 서비스(MapKit `MKReverseGeocodingRequest`·`Map`)로, 위치 좌표(지오코딩은 장소 이름 언어인 로캘도)만 넘긴다. 앱이 닫혀 있거나 뒤에 있을 때의 BG 작업(처리·계속 처리)도 보내는 것은 미리 받기의 여행 반올림 중심점(과 로캘)뿐이다(ARCHITECTURE §4 위치·지도 원칙 ①). OCR 로 읽은 주소는 사용자가 누를 때만 지도 앱으로 넘긴다 | 사진·OCR 텍스트를 사용자 동작 없이 자동으로 외부로 보내기, 서드파티 지도·지오코딩 SDK, deprecated `CLGeocoder` | |
 | OCR 로 읽은 주소는 문자열 그대로 지도 앱에 넘긴다(Map Client `openInMaps(address:)`, 앱이 주소를 지오코딩하지 않는다). 송장·계좌번호는 이 기기에서만 붙여 넣게 복사한다(Pasteboard Client, `localOnly`, 만료 시간 없음) | 주소를 앱이 지오코딩하거나 지도 SDK 로 넘기기, 복사한 번호를 Universal Clipboard 로 다른 기기에 넘기기 | 리뷰 |
 | Debug 빌드 전용 개발 도구(기록 도구 `SampleRecorderFeature`)의 결과 파일(OCR 텍스트 포함)은 사용자가 공유 시트로 직접 옮긴다. AirDrop 이나 '파일에 저장'의 '나의 iPhone' 위치로만. 기록 도구는 Release 에 넣지 않는다(ARCHITECTURE §2). 공유 시트에서 공개 상수가 있는 시스템 대상(메일·메시지·복사 등)과 Apple 앱 공유 확장(메모·미리 알림·Freeform. 비공개 식별자라 빠지지 않을 수 있다)은 코드로 뺀다(`ShareExclusions`). 그 밖의 대상(서드파티 앱)과 '파일에 저장'의 iCloud Drive 위치는 막지 못해 화면 안내로 둔다. 샘플 보기로 본 사진은 화면에만 보이고 파일·공유를 만들지 않는다 | 기록 파일을 메시지·메일·iCloud Drive 등 클라우드로 보내기, 기록 도구를 Release 에 포함, 가리지 않은 기록 파일 커밋 | 리뷰, `.gitignore`, 공유 시트 제외 목록 |
 | 위젯(홈·잠금 화면)에는 개수·D-day·상태 문구만 (잠금 화면에 보인다). 계속 처리 작업의 시스템 진행 화면(잠금 화면·다이내믹 아일랜드)도 개수와 고정 문구만(ARCHITECTURE §4 인덱싱) | 위젯·시스템 진행 화면에 교환처·OCR 텍스트·썸네일·사진 식별자·카테고리·장소 이름 넣기, 위젯 코드에서 로그 남기기 | 리뷰 |
 | 로그에는 개수·소요 시간·카테고리 같은 메타데이터만 (예: BG 작업의 Debug 수치 로그는 `#if DEBUG` 안에서 정수·고정 문자열만 남기고 정수·고정 문자열(코드에 쓴 상수)에만 `privacy: .public` 을 단다, ARCHITECTURE §4 인덱싱) | OCR 텍스트, 검색어(검색 필드 글자)와 검색 결과, 기프티콘 번호, 바코드 내용, 주소, 영수증 가게 이름·금액, 쇼핑몰·브랜드·대화 앱·지역, 사진 식별자, 위치 좌표, 장소 이름, 특징 벡터를 `print`/`Logger` 로 출력 | |
+| 기기 밖으로 가는 것(대상·값·시점), 저장 위치·백업, 권한 요청 시점, Required Reason API 사용을 바꾸면 개인정보 처리방침(`site/privacy/index.html`, 시행일 포함)과 `PrivacyInfo.xcprivacy` 를 같은 PR 에서 고친다(ARCHITECTURE §2 빌드 설정·§4 개인정보 처리방침) | 처리방침·매니페스트가 실제 동작보다 적게 적힌 채로 머지 | 리뷰 |
 | `Logger` 는 `privacy: .private` 기본 | 서드파티 분석/크래시 SDK 를 합의 없이 추가 | |
 | 권한은 필요한 시점에 요청하고 제한 접근(`.limited`)도 정상 흐름으로 처리 | 앱 시작 즉시 권한 팝업 | |
 
@@ -77,7 +78,7 @@
 리뷰어(로컬 `/arch-review`, CI Claude 리뷰, 사용자가 요청한 그 밖의 리뷰)는 무엇을 어떤 심각도로 지적할지 이 절로 정한다. `/arch-review` 의 점검 항목(어디를 볼지)은 그 스킬의 "2. 점검 항목 (우선순위 순)"에 있다. 스킬과 CI 리뷰 프롬프트(`.github/workflows/claude-review.yml`)에 이 절과 다르게 적힌 곳이 있으면 이 절이 우선하고, 그 줄은 §6 에 따라 참조로 바꾼다.
 
 - 범위: 이번 변경분(PR 이면 `origin/main...HEAD`, 커밋 전이면 커밋되지 않은 변경 포함)과 그 변경이 영향을 주는 곳. 변경분 밖에 원래 있던 문제는 지적 표에 넣지 않고 `범위 밖` 으로 따로 보고한다. 작업 범위(In/Out, §6)는 PR 이면 본문 "범위" 절, 로컬 `/arch-review` 면 부르는 쪽이 넘긴 인자이고, 없으면 Out 이 없다. Out 에 든 기능·흐름·보호가 없다는 지적도 `범위 밖` 으로 보고한다. 변경분이 만든 동작이 틀린 것은 Out 에 든 흐름이어도 범위 안이다 (드문 경우면 🟡).
-- 문서 범위: `docs/`, `README.md`, `CLAUDE.md`, `.claude/skills`, `.claude/hooks`·`.githooks`·`.github/scripts` 의 주석, `.github` 의 PR 템플릿과 워크플로(프롬프트·주석), `.swiftlint.yml` custom_rules 의 `message`, `Makefile` 주석, 코드의 문서 주석.
+- 문서 범위: `docs/`, `README.md`, `CLAUDE.md`, `.claude/skills`, `.claude/hooks`·`.githooks`·`.github/scripts` 의 주석, `.github` 의 PR 템플릿과 워크플로(프롬프트·주석), `.swiftlint.yml` custom_rules 의 `message`, `Makefile` 주석, 코드의 문서 주석, 게시 페이지 `site/`(개인정보 처리방침 본문).
 - 이번 변경과 관련된 문서 줄: 바뀐 줄, 그리고 바뀐 동작·규칙을 설명하는 줄. 바뀐 식별자와 바뀐 규칙의 핵심 문구로 문서 범위를 검색해 찾는다.
 - 문서 불일치: 같은 동작이나 규칙을 서로 다르게 설명하는 것. 사실(값·이름·동작·명령·절차)이 다르면 사실 불일치, 같은 사실을 다른 말로 쓴 것은 표현 차이다. 규칙을 다시 적지 않고 절을 가리키기만 하는 줄은 불일치가 아니다.
 - 드문 경우: 발생 조건이 정상 흐름에서 생기지 않는 것. 정상 흐름은 앱이면 사용자가 보통 하는 조작과 사용자 조작이나 기기·계정 상태만으로 생기는 실패(권한 거부·제한 접근, 빈 결과, 저장 공간 부족, iCloud 에만 있는 원본), 문서·하네스면 문서·스킬이 정한 절차와 장치가 막으려는 실수(위협 모델)다. 드문 타이밍, 그 실수가 장치를 거치지 않는 드문 경로(예: main 에서 `git cherry-pick`·`git revert` 로 만든 커밋)로 오는 것, 의도적 우회, 가상의 입력, 정해진 설정(`make bootstrap` 등)을 건너뛴 환경이 드문 경우다.
@@ -138,7 +139,7 @@
 | `test` | 기존 코드에 테스트만 추가 | `Projects/**/Tests` | `make test` |
 | `style` | 포맷·lint 설정과 그에 따른 일괄 포맷 | `.swiftformat`, `.swiftlint.yml` | `make lint` |
 | `ci` | GitHub Actions, PR 템플릿, dependabot | `.github/**` | YAML 문법, 참조하는 make 타깃·경로 존재 |
-| `docs` | 문서 | `docs/**`, `README.md` | 링크·코드·경로가 실제와 일치 |
+| `docs` | 문서, 게시 페이지(개인정보 처리방침) | `docs/**`, `README.md`, `site/**` | 링크·코드·경로가 실제와 일치 |
 | `chore` | 하네스(Claude Code, git 훅), 개발 스크립트 | `CLAUDE.md`, `.claude/**`, `.githooks/**`, `scripts/**` | `.claude/hooks` 는 입력 JSON 으로 직접 실행해 확인, `.githooks` 는 `make test-hooks`, `scripts/` 는 `make test-scripts` |
 
 검증 항목 중 `make lint`·`make test`·`make test-hooks`·`make test-scripts`·YAML·JSON 검사는 커밋마다 돌리지 않는다. `/micro-commit` 은 커밋만 하고, `/pr` 이 push 직전에 브랜치 마지막 커밋에서 한 번 돌린다 (`make test` 가 `make project` 를 포함한다). 커밋 뒤에 amend·rebase 를 해도 실제로 올릴 상태를 검사하기 위해서다. 이미 열린 PR 에 후속 커밋을 올릴 때도 `/pr` 로 push 한다 (원격 커밋을 덮어쓰는 push 는 §5 "덮어쓰기 push" 행대로 사용자가 직접 하고, 그 head 는 다음 `/pr` 이 검사한다). CI 는 `.claude/**` 만 바뀐 변경에서 lint·test 를 건너뛰고 settings.json 을 검사하지 않기 때문이다. 링크·경로 일치, Claude Code 훅(`.claude/hooks`) 직접 실행처럼 자동화되지 않은 확인은 구현할 때 한다.
