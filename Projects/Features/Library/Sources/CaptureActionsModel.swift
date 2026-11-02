@@ -8,8 +8,8 @@ import PhotoStoreInterface
 
 /// 사진 상세의 캡처 행동 (docs/ARCHITECTURE.md §4 카테고리 화면·캡처 정보 추출).
 /// 저장된 OCR 줄에서 찾은 주소(지도 앱 열기)·송장·계좌번호(복사)와, 기프티콘 목록·정리 화면에서 연 상세의 기프티콘 정보·사용함 전환·바코드 크게 보기를 맡는다.
-/// 상세는 한 번에 하나만 열리므로 App 이 하나를 소유하고, 열 때마다 `detailAppeared(id:gifticon:)` 로 다시 쓴다.
-/// 바코드는 상세에 띄운 이미지(`CategoryModel.detail`)로 찾으므로, 이미지를 읽으면 PhotoDetailView 가 `detailImageLoaded(_:id:)` 로 넘긴다.
+/// 상세는 한 번에 하나만 열리므로 App 이 하나를 소유하고, 상세를 열거나 장을 넘길 때마다 지금 장으로 `detailAppeared(id:gifticon:)` 를 다시 부른다.
+/// 바코드는 지금 장에 띄운 이미지(`CategoryModel.detailImages`)로 찾으므로, 이미지를 읽으면 PhotoDetailView 가 `detailImageLoaded(_:id:)` 로 넘긴다.
 /// 사용 여부를 쓰면 `usageRevision` 이 오르고 LibraryView 가 알림 동기화·목록 다시 읽기로 넘긴다(Model 끼리 참조하지 않는다).
 /// 주소·번호·바코드 내용은 사진에서 읽은 텍스트이므로 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 @MainActor
@@ -17,10 +17,11 @@ import PhotoStoreInterface
 public final class CaptureActionsModel {
   /// 열린 상세의 식별자. 닫히면 nil.
   public private(set) var detailID: ImageAsset.ID?
-  /// 열린 상세의 요청 번호. 상세를 열 때마다 바뀌고 닫히면 nil 이다. 같은 사진을 닫았다 바로 다시 열어도 바뀌므로,
+  /// 열린 상세의 요청 번호. 상세를 열거나 장을 넘길 때마다 바뀌고 닫히면 nil 이다. 같은 사진을 닫았다 바로 다시 열어도(같은 장으로 돌아와도) 바뀌므로,
   /// View 가 바코드 인식 `.task(id:)` 의 키로 써서 새 상세에서 다시 돈다. 닫힌 뒤 끝난 작업이 상태를 바꾸지 않게 하는 데도 쓴다.
   public private(set) var detailRequest: Int?
-  /// 기프티콘 목록·정리 화면에서 연 상세만 값이 있다. 다시 읽어 기프티콘이 아니게 되면 nil.
+  /// 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장만 값이 있다. 장을 열 때마다 저장소에서 한 번 다시 읽어 경로의 옛 값을 고친다.
+  /// 다시 읽어 기프티콘이 아니게 되면 nil.
   public private(set) var gifticon: GifticonListItem?
   /// 상세의 D-n·만료일 표시 기준. 기기 시간대의 오늘. `detailAppeared`·`dayChanged()` 때 다시 계산한다.
   public private(set) var today: LocalDate
@@ -37,7 +38,7 @@ public final class CaptureActionsModel {
   /// 마지막으로 복사한 값. 화면이 "복사했습니다"를 잠깐 보인다.
   public private(set) var copied: CopiedNotice?
 
-  /// 상세를 열 때마다 하나씩 올린다. 닫은 뒤 바로 다른(또는 같은) 사진을 열어도 지난 Task 가 지금 상세를 바꾸지 않게 한다.
+  /// 상세를 열거나 장을 넘길 때마다 하나씩 올린다. 닫은 뒤 바로 다른(또는 같은) 사진을 열거나 다른 장으로 넘겨도 지난 Task 가 지금 상세를 바꾸지 않게 한다.
   @ObservationIgnored private var detailRequestCount = 0
   /// 기프티콘을 다시 읽으라는 신호. 상세가 열려 있는 동안만 있다.
   @ObservationIgnored private var reloadRequests: AsyncStream<Void>.Continuation?
@@ -80,9 +81,11 @@ public final class CaptureActionsModel {
 
   // MARK: - Events
 
-  /// 상세가 열렸다. 저장된 OCR 줄에서 주소·번호를 찾고, 닫힐 때까지(View 의 `.task` 수명) 기프티콘 다시 읽기 신호를 기다린다.
-  /// 닫히면 자기 요청일 때만 모든 상태를 지운다(바코드 이미지도 놓는다).
-  /// - Parameter gifticon: 기프티콘 목록·정리 화면에서 열었으면 그 항목. 이때만 기프티콘 정보·사용함 버튼·바코드를 보인다.
+  /// 상세가 열렸거나 지금 장이 바뀌었다. 저장된 OCR 줄에서 주소·번호를 찾고, 닫히거나 다른 장으로 넘길 때까지(View 의 `.task(id:)` 수명)
+  /// 기프티콘 다시 읽기 신호를 기다린다. 기프티콘 장은 처음에 한 번 다시 읽는다: 경로의 항목은 연 때 값이라, 이 상세에서 사용 여부를 바꾼 장으로
+  /// 돌아오거나 닫았다 바로 다시 열면 옛 값이다. 다시 읽기에 실패하면 경로 값을 둔다.
+  /// 닫히면 자기 요청일 때만 모든 상태를 지운다(바코드 이미지도 놓는다). 새 장이 먼저 시작했으면 지난 장의 정리는 아무것도 하지 않는다.
+  /// - Parameter gifticon: 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장이면 그 항목. 이때만 기프티콘 정보·사용함 버튼·바코드를 보인다.
   public func detailAppeared(id: ImageAsset.ID, gifticon: GifticonListItem?) async {
     self.detailRequestCount += 1
     let request = self.detailRequestCount
@@ -97,10 +100,14 @@ public final class CaptureActionsModel {
     self.refreshDay()
     let (requests, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
     self.reloadRequests = continuation
+    if gifticon != nil {
+      // 첫 다시 읽기. 주소·번호를 찾은 뒤 아래 반복이 받는다.
+      continuation.yield()
+    }
 
     if let photoStore = self.photoStore {
       await self.loadCaptureInfo(id: id, photoStore: photoStore, request: request)
-      // 기프티콘 목록·정리 화면에서 연 상세만 기프티콘을 다시 읽는다. 그 밖의 상세는 신호를 기다리기만 한다.
+      // 기프티콘 장만 기프티콘을 다시 읽는다. 그 밖의 장은 신호를 기다리기만 한다.
       for await _ in requests where gifticon != nil {
         guard self.isCurrent(request) else { break }
         await self.reloadGifticon(id: id, photoStore: photoStore, request: request)
@@ -114,7 +121,7 @@ public final class CaptureActionsModel {
   }
 
   /// 상세 이미지를 읽었다. 기프티콘 상세이고 바코드를 아직 찾지 않았으면 그 이미지로 찾는다.
-  /// View 가 `.task(id:)` 에서 부르므로 상세를 닫으면 인식이 취소되고, 다시 열면 다시 찾는다.
+  /// View 가 `.task(id:)` 에서 부르므로 상세를 닫거나 다른 장으로 넘기면 인식이 취소되고, 다시 열거나 돌아오면 다시 찾는다.
   public func detailImageLoaded(_ image: AnalysisImage, id: ImageAsset.ID) async {
     guard let request = self.detailRequest, self.detailID == id, self.barcode == .waitingForImage else { return }
     self.barcode = .detecting
@@ -184,7 +191,7 @@ public final class CaptureActionsModel {
   }
 
   /// 주소를 지도 앱으로 넘긴다(사용자가 눌렀을 때만). 앱은 주소를 지오코딩하지 않는다.
-  /// 열지 못했다는 결과가 누른 상세가 닫힌 뒤(다른 사진이나 같은 사진을 다시 연 뒤 포함) 오면 버린다.
+  /// 열지 못했다는 결과가 누른 상세가 닫힌 뒤(다른 사진이나 같은 사진을 다시 연 뒤, 다른 장으로 넘긴 뒤 포함) 오면 버린다.
   public func addressTapped(_ address: CapturedText) async {
     let request = self.detailRequest
     let opened = await self.map.openInMaps(address: address.text)
@@ -194,7 +201,7 @@ public final class CaptureActionsModel {
   }
 
   /// 송장·계좌번호를 이 기기에서만 붙여 넣을 수 있게 복사한다. 복사는 늘 하고, 누른 상세가 닫힌 뒤
-  /// (다른 사진이나 같은 사진을 다시 연 뒤 포함) 끝나면 복사 안내는 띄우지 않는다.
+  /// (다른 사진이나 같은 사진을 다시 연 뒤, 다른 장으로 넘긴 뒤 포함) 끝나면 복사 안내는 띄우지 않는다.
   public func numberCopyTapped(_ number: CapturedText) async {
     let request = self.detailRequest
     await self.pasteboard.copy(number.text)

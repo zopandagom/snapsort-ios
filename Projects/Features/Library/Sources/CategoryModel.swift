@@ -13,9 +13,11 @@ import PhotoStoreInterface
 /// 보관함 검색 결과(`SearchResultsView`, `SearchModel`)도 썸네일 칸을 `thumbnailScreenAppeared(scope: .search)` 로 빌리고,
 /// 정리 화면·최근 스크린샷 화면(`CleanupView`·`CaptureInboxView`)은 `thumbnailScreenAppeared(scope: .cleanup)` 로 빌린다.
 /// 썸네일 칸은 `thumbnailScreenAppeared(category:)` 로 이 Model 의 보관 규칙을 그대로 쓴다.
-/// 상세는 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 상세·정리 화면 위에서만 열리므로 상세 이미지도 여기서 갖는다
-/// (최근 스크린샷 화면은 상세를 push 하지 않고 지금 장을 같은 읽기 `detailAppeared(id:)` 로 크게 보인다)
-/// (상세의 캡처 행동은 `CaptureActionsModel`).
+/// 상세는 카테고리 화면·기프티콘 목록·영수증 목록·여행 폴더 상세·검색 결과·정리 화면 위에서만 열리므로 상세 이미지도 여기서 갖는다.
+/// 상세는 누른 섹션의 장들을 넘겨 보므로 지금 장 ± 1 의 큰 이미지만 `detailImages` 에 들고(지금 장을 먼저 읽는다), 창 밖은 놓는다.
+/// 상세에서 돌아올 때 원래 화면이 마지막으로 본 사진을 보이게 하는 값(`detailReturn`)도 여기서 갖는다(6곳 모두 이 Model 을 받는다)
+/// (최근 스크린샷 화면은 상세를 push 하지 않고 지금 장을 같은 읽기의 한 장짜리 `detailAppeared(id:)` 로 크게 보인다)
+/// (상세의 캡처 행동은 `CaptureActionsModel`). 상세 페이저·돌아올 위치의 상태와 로직은 `CategoryDetailPager` 가 갖고, 이 Model 은 이벤트를 넘긴다.
 /// 저장소 변경 신호는 LibraryView 가 `LibraryModel.storeRevision` 변화를 `libraryStoreChanged()` 로 넘긴다(Model 끼리 참조하지 않는다).
 @MainActor
 @Observable
@@ -40,8 +42,19 @@ public final class CategoryModel {
   /// 최근 `retainedThumbnailLimit` 장까지 남았다가 오래된 것부터 빠진다. 다른 카테고리를 열면 모두 빠진다.
   /// 메모리는 살아 있는 칸 수 + `retainedThumbnailLimit` 장을 넘지 않는다.
   public private(set) var thumbnails: [ImageAsset.ID: ImageLoadState] = [:]
-  /// 열린 상세. 상세의 Task 가 끝나면(닫히면) nil 이 되어 가장 큰 버전 이미지를 놓는다.
-  public private(set) var detail: PhotoDetail?
+  /// 열린 상세의 큰 이미지(기기에 있는 가장 큰 버전). 키는 늘 지금 창(지금 장 ± 1) 안의 식별자이고, 상세가 닫히면 빈다.
+  /// 없는 키는 아직 안 읽었거나 읽는 중이다(화면은 불러오는 중). 볼 수 없음 장은 창 안에 있는 동안 다시 읽지 않고,
+  /// 다른 장으로 갔다 와 창 밖으로 나갔다 들어오거나 닫고 다시 열면 다시 읽는다.
+  public var detailImages: [ImageAsset.ID: ImageLoadState] {
+    self.detailPager.detailImages
+  }
+
+  /// 상세에서 돌아올 때 원래 화면이 보이게 할 사진. 연 곳이 있는 상세를 열면 누른 장, 넘기면 그 장으로 바뀌고,
+  /// 상세가 닫혀도 남는다. 원래 화면이 돌아와 한 번 스크롤한 뒤 `detailReturnApplied(visit:)` 로 비운다.
+  /// 연 곳이 없는 상세(최근 스크린샷 화면·Example 한 장)를 열면 nil 로 덮는다.
+  public var detailReturn: PhotoDetailReturn? {
+    self.detailPager.detailReturn
+  }
 
   /// `onAppear(category:)` 를 시작할 때마다 하나씩 올린다. 화면을 닫았다 바로 열거나 다른 카테고리를 열면
   /// 지난 Task 가 늦게 깨어날 수 있으므로, 내용은 지금 번호의 Task 만 바꾼다.
@@ -57,13 +70,13 @@ public final class CategoryModel {
   @ObservationIgnored private var retainedThumbnailIDs: [ImageAsset.ID] = []
   /// `content` 를 바꿀 때마다 오른다. 메인 밖에서 섹션을 비교하는 동안 내용이 바뀌었으면 그 비교 결과를 쓰지 않는다.
   @ObservationIgnored private var contentRevision = 0
-  /// 상세를 열 때마다 하나씩 올린다. 닫은 뒤 바로 다른(또는 같은) 사진을 열어도 지난 Task 가 지금 상세를 바꾸지 않게 한다.
-  @ObservationIgnored private var detailRequestCount = 0
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let photoStore: (any PhotoStoreClient)?
   @ObservationIgnored private let calendar: Calendar
   @ObservationIgnored private let sectioning: Sectioning
+  /// 상세 페이저와 돌아올 위치. 상세 이벤트를 넘긴다.
+  @ObservationIgnored private let detailPager: CategoryDetailPager
 
   /// 사라진 칸의 썸네일을 이만큼까지 남긴다. 상세를 열면 아래 격자의 칸 Task 가 모두 취소되므로, 돌아왔을 때 다시 읽지 않게
   /// 한 화면의 칸 수(약 48)보다 크게 둔다. 썸네일 한 장은 긴 변 512px 로 최대 약 1MB(4:3 사진은 약 0.8MB)라,
@@ -102,6 +115,7 @@ public final class CategoryModel {
     self.photoStore = photoStore
     self.calendar = calendar
     self.sectioning = sectioning
+    self.detailPager = CategoryDetailPager(photoLibrary: photoLibrary)
   }
 
   // MARK: - Events
@@ -197,20 +211,30 @@ public final class CategoryModel {
     self.releaseThumbnail(id: id, request: request)
   }
 
-  /// 상세를 기기에 있는 가장 큰 버전으로 읽고, 닫힐 때까지(Task 가 취소될 때까지) 기다렸다가 자기 요청일 때만 이미지를 놓는다.
-  public func detailAppeared(id: ImageAsset.ID) async {
-    self.detailRequestCount += 1
-    let request = self.detailRequestCount
-    self.detail = PhotoDetail(id: id, state: .loading)
-    guard let state = await self.loadState(id: id, size: .largestAvailable) else {
-      // 읽는 중에 닫혔다.
-      self.clearDetail(request: request)
-      return
-    }
-    guard request == self.detailRequestCount else { return }
-    self.detail = PhotoDetail(id: id, state: state)
+  /// 상세 수명. 누른 섹션의 스냅숏 식별자(`ids`)와 처음 위치, 연 곳을 받아 지금 장부터 기기에 있는 가장 큰 버전으로 읽고,
+  /// 지금 장이 끝나면(읽음·볼 수 없음) 앞뒤 장을 읽는다. 닫힐 때까지(Task 가 취소될 때까지) 기다렸다가 자기 수명일 때만
+  /// 읽기를 모두 취소하고 이미지를 놓는다. 시작할 때 지난 수명의 남은 읽기·이미지를 버리고, 돌아올 위치를 연 곳·누른 장으로 덮는다
+  /// (연 곳이 nil 이면 nil). 수명이 끝나도 돌아올 위치는 두어, 원래 화면이 수명 끝보다 먼저든 나중이든 같은 값을 읽게 한다.
+  public func detailAppeared(ids: [ImageAsset.ID], index: Int, origin: PhotoDetailOrigin?) async {
+    guard let session = self.detailPager.begin(ids: ids, index: index, origin: origin) else { return }
     await self.waitUntilCancelled()
-    self.clearDetail(request: request)
+    self.detailPager.end(session: session)
+  }
+
+  /// 지금 장이 바뀌었다(넘김·접근성 동작). 상세가 열려 있지 않거나, 위치가 범위 밖이거나, 그 위치의 식별자가 `id` 가 아니면
+  /// (다른 스냅숏의 상세가 보낸 늦은 이벤트) 무시한다. 받아들이면 창을 옮기고, 이 수명에 연 곳이 있으면 돌아올 위치를 이 장으로 바꾼다.
+  public func detailPageChanged(index: Int, id: ImageAsset.ID) {
+    self.detailPager.pageChanged(index: index, id: id)
+  }
+
+  /// 한 장 상세(최근 스크린샷 화면). 연 곳이 없는 한 장짜리 상세 수명과 같다.
+  public func detailAppeared(id: ImageAsset.ID) async {
+    await self.detailAppeared(ids: [id], index: 0, origin: nil)
+  }
+
+  /// 원래 화면이 돌아올 위치를 썼다. 그 방문의 값일 때만 비운다.
+  public func detailReturnApplied(visit: UUID) {
+    self.detailPager.returnApplied(visit: visit)
   }
 
   // MARK: - Private
@@ -283,11 +307,6 @@ public final class CategoryModel {
       let oldest = self.retainedThumbnailIDs.removeFirst()
       self.thumbnails[oldest] = nil
     }
-  }
-
-  private func clearDetail(request: Int) {
-    guard request == self.detailRequestCount else { return }
-    self.detail = nil
   }
 
   private func isCurrent(_ generation: Int) -> Bool {

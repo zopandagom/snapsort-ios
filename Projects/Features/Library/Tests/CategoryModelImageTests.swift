@@ -6,7 +6,8 @@ import PhotoStoreTesting
 import Testing
 @testable import LibraryFeature
 
-/// 썸네일과 상세. appeared 이벤트는 칸·상세가 보이는 동안(Task 가 취소될 때까지) 돌아오지 않으므로,
+/// 썸네일과 한 장 상세(최근 스크린샷 화면, `detailAppeared(id:)`). 여러 장 상세는 `CategoryModelDetailPagerTests`. appeared 이벤트는 칸·상세가 보이는
+/// 동안(Task 가 취소될 때까지) 돌아오지 않으므로,
 /// Task 로 부르고 상태를 확인한 뒤 취소하고 끝나기를 기다린다.
 @MainActor
 struct CategoryModelImageTests {
@@ -180,7 +181,7 @@ struct CategoryModelImageTests {
     await cancelAndWait(people)
   }
 
-  @Test("상세는 기기에 있는 가장 큰 버전으로 읽고, 읽는 동안 불러오는 중이다")
+  @Test("한 장 상세는 기기에 있는 가장 큰 버전으로 읽고, 읽는 동안은 상태가 없다(불러오는 중)")
   func detailLoadsLargestAvailable() async {
     let gates = CallGates(holding: [0])
     let photoLibrary = PhotoLibraryClientFake(
@@ -191,19 +192,18 @@ struct CategoryModelImageTests {
 
     let detail = Task { await model.detailAppeared(id: "a") }
     await waitUntil { gates.hasEntered(0) }
-    #expect(model.detail?.id == "a")
-    #expect(model.detail?.state.isLoading == true)
+    #expect(model.detailImages["a"] == nil)
 
     gates.open(0)
-    await waitUntil { model.detail?.state.image != nil }
-    #expect(model.detail?.id == "a")
+    await waitUntil { model.detailImages["a"]?.image != nil }
+    #expect(Array(model.detailImages.keys) == ["a"])
     #expect(photoLibrary.loadImageRequests == [LoadImageRequest(id: "a", size: .largestAvailable)])
 
     await cancelAndWait(detail)
   }
 
   @Test(
-    "상세를 읽지 못하면 이유별 상태다",
+    "한 장 상세를 읽지 못하면 이유별 상태다",
     arguments: [
       (ImageLoadError?.some(.notAvailableLocally), ImageUnavailableReason.inCloudOnly),
       (nil, .notFound),
@@ -215,21 +215,20 @@ struct CategoryModelImageTests {
     let model = CategoryModel(photoLibrary: photoLibrary, photoStore: nil)
 
     let detail = Task { await model.detailAppeared(id: "a") }
-    await waitUntil { model.detail?.state.unavailableReason == reason }
-    #expect(model.detail?.id == "a")
+    await waitUntil { model.detailImages["a"]?.unavailableReason == reason }
 
     await cancelAndWait(detail)
   }
 
-  @Test("상세가 닫혀 Task 가 취소되면 이미지를 놓고, 읽는 중이면 늦은 결과를 버린다")
+  @Test("한 장 상세가 닫혀 Task 가 취소되면 이미지를 놓고, 읽는 중이면 늦은 결과를 버린다")
   func detailCancelReleasesImage() async {
     // 읽은 뒤에 닫는다.
     let photoLibrary = PhotoLibraryClientFake(loadImageResults: ["a": .success(.stub())])
     let model = CategoryModel(photoLibrary: photoLibrary, photoStore: nil)
     let loaded = Task { await model.detailAppeared(id: "a") }
-    await waitUntil { model.detail?.state.image != nil }
+    await waitUntil { model.detailImages["a"]?.image != nil }
     await cancelAndWait(loaded)
-    #expect(model.detail == nil)
+    #expect(model.detailImages.isEmpty)
 
     // 읽는 중에 닫는다. 취소돼도 읽기가 열 때까지 기다리다 늦게 끝난다.
     let gates = CallGates(holding: [0], ignoresCancellation: true)
@@ -241,13 +240,13 @@ struct CategoryModelImageTests {
     let slowModel = CategoryModel(photoLibrary: slowLibrary, photoStore: nil)
     let loading = Task { await slowModel.detailAppeared(id: "a") }
     await waitUntil { gates.hasEntered(0) }
-    loading.cancel()
+    await cancelAndWait(loading)
     gates.open(0)
-    await loading.value
-    #expect(slowModel.detail == nil)
+    await settle()
+    #expect(slowModel.detailImages.isEmpty)
   }
 
-  @Test("다른 사진 상세를 열면 지난 읽기 결과로 덮지 않는다")
+  @Test("지난 상세가 닫히기 전에 다른 사진 상세를 열면 지난 읽기 결과로 덮지 않고, 지난 상세의 정리도 지금 상세를 지우지 않는다")
   func detailOfOtherPhotoIgnoresLateResult() async {
     let gates = CallGates(holding: [0])
     let counter = CallCounter()
@@ -259,32 +258,33 @@ struct CategoryModelImageTests {
     let first = Task { await model.detailAppeared(id: "a") }
     await waitUntil { gates.hasEntered(0) }
     let second = Task { await model.detailAppeared(id: "b") }
-    await waitUntil { model.detail?.id == "b" && model.detail?.state.image != nil }
+    await waitUntil { model.detailImages["b"]?.image != nil }
 
-    // 지난 읽기가 성공으로 늦게 끝나도 지금 상세를 덮지 않고 돌아온다.
     gates.open(0)
-    await first.value
-    #expect(model.detail?.id == "b")
-    #expect(model.detail?.state.image != nil)
+    await cancelAndWait(first)
+    await settle()
+    #expect(Array(model.detailImages.keys) == ["b"])
+    #expect(model.detailImages["b"]?.image != nil)
 
     await cancelAndWait(second)
+    #expect(model.detailImages.isEmpty)
   }
 
-  @Test("지난 상세 Task 가 늦게 취소돼도 지금 상세를 지우지 않는다")
+  @Test("같은 사진 상세를 다시 열면 다시 읽고, 지난 상세 Task 가 늦게 취소돼도 지금 상세를 지우지 않는다")
   func staleDetailCancelKeepsCurrent() async {
     let photoLibrary = PhotoLibraryClientFake(loadImageResults: ["a": .success(.stub())])
     let model = CategoryModel(photoLibrary: photoLibrary, photoStore: nil)
     let first = Task { await model.detailAppeared(id: "a") }
-    await waitUntil { model.detail?.state.image != nil }
+    await waitUntil { model.detailImages["a"]?.image != nil }
     let second = Task { await model.detailAppeared(id: "a") }
-    // 두 번째가 불러오는 중으로 바꾼 뒤 요청하므로, 요청이 둘이고 이미지가 있으면 두 번째가 읽은 것이다.
-    await waitUntil { photoLibrary.loadImageRequests.count == 2 && model.detail?.state.image != nil }
+    // 두 번째가 지난 이미지를 놓은 뒤 요청하므로, 요청이 둘이고 이미지가 있으면 두 번째가 읽은 것이다.
+    await waitUntil { photoLibrary.loadImageRequests.count == 2 && model.detailImages["a"]?.image != nil }
 
     await cancelAndWait(first)
-    #expect(model.detail?.state.image != nil)
+    #expect(model.detailImages["a"]?.image != nil)
 
     await cancelAndWait(second)
-    #expect(model.detail == nil)
+    #expect(model.detailImages.isEmpty)
   }
 }
 
