@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 알약형 버튼. 채운 버튼(`.snapPrimary`)은 강조색 바탕에 `onAccent` 글자, 보조 버튼(`.snapSecondary`)은 블러시 바탕에 강조색 글자다.
 /// 시스템 `.borderedProminent` 는 다크에서 밝은 로즈 위에 흰 글자(대비 2.47)를, `.bordered` 는 라이트에서 옅은 바탕 위 강조색(약 4.4)을 그려 대신 쓴다.
+/// 누르면 `SnapPress` 반응(작아졌다 스프링으로 돌아옴, 동작 줄이기면 흐려짐)을 보인다.
 /// `role: .destructive` 는 경고색(`SnapColor.danger`)으로 그린다. 크기는 `controlSize` 를 따르고, 글자 크기는 바깥 `.font` 를 따른다(`.large` 만
 /// headline).
 public struct SnapButtonStyle: ButtonStyle {
@@ -40,7 +41,7 @@ private struct PillButton: View {
       .foregroundStyle(self.foreground)
       .background(self.fill, in: .capsule)
       .contentShape(.capsule)
-      .opacity(self.configuration.isPressed ? 0.75 : 1)
+      .snapPressEffect(isPressed: self.configuration.isPressed)
   }
 
   @ViewBuilder
