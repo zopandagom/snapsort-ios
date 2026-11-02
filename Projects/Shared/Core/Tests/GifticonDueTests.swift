@@ -20,4 +20,16 @@ struct GifticonDueTests {
   func countsDays(today: Int, expiry: Int, expected: GifticonDue) {
     #expect(GifticonDue(expiryDate: gifticonDay(expiry), today: gifticonDay(today)) == expected)
   }
+
+  @Test("D-day 부터 D-3 까지만 임박이고 D-4 와 만료됨은 아니다")
+  func imminentWithinThreeDays() {
+    #expect(GifticonDue.imminentDays == 3)
+    for days in 0 ... 3 {
+      #expect(GifticonDue.remaining(days: days).isImminent)
+    }
+    #expect(!GifticonDue.remaining(days: 4).isImminent)
+    #expect(!GifticonDue.remaining(days: 30).isImminent)
+    #expect(!GifticonDue.expired(daysAgo: 1).isImminent)
+    #expect(!GifticonDue.expired(daysAgo: 10).isImminent)
+  }
 }
