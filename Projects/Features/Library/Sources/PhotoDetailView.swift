@@ -6,11 +6,11 @@ import SwiftUI
 /// 넘기기 순서는 연 때의 섹션 스냅숏(`PhotoDetailRoute.pages`)이고 섹션 끝에서 멈춘다. 장마다 핀치·더블탭으로 확대하고(`ZoomableImageView`),
 /// 넘기면 확대는 1배로 돌아간다. 원본은 `CategoryModel` 이 지금 장 ± 1 만 들고(`detailImages`), 지금 장을 먼저 읽는다.
 /// iCloud 원본은 내려받지 않는다. 작은 대체 버전이면 안내를 붙이고, 기기 버전이 없으면 그 장에 볼 수 없다고 보인다.
-/// 아래에 지금 장의 캡처 행동(`CaptureActionsPanel`: 주소 지도 앱 열기·번호 복사, 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장이면
+/// 아래에 지금 장의 캡처 행동(`CaptureActionsPanel`: 주소 지도 앱 열기·번호 복사, 기프티콘 목록·정리 화면의 기프티콘 후보·보관함 곧 만료 띠에서 연 장이면
 /// 기프티콘 정보·사용함·바코드)을 붙인다. 지금 장의 이미지는 바코드 인식에 쓰도록 `captureModel` 로 넘긴다.
 /// 지금 장(`committedIndex`)은 스크롤이 멈췄을 때 정한다: 반쯤 끌다 되돌리면 창·패널·제목이 바뀌지 않는다.
 /// 지금 장이 바뀌면 `CategoryModel.detailPageChanged` 로 창과 돌아올 위치를 옮긴다.
-/// 연 곳의 칸·줄 썸네일에서 커지며 열리고 그 썸네일로 줄어들며 닫히는 시스템 줌 전환이라(`photoZoomDestination`), 아래로 끌어 닫기도 시스템이 한다.
+/// 연 곳의 칸·줄·칩 썸네일에서 커지며 열리고 그 썸네일로 줄어들며 닫히는 시스템 줌 전환이라(`photoZoomDestination`), 아래로 끌어 닫기도 시스템이 한다.
 /// 닫히면(`.task` 취소) 두 Model 이 이미지와 캡처 행동 상태를 놓는다.
 public struct PhotoDetailView: View {
   let model: CategoryModel
@@ -33,7 +33,7 @@ public struct PhotoDetailView: View {
   }
 
   /// 한 장 상세.
-  /// - Parameter gifticon: 기프티콘 목록·정리 화면에서 열 때의 그 항목. nil 이면 주소·번호 행동만 보인다.
+  /// - Parameter gifticon: 기프티콘 목록·정리 화면·보관함 곧 만료 띠에서 열 때의 그 항목. nil 이면 주소·번호 행동만 보인다.
   public init(
     model: CategoryModel,
     captureModel: CaptureActionsModel,

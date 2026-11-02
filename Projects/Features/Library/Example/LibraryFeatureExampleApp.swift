@@ -43,6 +43,8 @@ import TripPlaceTesting
 /// 기프티콘 목록에서 줄 오른쪽 버튼을 누르거나 줄을 왼쪽으로 밀어 "사용함"·"미사용으로"를 누르면 도장 → 색 빠짐 → 줄 빠짐 → 탭 숫자 굴림을 본다. D-3 이내 미사용 배지는 숨 쉰다
 /// (`PreviewGifticons.demos` 의 D-0·D-1·D-2·D-5·만료됨). `-scenario gifticonUsageFailing` 은 쓰기 실패 알림, `-scenario
 /// gifticonUsageSlow` 는 1.5초 걸리는 쓰기다.
+/// 보관함 맨 위 "곧 만료" 띠는 `PreviewGifticons.demos` 중 오늘~7일 안에 만료되는 미사용 기프티콘을 보인다(D-3 이내 배지는 숨 쉰다).
+/// 칩을 누르면 띠의 칩만 넘기는 상세가 열리고, 상세에서 "사용함"을 누르고 돌아오면 그 칩이 빠진다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
@@ -52,7 +54,6 @@ struct LibraryFeatureExampleApp: App {
     ? PhotoStoreClientFake()
     : PhotoStoreClientFake.previewClassified(
       includesGifticons: Self.scenario != .gifticonEmpty,
-      gifticonsErrors: Self.scenario == .gifticonFailing ? [0: .failed] : [:],
       includesTrips: Self.scenario != .tripEmpty,
       tripsErrors: Self.scenario == .tripStoreFailing ? [0: .failed] : [:],
       receiptsErrors: Self.scenario == .receiptFailing ? [0: .failed] : [:],
@@ -126,7 +127,14 @@ struct LibraryFeatureExampleApp: App {
   }
   @State private var coverModel = LibraryCoverModel(photoLibrary: Self.photoLibrary)
   @State private var categoryModel = CategoryModel(photoLibrary: Self.photoLibrary, photoStore: Self.photoStore)
-  @State private var gifticonListModel = GifticonListModel(photoStore: Self.photoStore)
+  @State private var gifticonListModel = GifticonListModel(photoStore: Self.gifticonListStore)
+  /// `gifticonFailing` 이면 기프티콘 목록만 따로 만든 대역(같은 데모 데이터)을 써서 목록의 첫 `gifticons()` 만 실패시킨다.
+  /// 공용 대역에 실패를 넣으면 보관함 홈 곧 만료 띠의 읽기가 먼저 그 호출 번호를 먹어 목록 실패를 재현할 수 없고,
+  /// 인덱서 대역이 진행률을 보내 띠가 몇 번 읽을지도 정해지지 않는다. 한계: 이 시나리오에서는 목록과 홈·상세가 다른 대역이라,
+  /// 목록 줄 버튼으로 바꾼 사용 여부가 홈 띠·상세에 반영되지 않고 상세 버튼으로 바꾼 값도 목록에 반영되지 않는다(실패 화면 확인용이라 다루지 않는다).
+  private static let gifticonListStore = Self.scenario == .gifticonFailing
+    ? PhotoStoreClientFake.previewClassified(includesGifticons: true, gifticonsErrors: [0: .failed])
+    : Self.photoStore
   @State private var receiptListModel = ReceiptListModel(photoStore: Self.photoStore)
   @State private var captureActionsModel = CaptureActionsModel(
     photoStore: Self.photoStore,

@@ -7,6 +7,7 @@ import SwiftUI
 /// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`, 누른 섹션 안 넘기기·확대. 여행 폴더 목록의 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
 /// 검색 필드(`.searchable`)를 누르면 카테고리 카드 대신 검색 결과(`SearchResultsView`)를 보이고, 결과의 카테고리·여행·사진 줄이 같은 화면들을 연다.
 /// 카테고리 위 "정리 도우미" 카드는 정리 화면(`CleanupView`)을, 그 안의 줄은 최근 스크린샷 화면(`CaptureInboxView`)을 연다.
+/// 맨 위 "곧 만료" 띠의 칩은 사진 상세(띠의 칩 전부를 넘김)를, "모두 보기"·"+k" 칩은 기프티콘 목록을 연다(`LibraryView+ExpiringStrip.swift`).
 /// 카드의 대표 썸네일은 `LibraryCoverModel` 이 갖는다(docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 이동 경로는 NavigationStack 이 갖는 화면 일시 상태이고, 읽기는 각 화면의 `.task` 에서 그 화면 Model 의 이벤트로 한다.
 /// 같은 Feature 안 Model 사이의 신호는 모두 이 View 가 넘긴다(docs/ARCHITECTURE.md §1 규칙 6):
@@ -14,8 +15,9 @@ import SwiftUI
 /// 읽기
 /// - 장소 캐시 쓰기(`LibraryModel.placeRevision`, 장소 이름 미리 받기) → 여행 폴더 목록·여행 폴더 상세·검색 결과의 다시 읽기
 /// - 대표 사진 변경(`LibraryModel.coverIDs`) → 카드 대표 썸네일 읽기·놓기(`LibraryCoverModel.coversChanged`)
-/// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
-/// - 기프티콘 목록 줄 버튼·줄 밀기의 사용 여부 쓰기(`GifticonListModel.usageRevision`) → 만료 알림 동기화·정리 화면·상세의 다시 읽기(목록은 스스로 다시 읽는다)
+/// - 곧 만료 띠 칩(`LibraryModel.expiringThumbnailIDs`) → 칩 썸네일 읽기·놓기(`LibraryCoverModel.expiringChanged`)
+/// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·곧 만료 띠·기프티콘 목록·정리 화면·상세의 다시 읽기
+/// - 기프티콘 목록 줄 버튼·줄 밀기의 사용 여부 쓰기(`GifticonListModel.usageRevision`) → 만료 알림 동기화·곧 만료 띠·정리 화면·상세의 다시 읽기(목록은 스스로 다시 읽는다)
 /// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경(날짜·시간대는 앱이 앞에 있을 때만) → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·
 /// 영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근 스크린샷 화면)
 /// - 기기 로캘 변경 → 장소 이름 미리 받기(`LibraryModel.localeChanged`)
@@ -36,15 +38,31 @@ public struct LibraryView: View {
   let captureInboxModel: CaptureInboxModel
 
   /// 카테고리 카드·검색 결과의 카테고리 줄에서 카테고리 화면으로 가는 줌 전환의 이름 공간(`LibraryView+Grid.swift`).
-  /// 사진 상세 줌 전환(칸·줄 썸네일 ↔ 상세)에도 환경 값 `photoZoomNamespace` 로 내린다.
+  /// 사진 상세 줌 전환(칸·줄·띠 칩 썸네일 ↔ 상세)에도 환경 값 `photoZoomNamespace` 로 내린다.
   @Namespace var zoomNamespace
   @Environment(\.scenePhase) private var scenePhase
   /// 카드 격자의 열 수·이름 줄 수를 정한다(`LibraryView+Grid.swift`).
   @Environment(\.dynamicTypeSize) var dynamicTypeSize
-  /// 분류 완료 축하 카드의 전환을 고른다(`LibraryView+Indexing.swift`).
+  /// 분류 완료 축하 카드(`LibraryView+Indexing.swift`)와 곧 만료 띠(`LibraryView+ExpiringStrip.swift`)의 전환을 고른다.
   @Environment(\.accessibilityReduceMotion) var reduceMotion
   /// 이 화면 인스턴스에서 카드가 처음 생겼는지. 처음 참이 될 때 카드가 차례로 떠오른다(`LibraryView+Grid.swift`). 다시 거짓이 되지 않는다.
   @State private var hasRevealedCards = false
+  /// 곧 만료 띠에서 연 상세의 돌아올 위치를 가르는 방문 값(`LibraryView+ExpiringStrip.swift`). LazyVStack 이 띠를 다시 만들어도 잃지 않게 루트에 둔다.
+  @State private var expiringVisit = UUID()
+
+  /// 보관함 홈 "곧 만료" 띠 (docs/ARCHITECTURE.md §4 카테고리 화면). 보일 조건은 `showsExpiringStrip`.
+  @ViewBuilder
+  var expiringStripSection: some View {
+    if let strip = self.model.expiringGifticons, !strip.isEmpty {
+      LibraryExpiringStripView(
+        strip: strip,
+        coverModel: self.coverModel,
+        categoryModel: self.categoryModel,
+        visit: self.expiringVisit
+      )
+      .transition(self.expiringStripTransition)
+    }
+  }
 
   public init(
     model: LibraryModel,
@@ -128,13 +146,17 @@ public struct LibraryView: View {
       }
     }
     // 모두 NavigationStack 에 붙여 둔다. 화면을 push 해도 이 View 는 계층에 남아 인덱싱이 이어지고 신호를 넘긴다.
-    // 사진 상세 줌 전환(칸·줄 썸네일 ↔ 상세)의 이름 공간. 상세를 여는 화면들과 상세가 환경으로 받는다.
+    // 사진 상세 줌 전환(칸·줄·띠 칩 썸네일 ↔ 상세)의 이름 공간. 상세를 여는 화면들과 상세가 환경으로 받는다.
     .environment(\.photoZoomNamespace, self.zoomNamespace)
     .task { await self.model.onAppear() }
     // 대표 썸네일 로더. push 로 카드가 사라져도 읽는 중인 것·읽은 것을 잃지 않고, push 동안 바뀐 대표도 읽는다.
     .task { await self.coverModel.onAppear() }
     .onChange(of: self.model.coverIDs, initial: true) {
       self.coverModel.coversChanged(self.model.coverIDs)
+    }
+    // 곧 만료 띠 칩 썸네일. 대표와 같은 로더가 두 집합의 합만 보관한다.
+    .onChange(of: self.model.expiringThumbnailIDs, initial: true) {
+      self.coverModel.expiringChanged(self.model.expiringThumbnailIDs)
     }
     // 카드가 거짓으로 한 번 그려진 뒤 참이 되어 카드마다 등장 애니메이션이 돈다. 이 인스턴스에서 한 번만 참이 된다.
     .onChange(of: self.model.categoryCounts.isEmpty, initial: true) { _, isEmpty in
