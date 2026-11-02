@@ -30,7 +30,7 @@ model: opus
 5. **개인정보**: 네트워크 코드, OCR 텍스트·기프티콘 번호·바코드 내용·주소·영수증 가게 이름·금액·사진 식별자·위치 좌표·장소 이름 로그, 서드파티 SDK(지도·지오코딩 포함), 사진·OCR 텍스트를 사용자 동작 없이 외부로 보내기, deprecated `CLGeocoder` 사용 (허용 예외: CONVENTIONS §4). 기기 밖으로 가는 것·저장 위치·백업·권한 요청 시점·Required Reason API 를 바꿨는데 처리방침(`site/privacy/index.html`, 시행일)과 `PrivacyInfo.xcprivacy` 를 함께 고치지 않은 것 (CONVENTIONS §4).
 6. **테스트**: CONVENTIONS §3 이 요구하는 테스트의 누락, 실제 보관함·권한에 의존하는 테스트.
 7. **문서 정합성**: CONVENTIONS §5 "리뷰 기준"의 문서 불일치. 이번 변경과 관련된 문서 줄은 문서 범위를 바뀐 타입·함수·동작 이름과 바뀐 규칙의 핵심 문구로 grep 해서 찾는다.
-8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`): 스크립트 정확성, CONVENTIONS §5 "리뷰 기준"의 fail-open·함께 지킬 수 없는 규칙.
+8. **하네스·빌드 설정**(`.claude/**`, `.githooks/**`, `.github/**`, `Makefile`, `Tuist/`, `.mise.toml`, `Gemfile`, `fastlane/Fastfile`, `fastlane/Appfile`): 스크립트 정확성, CONVENTIONS §5 "리뷰 기준"의 fail-open·함께 지킬 수 없는 규칙.
 
 **보고하지 않는 것·범위 밖**: CONVENTIONS §5 "리뷰 기준"을 따른다. 범위 밖(CONVENTIONS §5 "리뷰 기준"의 범위)은 표에 넣지 않고 표 아래에 `범위 밖: 위치 · 문제` 로 한 줄씩 적는다 (🔴 에 해당하면 앞에 🔴, Out 이면 끝에 `(Out)`).
 
