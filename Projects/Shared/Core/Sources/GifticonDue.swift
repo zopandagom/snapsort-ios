@@ -11,4 +11,15 @@ public enum GifticonDue: Sendable, Hashable {
     let days = today.days(until: expiryDate)
     self = days >= 0 ? .remaining(days: days) : .expired(daysAgo: -days)
   }
+
+  /// 임박으로 보는 남은 날의 상한. D-day 부터 D-3 까지가 임박이다.
+  public static let imminentDays = 3
+
+  /// 곧 만료된다(D-day ~ D-`imminentDays`). 이미 만료됐으면 거짓이다. 화면이 배지를 강조(맥박)할 때 쓴다.
+  public var isImminent: Bool {
+    if case let .remaining(days) = self {
+      return days <= Self.imminentDays
+    }
+    return false
+  }
 }

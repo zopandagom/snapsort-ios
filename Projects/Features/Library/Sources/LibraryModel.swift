@@ -26,6 +26,7 @@ public final class LibraryModel {
   public private(set) var isIndexingStopped = false
   /// 분석할 이미지가 남아 인덱싱이 돌고 있는지. 분류를 마친 뒤 OCR 대기 이미지의 글자를 읽는 동안(2단계)도 참이다.
   /// 첫 진행률을 받기 전(보관함과 저장소 비교 중)에도 참이다. 두 단계를 다 마쳤거나, 멈췄거나, 화면이 사라져 구독을 끝내면 거짓이다.
+  /// 큰 일을 다 마쳐 거짓이 되면 잠깐 분류 완료 축하(`indexingCelebration`)를 보일 수 있다.
   public private(set) var isIndexing = false
   /// 카테고리별 개수. 이미지가 없는 카테고리는 빠진다.
   /// `.travel` 은 여행 사진 수가 아니라 여행 판정으로 찾은 여행 수다.
@@ -61,6 +62,7 @@ public final class LibraryModel {
   @ObservationIgnored private let sceneActivation = LibrarySceneActivation()
   @ObservationIgnored private let backgroundIndexing: LibraryBackgroundIndexing
   @ObservationIgnored private let reminderSync: LibraryReminderSync
+  @ObservationIgnored private let celebration: LibraryIndexingCelebration
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
@@ -83,6 +85,7 @@ public final class LibraryModel {
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
   ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
   ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
+  ///   - celebrationSleep: 분류 완료 축하가 머무는 시간(`celebrationDwell`)을 재는 수면. 테스트가 언제 깨울지 정하려고 넘긴다.
   public init(
     photoLibrary: any PhotoLibraryClient,
     indexing: (any IndexingClient)?,
@@ -93,7 +96,8 @@ public final class LibraryModel {
     backgroundIndexing: (any BackgroundIndexingClient)?,
     calendar: Calendar = .autoupdatingCurrent,
     now: @escaping @Sendable () -> Date = { Date() },
-    locale: @escaping @Sendable () -> Locale = { .current }
+    locale: @escaping @Sendable () -> Locale = { .current },
+    celebrationSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   ) {
     self.photoLibrary = photoLibrary
     self.indexing = indexing
@@ -104,6 +108,9 @@ public final class LibraryModel {
     self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
     self.backgroundIndexing = LibraryBackgroundIndexing(client: backgroundIndexing, access: photoLibrary.accessState())
     self.isLimited = photoLibrary.accessState() == .limited
+    self.celebration = LibraryIndexingCelebration(
+      minimumWork: Self.celebrationMinimumWork, dwell: Self.celebrationDwell, sleep: celebrationSleep
+    )
   }
 
   // MARK: - Events
@@ -121,11 +128,19 @@ public final class LibraryModel {
       }
       guard await self.sceneActivation.waitUntilActive() else { return }
     }
+    // 그룹을 열기 전에 만들어, 자식 Task 가 어떤 순서로 시작해도 첫 진행률이 축하의 머무는 시간 통로를 찾게 한다.
+    let celebrationLoop = self.celebration.begin()
     await withDiscardingTaskGroup { group in
-      group.addTask { await self.observeImages() }
-      group.addTask { await self.runIndexing() }
-      group.addTask { await self.reminderSync.run() }
-      group.addTask { await self.placePrefetch.run { self.placeRevision += 1 } }
+      group.addTask { await self.celebration.run(celebrationLoop.requests, generation: celebrationLoop.generation) }
+      await withDiscardingTaskGroup { work in
+        work.addTask { await self.observeImages() }
+        work.addTask { await self.runIndexing() }
+        work.addTask { await self.reminderSync.run() }
+        work.addTask { await self.placePrefetch.run { self.placeRevision += 1 } }
+      }
+      // 다른 일이 모두 끝나면(인덱서가 없을 때 등) 더 올 축하가 없으므로 통로를 닫는다. 보이던 축하는 머무는 시간을 채운 뒤
+      // 접히고 루프가 끝나, 화면 진입이 예전처럼 돌아온다.
+      self.celebration.end(generation: celebrationLoop.generation)
     }
   }
 
@@ -156,7 +171,7 @@ public final class LibraryModel {
     await self.reminderSync.openSettings()
   }
 
-  /// 앱이 앞으로 왔다(scenePhase `.active`). 처음 앞으로 오면 미뤄 둔 화면 진입을 시작한다. 멈춘 분류를 다시 열고
+  /// 앱이 앞으로 왔다(scenePhase `.active`). 처음 앞으로 오면 미뤄 둔 화면 진입을 시작한다. 뒤에서 미룬 분류 완료 축하를 보인다. 멈춘 분류를 다시 열고
   /// (인덱서가 둔 최신 진행률이 오면 개수를 다시 읽는다), 뒤에 있는 동안 장소 캐시 쓰기가 있었으면 한 번 알린다.
   /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
   /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
@@ -167,6 +182,7 @@ public final class LibraryModel {
       self.placeRevision += 1
     }
     self.reminderSync.request()
+    self.celebration.sceneBecameActive()
     // 미뤄 둔 진입의 첫 동기화가 위 요청을 대신한다(루프가 아직 없어 위 요청은 버려진다).
     self.sceneActivation.becameActive()
   }
@@ -244,10 +260,13 @@ public final class LibraryModel {
     guard self.isCurrent(generation) else { return }
     self.isIndexingStopped = false
     self.isIndexing = true
+    self.celebration.runStarted()
     for await progress in indexing.run() {
       guard self.isCurrent(generation) else { return }
       self.indexingProgress = progress
       self.isIndexing = !progress.isFinished
+      // 진행률과 같은 턴에 바꿔 진행 카드와 축하 카드가 한 번에 바뀌게 한다.
+      self.celebration.progressReceived(progress, isSceneActive: self.isSceneActive)
       self.placePrefetch.indexingProgressChanged(phase: progress.phase)
       self.backgroundIndexing.indexingProgressChanged(progress, isSceneActive: self.isSceneActive)
       // 개수·대표를 다시 읽기 전에 올려 저장소를 읽는 열린 화면(카테고리 화면·기프티콘·영수증 목록·여행 폴더 목록·상세·사진 상세·검색)의 다시 읽기가 함께 시작되게 한다.
@@ -264,6 +283,7 @@ public final class LibraryModel {
     guard self.isCurrent(generation), !Task.isCancelled else { return }
     self.storeRevision += 1
     self.reminderSync.request()
+    self.celebration.indexingStopped()
     self.isIndexingStopped = true
   }
 
@@ -317,6 +337,13 @@ public extension LibraryModel {
   /// LibraryView 도 이 값으로 날짜·시간대 변경을 다른 Model 에 넘길지 정한다.
   var isSceneActive: Bool {
     self.sceneActivation.isActive
+  }
+
+  /// 지금 보일 분류 완료 축하. 없으면 nil. 도우미 `LibraryIndexingCelebration`(LibraryModel+Celebration.swift) 참고.
+  /// 다시 비교(앞으로 올 때의 새 실행·보관함 전체 다시 비교로 남은 일이 축하 때 미룬 수 이하) 중에는 끝나지 않은 진행률과 함께 있을 수 있고
+  /// 화면은 축하를 먼저 보인다. 멈춤·새 일이 있는 끝나지 않은 진행률·화면 이탈이면 사라진다.
+  var indexingCelebration: IndexingCelebration? {
+    self.celebration.current
   }
 
   /// 계속 처리 분류 상태. `.idle` 이면 진행 카드 버튼을, `.active` 면 "홈으로 나가도 이어서 분류합니다" 안내 줄을 보인다.

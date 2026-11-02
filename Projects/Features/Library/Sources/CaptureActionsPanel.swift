@@ -101,7 +101,7 @@ struct CaptureActionsPanel: View {
         }
         Spacer()
         if let expiryDate = info.expiryDate {
-          GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.model.today))
+          GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.model.today), isUsed: gifticon.isUsed)
         }
       }
     } else {

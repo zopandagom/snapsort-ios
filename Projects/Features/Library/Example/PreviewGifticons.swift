@@ -68,6 +68,9 @@ enum PreviewGifticons {
     Demo(creationDaysAgo: 50, expiryInDays: -10, place: "맘스터치", isUsed: true),
     // 만료됐지만 만료일이 모델 추정: 정리 화면에서 기본으로 고르지 않는다.
     Demo(creationDaysAgo: 15, expiryInDays: -3, place: "파스쿠찌", modelFilledFields: [.expiryDate]),
+    // D-day 배지 맥박: D-0·D-1·D-2 는 숨 쉬고(D-3 이내), D-5 는 가만히 있다. 지어낸 교환처다.
+    Demo(creationDaysAgo: 16, expiryInDays: 2, place: "모퉁이카페"),
+    Demo(creationDaysAgo: 17, expiryInDays: 5, place: "동네빵집"),
   ]
 
   /// 주소·송장·계좌번호가 있는 캡처(`PreviewPhotos.id(.document, 0)`)의 OCR 줄. 지어낸 값이다.

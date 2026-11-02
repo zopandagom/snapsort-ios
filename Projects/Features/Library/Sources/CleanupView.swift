@@ -348,7 +348,7 @@ private struct CleanupCandidateRow: View {
         }
         Spacer()
         if let expiryDate = info.expiryDate {
-          GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.today))
+          GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.today), isUsed: self.item.isUsed)
         }
       }
     }

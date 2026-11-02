@@ -10,6 +10,10 @@ extension IndexingClientFake {
     finishesAfterProgress: false
   )
 
+  /// `previewInProgress` 의 나머지를 다 마친 진행률(2장은 미룸). 첫 진행률 128/40/2 에서 남은 86장을 끝냈으므로 분류 완료 축하가 뜨고,
+  /// 접힌 뒤 "읽지 못한 2장" 카드가 남는다.
+  static let previewFinishedProgress = IndexingProgress(totalCount: 128, indexedCount: 126, skippedCount: 2)
+
   /// 128장 중 40장에서 멈춘 상태. "다시 시도"를 누르면 다시 시작했다가 또 멈춘다.
   static let previewStopped = IndexingClientFake(
     progress: [IndexingProgress(totalCount: 128, indexedCount: 40, skippedCount: 0)]

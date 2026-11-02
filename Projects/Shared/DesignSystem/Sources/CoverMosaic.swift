@@ -3,6 +3,8 @@ import SwiftUI
 
 /// 카드의 대표 사진 모자이크. 1~4장을 한 면에 나눠 담고 앞쪽(최신) 칸이 크다. 장식이라 VoiceOver 에서 읽지 않는다.
 /// 칸 배치는 `layout(count:)` 의 단위 정사각형 표를 주어진 비율로 늘려 쓴다(넓은 카드도 같은 표).
+/// 칸의 종류(빈 칸·사진·아이콘)가 바뀌면(예: 사진이 처음 읽혀 들어올 때) 그 칸만 흐림→또렷으로 바뀐다. 같은 종류끼리(사진 → 다른 사진)와
+/// 칸 수가 바뀌는 배치 변화는 바로 바뀐다. 동작 줄이기(Reduce Motion)면 흐림 없이 투명도만 바꾼다.
 public struct CoverMosaic: View {
   public enum Tile {
     /// 아직 읽지 않았거나 읽는 중. 중립 면이고 진행 표시는 없다.
@@ -13,8 +15,20 @@ public struct CoverMosaic: View {
     case glyph
   }
 
+  /// 칸 종류. 이것이 바뀔 때만 칸 전환 애니메이션을 한다.
+  enum TileKind: Hashable {
+    case pending
+    case image
+    case glyph
+  }
+
   /// 칸 사이 간격(pt).
   static let spacing: CGFloat = 3
+  /// 칸 종류가 바뀔 때의 전환 시간(초).
+  static let revealDuration = 0.35
+  static let revealAnimation: Animation = .easeInOut(duration: Self.revealDuration)
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private let tiles: [Tile]
   private let glyph: SnapGlyph
@@ -38,7 +52,7 @@ public struct CoverMosaic: View {
           let frames = Self.layout(count: self.tiles.count)
           ForEach(frames.indices, id: \.self) { index in
             let frame = Self.frame(frames[index], in: proxy.size)
-            self.tileView(self.tiles[index])
+            self.tileCell(self.tiles[index])
               .frame(width: frame.width, height: frame.height)
               .clipped()
               .position(x: frame.midX, y: frame.midY)
@@ -47,6 +61,23 @@ public struct CoverMosaic: View {
       }
       .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
       .accessibilityHidden(true)
+  }
+
+  /// 애니메이션을 칸 안쪽에 둬 배치(크기·위치) 변화는 애니메이션하지 않는다.
+  private func tileCell(_ tile: Tile) -> some View {
+    ZStack {
+      self.tileView(tile)
+        .transition(self.reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace))
+    }
+    .animation(Self.revealAnimation, value: Self.kind(of: tile))
+  }
+
+  static func kind(of tile: Tile) -> TileKind {
+    switch tile {
+    case .pending: .pending
+    case .image: .image
+    case .glyph: .glyph
+    }
   }
 
   @ViewBuilder

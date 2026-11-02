@@ -35,6 +35,14 @@ import TripPlaceTesting
 /// 카드의 대표 썸네일은 저장소 대역이 분류 결과로 고른다(기타 1장·반려동물 2장·여행 3개·문서 4장으로 모자이크 1~4칸 배치를 본다).
 /// `-scenario homeInCloudOnly` 는 모든 썸네일이 iCloud 에만 있어 카테고리 색 면 + 아이콘으로, `-scenario homeSlowThumbnails` 는
 /// 썸네일 읽기가 1.5초 걸려 중립 면 → 사진으로 바뀌는 것을 본다.
+/// "분류 마치기" 버튼은 인덱서가 남은 일을 다 마친 진행률(`IndexingClientFake.previewFinishedProgress`)을 보낸다. 첫 진행률에서 남은 일이 30장 이상이라
+/// 분류 완료 카드가 뜨고(반짝이·성공 햅틱 한 번) 약 2.5초 뒤 접혀 "읽지 못한 2장" 카드가 남는다. 화면에 들어올 때 카드가 차례로 떠오르는 것도 본다.
+/// `-scenario celebrationAuto` 는 진입 3초 뒤 자동으로, `-scenario celebrationInBackground` 는 앱이 뒤로 갈 때 같은 진행률을 보낸다(앞으로 오면 카드).
+/// `celebrationInBackground` 는 앞으로 올 때 실제 인덱서처럼 미룬 장을 다시 세는 새 실행 첫 진행률과 다시 다 함을 보내, 카드가 다시 비교에 지워지지 않고
+/// 약 2.5초 머문 뒤 "읽지 못한 2장" 카드로 바뀌는 것을 본다.
+/// 기프티콘 목록에서 줄 오른쪽 버튼을 누르거나 줄을 왼쪽으로 밀어 "사용함"·"미사용으로"를 누르면 도장 → 색 빠짐 → 줄 빠짐 → 탭 숫자 굴림을 본다. D-3 이내 미사용 배지는 숨 쉰다
+/// (`PreviewGifticons.demos` 의 D-0·D-1·D-2·D-5·만료됨). `-scenario gifticonUsageFailing` 은 쓰기 실패 알림, `-scenario
+/// gifticonUsageSlow` 는 1.5초 걸리는 쓰기다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
 @main
 struct LibraryFeatureExampleApp: App {
@@ -52,10 +60,19 @@ struct LibraryFeatureExampleApp: App {
       allReceiptsChecking: Self.scenario == .receiptChecking,
       searchEntriesErrors: Self.scenario == .searchFailing ? [0: .failed] : [:],
       onSearchEntries: Self.searchHook,
+      setUsedError: Self.scenario == .gifticonUsageFailing ? .failed : nil,
+      onSetGifticonUsed: Self.setUsedHook,
       extraImages: Self.scenario.isCleanup ? PreviewCleanup.images(now: Date()) : []
     )
   /// `searchSlow` 는 검색 목록 읽기가 1.5초 걸린다.
   private static let searchHook: @Sendable (Int) async -> Void = if Self.scenario == .searchSlow {
+    { _ in try? await Task.sleep(for: .seconds(1.5)) }
+  } else {
+    { _ in }
+  }
+
+  /// `gifticonUsageSlow` 는 사용 여부 쓰기가 1.5초 걸린다.
+  private static let setUsedHook: @Sendable (Int) async -> Void = if Self.scenario == .gifticonUsageSlow {
     { _ in try? await Task.sleep(for: .seconds(1.5)) }
   } else {
     { _ in }
@@ -131,6 +148,7 @@ struct LibraryFeatureExampleApp: App {
   @State private var addedCount = 0
   /// 지금까지 더한 글자 사진 수.
   @State private var addedTextCount = 0
+  @Environment(\.scenePhase) private var scenePhase
 
   init() {
     // App 과 같은 내비게이션 바 글꼴.
@@ -155,6 +173,32 @@ struct LibraryFeatureExampleApp: App {
                 indexing: Self.indexing
               )
             }
+            .task {
+              guard Self.scenario == .celebrationAuto else { return }
+              try? await Task.sleep(for: .seconds(3))
+              Self.indexing.sendProgress(IndexingClientFake.previewFinishedProgress)
+            }
+        }
+      }
+      // 보관함 화면이 뒤로 간 것을 먼저 받도록 조금 기다렸다 보낸다(같은 scenePhase 변화를 받는 순서는 정해져 있지 않다).
+      // 앞으로 오면 실제 인덱서처럼 다시 비교한다: 새 실행 첫 진행률은 미룬 2장을 다시 남은 일로 세고, 다시 미뤄 같은 다 함으로 끝난다.
+      .onChange(of: self.scenePhase) { _, phase in
+        guard Self.scenario == .celebrationInBackground else { return }
+        switch phase {
+        case .background:
+          Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            Self.indexing.sendProgress(IndexingClientFake.previewFinishedProgress)
+          }
+        case .active:
+          Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            Self.indexing.sendProgress(IndexingProgress(totalCount: 128, indexedCount: 126, skippedCount: 0))
+            try? await Task.sleep(for: .milliseconds(300))
+            Self.indexing.sendProgress(IndexingClientFake.previewFinishedProgress)
+          }
+        default:
+          break
         }
       }
       // App 루트와 같은 색·글꼴 기준값.
@@ -194,6 +238,10 @@ struct LibraryFeatureExampleApp: App {
           Button("글자 사진 추가") {
             Task { await self.addTextPhoto() }
           }
+        }
+        .buttonStyle(.borderedProminent)
+        Button("분류 마치기") {
+          Self.indexing.sendProgress(IndexingClientFake.previewFinishedProgress)
         }
         .buttonStyle(.borderedProminent)
         FakeRecordView(

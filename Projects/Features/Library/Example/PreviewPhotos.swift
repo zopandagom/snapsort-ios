@@ -114,6 +114,7 @@ extension PhotoStoreClientFake {
   ///   - captureGroupItemsErrors: 쇼핑·대화·지도 카테고리 읽기(`captureGroupItems(in:)`)의 호출 번호별 실패.
   ///   - searchEntriesErrors·onSearchEntries: 검색 목록 읽기(`searchEntries()`)의 호출 번호별 실패와 읽은 뒤 기다리는 훅.
   ///   - captureInboxErrors: 최근 스크린샷 읽기(`captureInboxScreenshots(createdSince:)`)의 호출 번호별 실패.
+  ///   - setUsedError·onSetGifticonUsed: 사용 여부 쓰기(`setGifticonUsed`)만의 실패와 쓰기 전에 기다리는 훅.
   ///   - extraImages: 분류 결과에 더하는 이미지. 정리 도우미 데모의 스크린샷·비슷한 사진(`PreviewCleanup`)을 더할 때 쓴다.
   ///   - allReceiptsChecking: 참이면 영수증이 모두 확인 중이다(데모 짝수 번은 OCR 대기, 홀수 번과 여행 영수증은 추출 대기).
   static func previewClassified(
@@ -129,6 +130,8 @@ extension PhotoStoreClientFake {
     searchEntriesErrors: [Int: PhotoStoreError] = [:],
     onSearchEntries: @escaping @Sendable (Int) async -> Void = { _ in },
     captureInboxErrors: [Int: PhotoStoreError] = [:],
+    setUsedError: PhotoStoreError? = nil,
+    onSetGifticonUsed: @escaping @Sendable (Int) async -> Void = { _ in },
     extraImages: [IndexedImage] = []
   ) -> PhotoStoreClientFake {
     let now = Date()
@@ -154,6 +157,8 @@ extension PhotoStoreClientFake {
       assetsErrors: assetsErrors,
       usedIDs: PreviewGifticons.usedIDs,
       gifticonsErrors: gifticonsErrors,
+      setUsedError: setUsedError,
+      onSetGifticonUsed: onSetGifticonUsed,
       places: includesTrips ? PreviewTrips.places : [:],
       placesLocaleIdentifier: PreviewTrips.placesLocaleIdentifier,
       tripsErrors: tripsErrors,

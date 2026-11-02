@@ -15,6 +15,7 @@ import SwiftUI
 /// - 장소 캐시 쓰기(`LibraryModel.placeRevision`, 장소 이름 미리 받기) → 여행 폴더 목록·여행 폴더 상세·검색 결과의 다시 읽기
 /// - 대표 사진 변경(`LibraryModel.coverIDs`) → 카드 대표 썸네일 읽기·놓기(`LibraryCoverModel.coversChanged`)
 /// - 사용 여부 쓰기(`CaptureActionsModel.usageRevision`) → 만료 알림 동기화·기프티콘 목록·정리 화면·상세의 다시 읽기
+/// - 기프티콘 목록 줄 버튼·줄 밀기의 사용 여부 쓰기(`GifticonListModel.usageRevision`) → 만료 알림 동기화·정리 화면·상세의 다시 읽기(목록은 스스로 다시 읽는다)
 /// - 앱 복귀(scenePhase `.active`)·날짜 변경·시간대 변경(날짜·시간대는 앱이 앞에 있을 때만) → 날짜를 쓰는 아홉 Model(알림·기프티콘 목록·
 /// 영수증 목록·사진 상세·여행 폴더 목록·여행 폴더 상세·검색·정리 화면·최근 스크린샷 화면)
 /// - 기기 로캘 변경 → 장소 이름 미리 받기(`LibraryModel.localeChanged`)
@@ -39,6 +40,10 @@ public struct LibraryView: View {
   @Environment(\.scenePhase) private var scenePhase
   /// 카드 격자의 열 수·이름 줄 수를 정한다(`LibraryView+Grid.swift`).
   @Environment(\.dynamicTypeSize) var dynamicTypeSize
+  /// 분류 완료 축하 카드의 전환을 고른다(`LibraryView+Indexing.swift`).
+  @Environment(\.accessibilityReduceMotion) var reduceMotion
+  /// 이 화면 인스턴스에서 카드가 처음 생겼는지. 처음 참이 될 때 카드가 차례로 떠오른다(`LibraryView+Grid.swift`). 다시 거짓이 되지 않는다.
+  @State private var hasRevealedCards = false
 
   public init(
     model: LibraryModel,
@@ -74,7 +79,7 @@ public struct LibraryView: View {
         isLimited: self.model.isLimited,
         zoomNamespace: self.zoomNamespace
       ) {
-        self.homeGrid
+        self.homeGrid(isRevealed: self.hasRevealedCards)
       }
       .navigationTitle("간직함")
       .snapScreenBackground()
@@ -128,6 +133,12 @@ public struct LibraryView: View {
     .onChange(of: self.model.coverIDs, initial: true) {
       self.coverModel.coversChanged(self.model.coverIDs)
     }
+    // 카드가 거짓으로 한 번 그려진 뒤 참이 되어 카드마다 등장 애니메이션이 돈다. 이 인스턴스에서 한 번만 참이 된다.
+    .onChange(of: self.model.categoryCounts.isEmpty, initial: true) { _, isEmpty in
+      if !isEmpty, !self.hasRevealedCards {
+        self.hasRevealedCards = true
+      }
+    }
     .onChange(of: self.model.storeRevision) {
       self.categoryModel.libraryStoreChanged()
       self.gifticonListModel.libraryStoreChanged()
@@ -150,6 +161,12 @@ public struct LibraryView: View {
     .onChange(of: self.captureActionsModel.usageRevision) {
       self.model.gifticonUsageChanged()
       self.gifticonListModel.libraryStoreChanged()
+      self.cleanupModel.libraryStoreChanged()
+      self.captureActionsModel.libraryStoreChanged()
+    }
+    // 목록 줄 버튼·줄 밀기의 쓰기. 목록은 쓰기가 끝나면 스스로 다시 읽으므로 넘기지 않는다. 화면을 닫은 뒤 끝난 쓰기도 오른다.
+    .onChange(of: self.gifticonListModel.usageRevision) {
+      self.model.gifticonUsageChanged()
       self.cleanupModel.libraryStoreChanged()
       self.captureActionsModel.libraryStoreChanged()
     }
