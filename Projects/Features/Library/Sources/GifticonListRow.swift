@@ -16,6 +16,7 @@ struct GifticonRow: View {
       CategoryThumbnailCell(model: self.categoryModel, asset: self.item.asset, category: .gifticon)
         .frame(width: 56, height: 56)
         .clipShape(.rect(cornerRadius: 8))
+        .photoZoomSource(self.item.asset.id, cornerRadius: 8)
         .saturation(self.isStamped ? SnapStamp.fadedSaturation : 1)
         .animation(SnapStamp.fadeAnimation, value: self.isStamped)
         .overlay {

@@ -124,6 +124,7 @@ public struct ReceiptListView: View {
       NavigationLink(value: PhotoDetailRoute(pages: pages, index: index, origin: origin)) {
         ReceiptRow(categoryModel: self.categoryModel, item: item, calendar: self.model.calendar)
       }
+      .environment(\.photoDetailOrigin, origin)
     }
   }
 
@@ -200,6 +201,7 @@ private struct ReceiptRow: View {
       CategoryThumbnailCell(model: self.categoryModel, asset: self.item.asset, category: .receipt)
         .frame(width: 56, height: 56)
         .clipShape(.rect(cornerRadius: 8))
+        .photoZoomSource(self.item.asset.id, cornerRadius: 8)
         // 썸네일 설명에도 날짜가 있어 줄의 날짜가 두 번 읽히지 않게 한다.
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 4) {
