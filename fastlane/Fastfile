@@ -1,0 +1,208 @@
+# 출시 자동화(개발 도구). 앱 코드에는 들어가지 않는다.
+# 흐름·규칙: docs/ARCHITECTURE.md §2 출시, docs/CONVENTIONS.md §5 태그 출시.
+#   ios release   : 태그 push 로 시작한 release.yml 이 make release 로 부른다. 로컬은 RELEASE_SUBMIT=false 리허설만.
+#   ios build_ipa : archive + export 만 (make release-ipa). 업로드·ASC 조회 없음.
+# 공개 레포라 로그가 공개된다: 키 내용·경로 밖의 비밀값을 출력하지 않는다.
+require "open3"
+require "shellwords"
+require "tmpdir"
+
+opt_out_usage # fastlane 사용 통계 전송 끔 (Makefile 의 FASTLANE_OPT_OUT_USAGE 와 같은 뜻, 직접 부를 때 대비)
+skip_docs # fastlane/README.md 자동 생성 끔
+default_platform(:ios)
+
+# Fastfile 은 fastlane/ 안에서 평가되므로 __dir__ 기준으로 레포 루트를 잡는다.
+ROOT = File.expand_path("..", __dir__)
+RELEASE_DIR = File.join(ROOT, "build/release")
+WORKSPACE = File.join(ROOT, "SnapSort.xcworkspace")
+APP_NAME = "SnapSort"
+# 태그 형식 정규식의 단일 출처. release.yml check 잡도 같은 스크립트를 쓴다.
+TAG_CHECK = File.join(ROOT, ".github/scripts/check-release-tag.sh")
+UI.user_error!("태그 검사 스크립트가 없습니다: #{TAG_CHECK}") unless File.executable?(TAG_CHECK)
+
+# RELEASE_VERSION(X.Y.Z)을 태그 검사 스크립트로 검사해 돌려준다.
+def release_version
+  raw = ENV.fetch("RELEASE_VERSION", "")
+  out, err, status = Open3.capture3(TAG_CHECK, "version", "v#{raw}")
+  UI.user_error!("RELEASE_VERSION 이 X.Y.Z 형식이 아닙니다: #{err.strip}") unless status.success?
+  out.strip
+end
+
+# "true"/"false" 만 받는다. 빈 값을 false 로 보지 않는다.
+def bool_env(name)
+  case ENV.fetch(name, "")
+  when "true" then true
+  when "false" then false
+  else UI.user_error!("#{name} 은 true 또는 false 여야 합니다")
+  end
+end
+
+# ASC API 키(ASC_KEY_ID·ASC_ISSUER_ID·ASC_KEY_PATH). 셋 다 있으면 키를, 없으면 nil 을 돌려준다.
+# 일부만 있거나 required 인데 없으면 오류. 값은 출력하지 않는다(이름만).
+# app_store_connect_api_key 는 spaceship 토큰도 설정한다(set_spaceship_token 기본 true).
+def asc_api_key(required:)
+  names = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_PATH]
+  missing = names.select { |n| ENV.fetch(n, "").empty? }
+  return nil if missing.size == names.size && !required
+  UI.user_error!("ASC API 키 환경 변수가 없습니다: #{missing.join(', ')}") unless missing.empty?
+  UI.user_error!("ASC_KEY_PATH 파일이 없습니다") unless File.file?(ENV.fetch("ASC_KEY_PATH"))
+
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: ENV.fetch("ASC_KEY_PATH"),
+    duration: 1200, # 최대값. 만료되면 spaceship 이 401 에서 갱신한다
+    in_house: false
+  )
+end
+
+# archive + export. 버전·빌드 번호는 -xcconfig 로 덮는다(xcargs 는 gym 이 export 에도 붙이고,
+# -xcconfig 는 archive 에만 들어가며 타깃 설정보다 우선한다). 서명은 Xcode 자동 서명 + -allowProvisioningUpdates
+# (archive 는 개발 인증서·프로파일, export 는 클라우드 관리 배포 인증서라 둘 다 인증이 필요해 xcargs 에 둔다).
+def build_release_ipa(version:, build_number:)
+  UI.user_error!("#{WORKSPACE} 가 없습니다. make project 로 먼저 생성하세요") unless File.directory?(WORKSPACE)
+
+  FileUtils.rm_rf(RELEASE_DIR)
+  FileUtils.mkdir_p(RELEASE_DIR)
+  xcconfig = File.join(RELEASE_DIR, "Version.xcconfig")
+  File.write(xcconfig, "MARKETING_VERSION = #{version}\nCURRENT_PROJECT_VERSION = #{build_number}\n")
+
+  xcargs = ["-allowProvisioningUpdates"]
+  unless ENV.fetch("ASC_KEY_PATH", "").empty?
+    xcargs += [
+      "-authenticationKeyPath", ENV.fetch("ASC_KEY_PATH"),
+      "-authenticationKeyID", ENV.fetch("ASC_KEY_ID"),
+      "-authenticationKeyIssuerID", ENV.fetch("ASC_ISSUER_ID")
+    ]
+  end
+
+  build_app(
+    workspace: WORKSPACE,
+    scheme: APP_NAME,
+    configuration: "Release",
+    clean: true,
+    xcconfig: xcconfig,
+    export_method: "app-store",
+    export_options: {
+      signingStyle: "automatic",
+      destination: "export",
+      manageAppVersionAndBuildNumber: false, # 번호는 이 lane 이 정한다
+      uploadSymbols: true
+    },
+    skip_profile_detection: true, # 찾은 프로파일로 export 를 manual 서명으로 바꾸지 않게
+    xcargs: xcargs.shelljoin,
+    output_directory: RELEASE_DIR,
+    output_name: APP_NAME,
+    derived_data_path: File.join(RELEASE_DIR, "DerivedData"),
+    buildlog_path: File.join(RELEASE_DIR, "logs")
+  )
+
+  ipa = File.join(RELEASE_DIR, "#{APP_NAME}.ipa")
+  UI.user_error!("ipa 를 찾지 못했습니다: #{ipa}") unless File.file?(ipa)
+  verify_ipa_versions!(ipa, version, build_number)
+  ipa
+end
+
+# 앱과 모든 앱 확장(위젯)의 CFBundleShortVersionString·CFBundleVersion 이 기대값인지 본다.
+# 불일치는 ASC 가 업로드를 거절하므로 그 전에 분명한 문구로 멈춘다.
+def verify_ipa_versions!(ipa, version, build_number)
+  listing, status = Open3.capture2("unzip", "-Z1", ipa)
+  UI.user_error!("ipa 목록을 읽지 못했습니다") unless status.success?
+  app_plist = "Payload/#{APP_NAME}.app/Info.plist"
+  plists = listing.lines.map(&:strip).select do |entry|
+    entry == app_plist || entry.match?(%r{\APayload/#{APP_NAME}\.app/PlugIns/[^/]+\.appex/Info\.plist\z})
+  end
+  UI.user_error!("ipa 에 앱 Info.plist 가 없습니다") unless plists.include?(app_plist)
+  UI.user_error!("ipa 에 앱 확장(위젯)이 없습니다") if plists.size < 2
+
+  Dir.mktmpdir("snapsort-ipa-") do |dir|
+    plists.each do |entry|
+      path = File.join(dir, "Info.plist")
+      data, status = Open3.capture2("unzip", "-p", ipa, entry, binmode: true)
+      UI.user_error!("#{entry} 를 꺼내지 못했습니다") unless status.success?
+      File.binwrite(path, data)
+      actual = %w[CFBundleShortVersionString CFBundleVersion].map do |key|
+        value, status = Open3.capture2("/usr/libexec/PlistBuddy", "-c", "Print :#{key}", path)
+        UI.user_error!("#{entry} 에 #{key} 가 없습니다") unless status.success?
+        value.strip
+      end
+      expected = [version, build_number.to_s]
+      UI.user_error!("#{entry} 버전 #{actual.join('/')} 이 기대값 #{expected.join('/')} 과 다릅니다") unless actual == expected
+      UI.message("버전 확인: #{entry} #{actual.join('/')}")
+    end
+  end
+end
+
+platform :ios do
+  desc "출시: ASC 최신 빌드 번호 + 1 로 빌드해 메타데이터·스크린샷·바이너리를 올리고, RELEASE_SUBMIT=true 면 심사 제출(통과 시 자동 공개)"
+  desc "환경 변수: RELEASE_VERSION(X.Y.Z), RELEASE_SUBMIT(true/false), ASC_KEY_ID·ASC_ISSUER_ID·ASC_KEY_PATH"
+  lane :release do
+    version = release_version
+    submit = bool_env("RELEASE_SUBMIT")
+    if submit && ENV["GITHUB_ACTIONS"] != "true"
+      UI.user_error!("심사 제출은 태그 push 로 시작한 GitHub Actions 에서만 합니다 (로컬은 RELEASE_SUBMIT=false)")
+    end
+
+    key = asc_api_key(required: true)
+    app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    UI.user_error!("ASC 에서 앱을 찾지 못했습니다: #{app_identifier}") if app.nil?
+
+    # 업데이트 버전(판매 중 버전이 있음)은 릴리스 노트가 필요하다. 빌드 전에 싸게 실패한다.
+    # 내용이 이번 버전 것인지는 기계로 볼 수 없어 CONVENTIONS §5 규칙(태그 전 PR 에서 갱신)에 맡긴다.
+    if submit && app.get_live_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+      notes = File.join(ROOT, "fastlane/metadata/ko/release_notes.txt")
+      unless File.file?(notes) && !File.read(notes).strip.empty?
+        UI.user_error!("업데이트 버전은 fastlane/metadata/ko/release_notes.txt 가 필요합니다 (태그 전 PR 에서 갱신)")
+      end
+    end
+
+    # 버전과 무관하게 마지막으로 올린 빌드 번호 + 1 (실패·처리 중 빌드 포함. ARCHITECTURE §2 버전).
+    latest = latest_testflight_build_number(api_key: key, initial_build_number: 0)
+    build_number = Integer(latest.to_s, 10) + 1
+
+    ipa = build_release_ipa(version: version, build_number: build_number)
+
+    upload_to_app_store(
+      api_key: key,
+      ipa: ipa,
+      app_version: version,
+      metadata_path: File.join(ROOT, "fastlane/metadata"),
+      screenshots_path: File.join(ROOT, "fastlane/screenshots"),
+      overwrite_screenshots: false,
+      force: true, # CI 에 HTML 미리보기를 확인할 사람이 없다
+      submit_for_review: submit,
+      automatic_release: true,
+      phased_release: false,
+      # precheck 가 실패하면 deliver 는 오류 없이 제출을 건너뛴다(fail-open). 끄고 아래 제출 후 검사로 확인한다.
+      run_precheck_before_submit: false,
+      # Info.plist ITSAppUsesNonExemptEncryption=NO 로 빌드 값이 정해지면 쓰이지 않는 예비값.
+      submission_information: { export_compliance_uses_encryption: false }
+    )
+
+    if submit
+      # 제출 직후 상태 전이가 늦을 수 있어 15초 간격으로 4번까지 본다.
+      submitted = 4.times.any? do |attempt|
+        sleep(15) if attempt.positive?
+        !app.get_in_progress_review_submission(platform: Spaceship::ConnectAPI::Platform::IOS).nil?
+      end
+      UI.user_error!("심사 제출을 확인하지 못했습니다. ASC 에서 버전 상태가 '심사 대기'인지 확인하세요") unless submitted
+    end
+
+    summary = "출시 #{version} (#{build_number}) 업로드 완료, 심사 제출: #{submit ? '함' : '안 함'}"
+    UI.success(summary)
+    step_summary = ENV.fetch("GITHUB_STEP_SUMMARY", "")
+    File.write(step_summary, "#{summary}\n", mode: "a") unless step_summary.empty?
+  end
+
+  desc "archive + export 만 (업로드·ASC 조회 없음). 서명 확인·문제 재현용"
+  desc "환경 변수: RELEASE_VERSION(X.Y.Z), RELEASE_BUILD_NUMBER(양의 정수), ASC_*(선택: 없으면 Xcode 에 로그인한 계정)"
+  lane :build_ipa do
+    version = release_version
+    raw = ENV.fetch("RELEASE_BUILD_NUMBER", "")
+    UI.user_error!("RELEASE_BUILD_NUMBER 는 양의 정수여야 합니다") unless raw.match?(/\A[1-9][0-9]*\z/)
+    asc_api_key(required: false) # 일부만 있는 실수를 잡는다
+    ipa = build_release_ipa(version: version, build_number: Integer(raw, 10))
+    UI.success("ipa: #{ipa}")
+  end
+end

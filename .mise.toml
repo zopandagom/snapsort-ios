@@ -3,3 +3,9 @@ tuist = "4.156.0"
 swiftlint = "0.65.1"
 swiftformat = "0.63.0"
 xcbeautify = "3.2.1"
+# fastlane(출시 도구, Gemfile) 전용. 시스템 Ruby(2.6)는 쓰지 않는다.
+ruby = "3.4.12"
+
+[settings]
+# Ruby 는 사전 빌드만 받는다. 없으면 소스 컴파일로 조용히 느려지는 대신 설치가 실패한다.
+ruby.compile = false

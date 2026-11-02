@@ -24,15 +24,22 @@
 - Tuist 모듈러 아키텍처 (Feature / Client Interface·Impl·Testing)
 
 ## 시작하기
+`.mise.toml`·`Gemfile` 이 바뀌면(fastlane 추가 전에 만든 환경 포함) `make bootstrap` 을 다시 돌린다.
 ```bash
-make bootstrap   # mise 로 tuist·swiftlint·swiftformat·xcbeautify 설치, git 훅(pre-commit: main 커밋 차단·lint, pre-merge-commit: main 머지 커밋 차단, pre-push: main push 차단) 연결
+make bootstrap   # mise 로 tuist·swiftlint·swiftformat·xcbeautify·Ruby 설치, bundle install 로 fastlane 설치, git 훅(pre-commit: main 커밋 차단·lint, pre-merge-commit: main 머지 커밋 차단, pre-push: main push 차단) 연결
 make generate    # SnapSort.xcworkspace 생성 후 Xcode 로 열기
-make test        # 전체 모듈 빌드 + 테스트 + git 훅 테스트
+make test        # 전체 모듈 빌드 + 테스트 + git 훅 테스트 + 출시 태그 검사 테스트
 make test-hooks  # git 훅 동작 테스트만 (임시 레포에서 main 커밋·머지 커밋·push 차단과 기능 브랜치 통과 확인)
+make test-release-tag # 출시 태그 검사 스크립트 테스트만 (vX.Y.Z 형식, 태그 커밋이 main 에 있는지)
 make lint        # 포맷·아키텍처 규칙 검사 (make format 으로 자동 수정)
+make lanes       # fastlane lane 목록 (Gemfile·Fastfile 이 읽히는지 확인)
 make test-scripts                 # scripts/ 개발 스크립트 테스트
 make mask-samples FILE=<초안.json> # 분류 샘플 초안의 OCR 줄 가리기 (docs/CONVENTIONS.md §3)
+RELEASE_VERSION=1.0.0 RELEASE_BUILD_NUMBER=1 make release-ipa # 출시 빌드 archive + export 만 (업로드 없음)
 ```
+
+## 출시
+main 에 머지된 커밋에 `vX.Y.Z` 태그를 push 하면 GitHub Actions(`.github/workflows/release.yml`)가 fastlane 으로 App Store Connect 에 빌드·메타데이터(`fastlane/metadata/ko`)를 올리고 심사 제출하며, 통과하면 자동 공개한다. 레포 Secrets `ASC_KEY_ID`·`ASC_ISSUER_ID`·`ASC_KEY_P8`(App Store Connect API 키 `.p8` 의 base64)이 필요하다. 규칙·리허설·실패 시 다시 시도는 [CONVENTIONS §5 태그 출시](docs/CONVENTIONS.md), 서명·버전은 [ARCHITECTURE §2 빌드 설정](docs/ARCHITECTURE.md).
 
 ## 문서
 - [아키텍처](docs/ARCHITECTURE.md)

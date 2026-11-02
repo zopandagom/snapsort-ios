@@ -1,6 +1,6 @@
 name: CI
 
-# 문서·하네스만 바뀐 변경도 워크플로는 시작한다. 워크플로 단계의 paths-ignore 로 거르면 체크가 아예 생기지 않아
+# 문서·하네스·스토어 메타데이터만 바뀐 변경도 워크플로는 시작한다. 워크플로 단계의 paths-ignore 로 거르면 체크가 아예 생기지 않아
 # 필수 체크(ci-result)가 대기 상태로 남는다. 건너뛰기는 changes 잡이 판단한다.
 on:
   pull_request:
@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 바뀐 파일이 전부 문서·하네스(*.md, docs/**, .claude/**)면 code=false 로 lint·test 를 건너뛴다.
+  # 바뀐 파일이 전부 문서·하네스·스토어 메타데이터(*.md, docs/**, .claude/**, fastlane/metadata/**, fastlane/screenshots/**)면
+  # code=false 로 lint·test 를 건너뛴다.
   # 체크아웃 없이 API 로 파일 목록만 본다. 수동 실행이거나 목록 조회에 실패하면 code=true 로 검사한다.
   changes:
     runs-on: ubuntu-latest
@@ -43,10 +44,11 @@ jobs:
             *) files="(수동 실행)" ;;
           esac
           echo "$files"
-          if grep -Evq '(\.md$|^docs/|^\.claude/)' <<<"$files"; then code=true; else code=false; fi
+          if grep -Evq '(\.md$|^docs/|^\.claude/|^fastlane/metadata/|^fastlane/screenshots/)' <<<"$files"; then code=true; else code=false; fi
           echo "code=$code" | tee -a "$GITHUB_OUTPUT"
 
-  # 비공개 레포의 macOS 러너는 분당 10배 과금이라 lint 는 Ubuntu 컨테이너에서 먼저 돌린다.
+  # macOS 러너는 Ubuntu 보다 느리고 동시 실행 수가 적어 lint 는 Ubuntu 컨테이너에서 먼저 돌려 실패를 빨리 본다.
+  # (레포는 공개라 표준 러너 분 과금은 없다.)
   # 버전은 .mise.toml 과 맞춘다.
   # 위반은 Checks API 로 "lint 결과" 체크에 어노테이션으로 올려 PR 의 Files changed 에서 해당 줄에 전부 표시한다.
   # 판정은 SwiftFormat·SwiftLint 단계의 종료 코드가 한다.
@@ -137,7 +139,7 @@ jobs:
           retention-days: 7
 
   # main 룰셋의 필수 체크는 이 잡 하나다. 잡 이름이 바뀌거나 잡이 늘어도 룰셋을 고치지 않게 결과를 여기로 모은다.
-  # 앞 잡이 하나라도 실패·취소되면 실패하고, 건너뛴 것(문서·하네스만 바뀐 변경)은 통과로 본다.
+  # 앞 잡이 하나라도 실패·취소되면 실패하고, 건너뛴 것(문서·하네스·스토어 메타데이터만 바뀐 변경)은 통과로 본다.
   # always() 를 쓰는 이유: 취소된 run 에서 이 잡이 건너뛰어지면 필수 체크가 통과로 처리된다.
   ci-result:
     needs: [changes, lint, test]

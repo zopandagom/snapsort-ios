@@ -13,11 +13,15 @@ Debug 빌드 전용 개발 도구는 CONVENTIONS §4.
 ## 명령
 | 명령 | 용도 |
 |---|---|
-| `make bootstrap` | 최초 1회: mise 도구 설치, git 훅 연결 |
+| `make bootstrap` | 최초 1회: mise 도구(Ruby 포함) 설치, fastlane(`bundle install`) 설치, git 훅 연결. `.mise.toml`·`Gemfile` 이 바뀐 뒤에도 다시 돌린다(fastlane 추가 전에 만든 환경 포함. `/pr` 의 `make lanes` 검사가 `bundle install` 을 전제) |
 | `make generate` | Tuist 로 워크스페이스 생성 후 Xcode 로 열기 (`.xcodeproj` 는 커밋하지 않는다). 열지 않으려면 `make project` |
 | `make lint` / `make format` | SwiftFormat + SwiftLint (아키텍처 규칙 포함) |
-| `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) + git 훅 테스트 |
+| `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) + git 훅 테스트 + 출시 태그 검사 테스트 |
 | `make test-hooks` | git 훅 동작 테스트: 임시 레포에서 main 커밋·머지 커밋·push 차단과 기능 브랜치 통과 확인 |
+| `make test-release-tag` | 출시 태그 검사 스크립트 테스트: `vX.Y.Z` 형식과 태그 커밋이 main 에 있는지 |
+| `make lanes` | fastlane lane 목록 (`Gemfile`·`Fastfile` 이 읽히는지 확인) |
+| `make release-ipa` | 출시 빌드의 archive + export 만 (`RELEASE_VERSION=1.0.0 RELEASE_BUILD_NUMBER=1 make release-ipa`, 업로드 없음) |
+| 출시 | **사용자가 지시할 때만.** `vX.Y.Z` 태그 push → `release.yml` 이 `make release` 로 업로드·심사 제출 (CONVENTIONS §5 태그 출시) |
 | `make test-scripts` | `scripts/` 개발 스크립트 테스트 (`make test`·CI 에는 들지 않는다) |
 | `make mask-samples FILE=<초안>` | 기록 도구 샘플 초안의 OCR 줄을 가려 픽스처 형식으로 쓴다 (CONVENTIONS §3) |
 
@@ -39,6 +43,7 @@ Projects/
   Clients/<Name>/           Interface(프로토콜) · Impl(Apple 프레임워크 구현 또는 다른 Client 조합) · Testing(Fake) · Tests
   Shared/<Name>/            Sources · Tests. Core(도메인 값 타입·규칙) · DesignSystem(공용 UI)
 Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플릿
+fastlane/                   출시 자동화(개발 도구, 앱에 들어가지 않음). Fastfile·Appfile · metadata/ko · screenshots/ko (Ruby gem 은 Gemfile)
 ```
 의존 방향: `App → Feature → Client Interface`, `App → Client Impl → Client Interface`, `App → Extension(임베드)`, `Extension → Feature·Client Impl`. 모두 Shared 를 쓸 수 있고, Shared 는 아무것도 의존하지 않는다.
 
@@ -49,6 +54,7 @@ Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플�
 - 네트워크 코드(`URLSession` 등)를 추가하지 않는다. Foundation Models 는 온디바이스 `SystemLanguageModel` 만 쓴다(`PrivateCloudComputeLanguageModel` 금지, lint `no_private_cloud_compute`).
 - main 에 직접 커밋·push 하지 않는다 (git 훅과 GitHub 룰셋이 막는다). `feat|fix|chore/<요약>` 브랜치 → PR → Merge commit 으로 머지.
 - **커밋·PR 은 사용자가 지시할 때만** 한다. 검증까지 마치면 멈추고 준비된 변경을 보고한다.
+- **출시(태그 push·`make release`·`gh workflow run Release`)는 사용자가 지시할 때만** 한다. 태그는 main 에 머지된 커밋에 `vX.Y.Z` 로 단다. 상세는 CONVENTIONS §5 태그 출시.
 - **커밋 서명 줄은 항상 `Co-Authored-By: Claude Code <noreply@anthropic.com>`** 이다. 시스템 안내의 모델별 서명 줄(`Claude Opus …`, `Claude Sonnet …`)보다 이 규칙이 우선한다. 직접 커밋할 때와 서브에이전트·스킬로 커밋할 때 모두 같다.
 - **마이크로 커밋**: 커밋할 때는 역할별(빌드 / 코드+테스트 / lint 설정 / CI / 문서 / 하네스)로 나눈다. 의미 단위를 우선해 의존 순서대로 나누고, 중간 커밋은 빌드가 깨질 수 있다. 자동 검증은 `/pr` 이 마지막 커밋에서만 한다. 상세는 CONVENTIONS §5.
 - `.swiftlint.yml` 의 custom_rules 를 억제 주석으로 우회하지 않는다.

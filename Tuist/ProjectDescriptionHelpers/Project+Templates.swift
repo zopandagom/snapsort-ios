@@ -11,12 +11,25 @@ public enum Env {
   /// Apple Developer Program 팀. 실기기 빌드는 Xcode 자동 서명으로 프로비저닝한다.
   static let developmentTeam = "XHV4ZL5K8T"
 
+  /// 로컬 빌드의 버전·빌드 번호 기본값. 출시 빌드(fastlane `release`)는 태그 버전과 ASC 최신 빌드 번호 + 1 로
+  /// 덮어쓴다(docs/ARCHITECTURE.md §2 버전).
+  public static let marketingVersion = "1.0.0"
+  public static let currentProjectVersion = "1"
+
   static let baseSettings: SettingsDictionary = [
     "SWIFT_VERSION": "6.0",
     "SWIFT_STRICT_CONCURRENCY": "complete",
     "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
     "CODE_SIGN_STYLE": "Automatic",
     "DEVELOPMENT_TEAM": .string(Self.developmentTeam),
+    "MARKETING_VERSION": .string(Self.marketingVersion),
+    "CURRENT_PROJECT_VERSION": .string(Self.currentProjectVersion),
+  ]
+
+  /// 앱·위젯 Info.plist 의 버전을 빌드 설정에서 읽게 한다(Tuist 기본은 리터럴 1.0/1). 둘이 다르면 업로드가 거절된다.
+  static let versionInfoPlist: [String: Plist.Value] = [
+    "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+    "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
   ]
 
   /// 앱과 위젯이 저장소를 함께 쓰는 App Group. 이름의 단일 출처이며, Swift 코드는 Info.plist 의
@@ -56,8 +69,10 @@ public extension Project {
           product: .app,
           bundleId: Env.bundleIdPrefix,
           deploymentTargets: Env.deploymentTargets,
-          infoPlist: .extendingDefault(with: infoPlist.merging([
+          infoPlist: .extendingDefault(with: infoPlist.merging(Env.versionInfoPlist.merging([
             "UILaunchScreen": [:],
+            // 수출 규정: 표준 암호화(HTTPS 등 OS 제공)만 쓰거나 쓰지 않는다. 위젯은 앱 번들 안이라 앱 값이 적용된다.
+            "ITSAppUsesNonExemptEncryption": false,
             Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
             // 분류 BG 처리 작업(충전 중)과 계속 처리 작업(사용자 시작). 식별자는 App 이 이 목록에서 읽는다.
             "BGTaskSchedulerPermittedIdentifiers": [
@@ -65,7 +80,7 @@ public extension Project {
               .string(Env.continuedIndexingTaskIdentifierPattern),
             ],
             "UIBackgroundModes": ["processing"],
-          ]) { $1 }),
+          ]) { $1 }) { $1 }),
           buildableFolders: ["Sources", "Resources"],
           entitlements: Env.appGroupEntitlements,
           dependencies: dependencies
@@ -88,13 +103,13 @@ public extension Project {
           product: .appExtension,
           bundleId: Env.bundleId(appExtension.rawValue),
           deploymentTargets: Env.deploymentTargets,
-          infoPlist: .extendingDefault(with: [
+          infoPlist: .extendingDefault(with: Env.versionInfoPlist.merging([
             "CFBundleDisplayName": .string(Env.displayName),
             "NSExtension": [
               "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
             ],
             Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
-          ]),
+          ]) { $1 }),
           buildableFolders: ["Sources"],
           entitlements: Env.appGroupEntitlements,
           dependencies: dependencies

@@ -28,7 +28,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 3 | 10/15 – 10/21 | Foundation Models 분류 + 기프티콘 추출, 만료 알림, 캡처 정보 추출(바코드·주소·송장·계좌) | Classifier·Notification Client, 미지원 기기 폴백 |
 | 4 | 10/22 – 10/28 | 메인 UI(카테고리별 묶음, 여행 폴더), 검색, 정리 도우미, 위젯 | DesignSystem, 위젯 익스텐션(App Group) |
 | 5 | 10/29 – 11/4 | 온보딩 마감(첫 화면 소개·개인정보 약속, 복귀 시 권한 다시 읽기, 제한(restricted) 안내) | Onboarding 확장. 무료 앱이라 결제 없음, TestFlight 외부 배포 안 함 |
-| 6 | 11/5 – 11/11 | ASO, 스토어 에셋, 출시 | 심사 제출 |
+| 6 | 11/5 – 11/11 | ASO, 스토어 에셋, 출시 | 태그 push 로 심사 제출 (`release.yml`) |
 
 ### 주차별 예상 모듈
 | 주차 | 새 Client | 새 Feature / Shared |
@@ -57,8 +57,9 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 항목 | 필요 시점 | 상태 |
 |---|---|---|
 | Apple Developer Program 가입 (개인, 연 99달러) | W1 실기기 테스트 전 | ☑ |
-| App ID `com.zopandagom.snapsort`(+ 위젯 `com.zopandagom.snapsort.widget`) + App Group `group.com.zopandagom.snapsort` 등록 | W4 (위젯과 SwiftData 저장소 공유. App Group 은 등록함, App ID 연결은 첫 실기기 빌드 서명에서 확인한 뒤 ☑) | ☐ |
-| App Store Connect 앱 생성, 앱 이름 선점 ("간직함" / 영어 "Ganjik") | 가능한 빨리 | ☐ |
+| App ID `com.zopandagom.snapsort`(+ 위젯 `com.zopandagom.snapsort.widget`) + App Group `group.com.zopandagom.snapsort` 등록 | W4 (위젯과 SwiftData 저장소 공유. App Group 은 등록함, App ID 연결은 실기기 빌드 서명으로 확인함) | ☑ |
+| App Store Connect 앱 생성, 앱 이름 선점 ("간직함" / 영어 "Ganjik") | 가능한 빨리 | ☑ |
+| 출시 CD(태그 push → 업로드·심사 제출·자동 공개, CONVENTIONS §5 태그 출시): 레포 Secrets `ASC_KEY_ID`·`ASC_ISSUER_ID`·`ASC_KEY_P8`(Admin 역할 API 키 `.p8` 의 base64) 등록 → 출시 워크플로 머지 뒤 main 에서 리허설(`gh workflow run Release --ref main -f version=1.0.0 -f submit=false`: 업로드까지, 심사 제출 없음) 통과 → App Store Connect 첫 1회 수동 항목(개인정보 라벨·연령 등급·가격·판매 국가·콘텐츠 권리 선언) 입력 → 스토어 설명·스크린샷(아래 ASO 행) 머지 뒤 첫 태그. 리허설이 지나지 않는 경로(처리 대기·심사 제출·제출 확인)는 첫 태그에서 처음 돌므로 실행을 끝까지 지켜본다 | W6 | ☐ |
 | 분류 정확도용 샘플 세트 (카테고리별 20장+. 이미지는 커밋하지 않고 실기기에서 Debug 기록 도구로 기록한 분류 입력을 가려서 `ClassificationSamples.json` 에 넣는다, CONVENTIONS §3) | W2 시작 전 | ☐ |
 | 가격 정책 결정: 무료(인앱 결제 없음), 2026-10-26 결정 | W5 전 | ☑ |
 | `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시). 매니페스트·본문(`site/privacy/index.html`)·Pages 워크플로·앱 안 링크는 레포에 있다(ARCHITECTURE §2·§4 개인정보 처리방침). 레포 설정에서 Pages(Source: GitHub Actions)를 켜고(워크플로 첫 머지 전에. 머지 뒤에 켰으면 Actions → Pages → Run workflow 로 한 번 돌린다) 게시 URL 이 열리며 App Store Connect 에 처리방침 URL·개인정보 라벨("데이터를 수집하지 않음")을 넣은 뒤 ☑ | W6 | ☐ |
@@ -75,4 +76,4 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | iCloud 저장 공간 최적화로 원본이 기기에 없음 | 네트워크로 원본을 받지 않고(`isNetworkAccessAllowed = false`) 기기에 있는 버전만 쓴다. 분류·OCR 대상 판정용 바코드 확인은 썸네일, OCR·바코드 크게 보기는 기기에 있는 가장 큰 버전 |
 | iOS 사진 앱의 검색·여행 추억과 기능이 겹침 | 차별점은 위 "사진 앱과의 차별 기능" 절에 둔다 |
 | 차별 기능 추가로 출시 일정이 빠듯함 | 주마다 진행 상황을 점검하고, 늦어지면 출시 후로 미룰 항목을 사용자와 다시 정한다 |
-| CI macOS 분 소진 (비공개 무료 플랜 2,000분, macOS 10배) | 문서만 바뀐 PR 은 CI 생략, lint 는 Ubuntu. 부족하면 셀프 호스트 러너나 레포 공개 검토 |
+| 레포가 공개라 GitHub Actions 로그·아티팩트를 누구나 본다 (공개 레포의 표준 러너는 분 과금이 없어 CI 분 소진은 위험이 아니다. 문서·하네스·스토어 메타데이터만 바뀐 PR 의 CI 생략과 Ubuntu lint 는 시간 절약으로 남긴다) | 출시 워크플로(`release.yml`)는 API 키를 러너 임시 위치에만 쓰고 끝나면 지우며, 키 내용을 로그에서 가리고(`::add-mask::`) 출력하지 않는다. 실패 때만 빌드 로그를 7일 아티팩트로 올리고 ipa·dSYM 은 올리지 않는다 |
