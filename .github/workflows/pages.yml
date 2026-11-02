@@ -1,0 +1,35 @@
+name: Pages
+
+# 개인정보 처리방침 같은 공개 페이지(site/)만 GitHub Pages 로 게시한다. 레포의 다른 파일(docs/ 등)은 게시하지 않는다.
+# 레포 설정 Settings → Pages → Source 가 "GitHub Actions" 여야 한다. 꺼진 채 돌면 configure-pages 가 실패하고, 켜도 저절로 다시 돌지 않는다.
+# 그래서 이 워크플로를 처음 머지하기 전에 켠다. 이미 머지했으면 켠 뒤 Actions → Pages → Run workflow(workflow_dispatch)로 한 번 돌린다.
+# 앱 안 링크(DesignSystem `PrivacyPolicyLink.url`)가 site/privacy/ 경로를 가리키므로 경로를 바꾸면 함께 고친다.
+on:
+  push:
+    branches: [main]
+    paths: [site/**]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -89,8 +89,12 @@ public struct OnboardingView: View {
         FeatureRow(
           systemImage: "lock.shield",
           title: "사진과 사진 속 글자는 이 기기 안에서만 분석하고 밖으로 보내지 않아요.",
-          message: "여행 장소 이름을 찾고 지도를 보여 주려고 여행지의 대략적인 위치 좌표만 Apple 지도 서비스로 가고, 주소를 눌러 지도 앱을 열 때만 그 주소를 지도 앱에 넘겨요."
+          message: "여행 장소 이름을 찾고 지도를 보여 주려고 여행지의 대략적인 위치 좌표와 언어·지역 설정만 "
+            + "Apple 지도 서비스로 가고(지도를 움직이면 그 영역도), "
+            + "주소를 눌러 지도 앱을 열 때만 그 주소를 지도 앱에 넘겨요."
         )
+
+        PrivacyPolicyLink()
 
         Text("곧 뜨는 권한 창에서 일부 사진만 허용하면 고른 사진만 정리해요.")
           .font(.footnote)
@@ -163,6 +167,8 @@ private struct StatusScreen<Actions: View>: View {
         Text(self.message)
           .foregroundStyle(.secondary)
         self.actions
+        // 거부·제한 상태에서는 보관함에 들어갈 수 없으므로 앱 안 처리방침 링크를 여기에도 둔다(심사 가이드라인 5.1.1(i)).
+        PrivacyPolicyLink()
       }
       .multilineTextAlignment(.center)
       .padding(24)
