@@ -8,7 +8,7 @@ import PhotoStoreInterface
 /// 여행 사진 격자, 그 기간의 영수증·지도·문서 캡처 묶음, 장소 이름, 반올림 중심점 지도를 보인다. 상세 화면은 한 번에 하나만 열리므로
 /// App 이 하나를 소유한다. 여행 판정은 저장소가 바뀔 때마다 다시 돌아 같은 여행도 값이 바뀌므로, 다시 읽을 때 사진이 가장 많이 겹치는
 /// 여행(`Trip.bestMatch(in:)`)을 같은 여행으로 본다.
-/// 장소 이름은 캐시에 없을 때만, 여행 중심점의 반올림 좌표(`Trip.placeKey`)로만 묻는다(`MapClient.placeName(near:locale:)`).
+/// 장소 이름은 캐시에 없을 때만, 여행 중심점의 반올림 좌표(`Trip.placeKey`, 와 로캘)로만 묻는다(`MapClient.placeName(near:locale:)`).
 /// 받은 이름·시간대는 저장소에 캐시하고(미리 받기 `TripPlaceClient` 도 쓴다), 시간대를 받으면 다시 읽어 기간·캡처를 다시 계산한다.
 /// 저장소 변경(장소 캐시 쓰기 포함)·날짜 변경 신호는 LibraryView 가 `libraryStoreChanged()`·`dayChanged()` 로 넘긴다.
 @MainActor
@@ -56,7 +56,7 @@ public final class TripDetailModel {
 
   /// - Parameters:
   ///   - photoStore: 분류 결과 저장소. App 이 저장소를 열지 못하면 nil 이다(그때는 여행 카드가 없어 이 화면에 오지 않는다).
-  ///   - map: 장소 이름을 묻는다. 이 화면에서 캐시에 이름이 없을 때 여행 중심점의 반올림 좌표로만 부른다.
+  ///   - map: 장소 이름을 묻는다. 이 화면에서 캐시에 이름이 없을 때 여행 중심점의 반올림 좌표(와 로캘)로만 부른다.
   ///   - calendar: 기기 달력. 읽을 때와 `dayChanged()` 때 부른다. 시간대를 모르는 여행의 기간을 이 시간대로 계산한다(`TripPeriod`).
   ///   - locale: 장소 이름의 로캘. 읽을 때마다 한 번 부른다.
   public convenience init(

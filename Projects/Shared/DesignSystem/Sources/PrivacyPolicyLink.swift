@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 개인정보 처리방침 웹 페이지(`site/privacy/index.html` 을 GitHub Pages 로 게시)를 기본 브라우저로 여는 링크.
-/// 누를 때만 열고 앱은 아무 데이터도 보내지 않는다(ARCHITECTURE §4 개인정보 처리방침 행).
+/// 누를 때만 열고 앱은 아무 데이터도 보내지 않는다. 페이지 접속은 브라우저가 GitHub Pages 에 한다(ARCHITECTURE §4 개인정보 처리방침 행).
 /// 앱 안에 처리방침 링크를 두라는 심사 가이드라인 5.1.1(i) 때문에 온보딩(소개·거부·제한 화면)과 보관함 맨 아래에 둔다.
 public struct PrivacyPolicyLink: View {
   /// 처리방침 주소. `.github/workflows/pages.yml` 이 게시하는 경로와 같아야 한다.
