@@ -148,8 +148,8 @@ struct CaptureActionsUsageTests {
 
   @Test("쓰기 전에 시작한 다시 읽기는 쓴 값을 되돌리지 않고 한 번 더 읽는다")
   func readOverlappingWriteIsDropped() async {
-    // 0 번 읽기는 상세를 여는 쪽(`open`)이 목록 항목을 만드는 읽기다.
-    let gates = CallGates(holding: [1])
+    // 0 번 읽기는 상세를 여는 쪽(`open`)이 목록 항목을 만드는 읽기, 1 번은 상세를 열 때의 첫 다시 읽기다.
+    let gates = CallGates(holding: [2])
     let photoStore = PhotoStoreClientFake(
       images: [.gifticon(id: "g", expiryDate: .date(2026, 11, 1))],
       onGifticon: { await gates.pass($0) }
@@ -159,12 +159,12 @@ struct CaptureActionsUsageTests {
 
     // 미사용을 읽은 채 붙잡힌다.
     model.libraryStoreChanged()
-    await waitUntil { gates.hasEntered(1) }
+    await waitUntil { gates.hasEntered(2) }
     await model.usedButtonTapped()
     #expect(model.gifticon?.isUsed == true)
 
-    gates.open(1)
-    await waitUntil { gates.hasEntered(2) }
+    gates.open(2)
+    await waitUntil { gates.hasEntered(3) }
     await settle()
     #expect(model.gifticon?.isUsed == true)
 
@@ -173,8 +173,8 @@ struct CaptureActionsUsageTests {
 
   @Test("쓰는 중에 끝난 다시 읽기를 버린 뒤 쓰기가 기프티콘 아님(false)으로 끝나면 스스로 다시 읽어 기프티콘 영역을 거둔다")
   func readDroppedDuringWriteThenFalseReloads() async throws {
-    // 0 번 읽기는 상세를 여는 쪽(`open`)이 목록 항목을 만드는 읽기다.
-    let readGates = CallGates(holding: [1])
+    // 0 번 읽기는 상세를 여는 쪽(`open`)이 목록 항목을 만드는 읽기, 1 번은 상세를 열 때의 첫 다시 읽기다.
+    let readGates = CallGates(holding: [2])
     let writeGates = CallGates(holding: [0])
     let photoStore = PhotoStoreClientFake(
       images: [.gifticon(id: "g", expiryDate: .date(2026, 11, 1))],
@@ -186,14 +186,14 @@ struct CaptureActionsUsageTests {
 
     // 다시 읽기가 기프티콘 값을 읽은 채 붙잡히고, 쓰기가 시작돼 붙잡힌다.
     model.libraryStoreChanged()
-    await waitUntil { readGates.hasEntered(1) }
+    await waitUntil { readGates.hasEntered(2) }
     let write = Task { await model.usedButtonTapped() }
     await waitUntil { writeGates.hasEntered(0) }
     // 쓰는 중에 읽기가 끝나 버려진다.
-    readGates.open(1)
+    readGates.open(2)
     await settle()
     #expect(model.gifticon != nil)
-    #expect(!readGates.hasEntered(2))
+    #expect(!readGates.hasEntered(3))
 
     // 그사이 기프티콘이 아니게 돼 쓰기가 false 로 끝난다.
     try await photoStore.save([.dated(id: "g", nil, categories: [.shopping])])
@@ -201,7 +201,7 @@ struct CaptureActionsUsageTests {
     await write.value
 
     await waitUntil { model.gifticon == nil }
-    #expect(readGates.hasEntered(2))
+    #expect(readGates.hasEntered(3))
     #expect(model.usageRevision == 0)
     #expect(model.barcode == .notApplicable)
 
@@ -210,7 +210,7 @@ struct CaptureActionsUsageTests {
 
   @Test("쓰는 중에 끝난 다시 읽기를 버린 뒤 쓰기가 실패하면 스스로 다시 읽어 그사이 바뀐 값을 보인다")
   func readDroppedDuringWriteThenFailureReloads() async throws {
-    let readGates = CallGates(holding: [1])
+    let readGates = CallGates(holding: [2])
     let writeGates = CallGates(holding: [0])
     let photoStore = PhotoStoreClientFake(
       images: [.gifticon(id: "g", expiryDate: .date(2026, 11, 1))],
@@ -224,11 +224,11 @@ struct CaptureActionsUsageTests {
     // 인덱서가 교환처를 채운 뒤의 다시 읽기가 붙잡히고, 쓰기가 시작돼 붙잡힌다.
     try await photoStore.save([.gifticon(id: "g", expiryDate: .date(2026, 11, 1), place: "빵집")])
     model.libraryStoreChanged()
-    await waitUntil { readGates.hasEntered(1) }
+    await waitUntil { readGates.hasEntered(2) }
     let write = Task { await model.usedButtonTapped() }
     await waitUntil { writeGates.hasEntered(0) }
     // 쓰는 중에 읽기가 끝나 버려진다.
-    readGates.open(1)
+    readGates.open(2)
     await settle()
     #expect(Self.place(of: model) == nil)
 
@@ -271,11 +271,15 @@ struct CaptureActionsUsageTests {
     PhotoStoreClientFake(images: [.gifticon(id: "g", expiryDate: .date(2026, 11, 1))])
   }
 
-  /// 기프티콘 목록에서 "g" 를 연 것처럼 저장소에서 읽은 항목으로 상세를 연다.
+  /// 기프티콘 목록에서 "g" 를 연 것처럼 저장소에서 읽은 항목으로 상세를 연다. 열 때의 첫 다시 읽기가 저장소 읽기 1 번에
+  /// 들어갈 때까지 기다려(신호 스트림이 최신 하나만 담으므로 그 전에 온 신호는 첫 다시 읽기와 합쳐진다), 뒤의 저장소 변경 신호가
+  /// 2 번 읽기가 되게 한다. yield 횟수가 아니라 Fake 의 읽기 횟수로 기다려 스케줄링에 기대지 않는다.
   static func open(_ model: CaptureActionsModel, photoStore: PhotoStoreClientFake) async -> Task<Void, Never> {
     let item = try? await photoStore.gifticon(id: "g")
     let detail = Task { await model.detailAppeared(id: "g", gifticon: item) }
     await waitUntil { model.detailID == "g" && model.captureInfo != .loading }
+    await waitUntil { photoStore.gifticonCallCount >= 2 }
+    await settle()
     return detail
   }
 }

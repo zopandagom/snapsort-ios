@@ -233,6 +233,11 @@ public final class PhotoStoreClientFake: PhotoStoreClient {
   public var images: [IndexedImage] {
     self.state.withLock { $0.images.values.sorted { $0.id < $1.id } }
   }
+
+  /// `gifticon(id:)` 가 불린 횟수. 부르자마자(`onGifticon` 을 기다리기 전에) 센다.
+  public var gifticonCallCount: Int {
+    self.state.withLock { $0.gifticonCallCount }
+  }
 }
 
 // 저장·삭제·조회와 기프티콘 소급 추출. 저장 속성은 위 본문에 둔다.

@@ -200,3 +200,60 @@ private func libraryPreview(
     )
   }
 }
+
+/// 넘기기 상세 데모 장: 읽힘 → 작은 대체 버전 → iCloud 에만 있음 → 실패 → 보관함에 없음 → 읽힘.
+private enum PreviewPagerPhotos {
+  static let count = 6
+
+  static func id(_ index: Int) -> ImageAsset.ID {
+    "pager-\(index)"
+  }
+
+  static var pages: [PhotoPage] {
+    (0 ..< self.count).map { index in
+      PhotoPage(asset: .stub(id: self.id(index), creationDate: Date().addingTimeInterval(-3600 * Double(index))))
+    }
+  }
+
+  static let photoLibrary = PhotoLibraryClientFake(
+    currentState: .authorized,
+    loadImageResults: [
+      PreviewPagerPhotos.id(0): .success(AnalysisImage(cgImage: .colored(index: 0), orientation: .up)),
+      PreviewPagerPhotos.id(1): .success(AnalysisImage(
+        cgImage: .colored(index: 1),
+        orientation: .up,
+        isLocalFallback: true
+      )),
+      PreviewPagerPhotos.id(2): .failure(.notAvailableLocally),
+      PreviewPagerPhotos.id(3): .failure(.failed),
+      // 4번은 결과가 없어 보관함에 없는 사진이다.
+      PreviewPagerPhotos.id(5): .success(AnalysisImage(cgImage: .colored(index: 5), orientation: .right)),
+    ]
+  )
+}
+
+#Preview("상세 - 넘기기(장마다 상태)") {
+  // 한 섹션 여섯 장의 둘째 장에서 연다. 좌우로 넘기면 장마다 대체 버전 안내·iCloud·실패·없음 화면이 보이고 처음·끝에서 멈춘다.
+  NavigationStack {
+    PhotoDetailView(
+      model: CategoryModel(photoLibrary: PreviewPagerPhotos.photoLibrary, photoStore: nil),
+      captureModel: captureActionsPreviewModel(photoStore: nil),
+      pages: PreviewPagerPhotos.pages,
+      index: 1
+    )
+  }
+}
+
+#Preview("상세 - 넘기기(비슷한 사진 묶음)") {
+  // 정리 화면 비슷한 사진 묶음 A(세 장)에서 연 것처럼. 기프티콘 영역 없이 주소·번호 행동만 있다.
+  let photoLibrary = PhotoLibraryClientFake.previewCleanup(scenario: .cleanup)
+  let photoStore = PhotoStoreClientFake.previewClassified(extraImages: PreviewCleanup.images(now: Date()))
+  NavigationStack {
+    PhotoDetailView(
+      model: CategoryModel(photoLibrary: photoLibrary, photoStore: photoStore),
+      captureModel: captureActionsPreviewModel(photoStore: photoStore),
+      pages: (0 ..< 3).map { PhotoPage(asset: .stub(id: PreviewCleanup.similarID($0), creationDate: Date())) },
+      index: 0
+    )
+  }
+}

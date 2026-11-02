@@ -4,8 +4,9 @@ import SwiftUI
 
 /// 기프티콘 목록: 미사용/사용함 탭과 만료 임박순/월별 정렬 (docs/ARCHITECTURE.md §4 카테고리 화면).
 /// 만료 임박순은 남은 것(가까운 날부터) → 만료됨(최근 만료부터) → 만료일 모름 → 확인 중 섹션이고, 월별은 생성일의 연·월 섹션이다.
-/// 탭·정렬은 저장하지 않는 화면 일시 상태라 이 View 가 갖는다: 새로 열면 기본값, 상세에서 돌아오면 그대로다.
-/// 줄을 누르면 사진 상세로 가고, 그 상세만 기프티콘 정보·사용함 버튼·바코드를 보인다.
+/// 탭·정렬은 저장하지 않는 화면 일시 상태라 이 View 가 갖는다: 새로 열면 기본값, 상세에서 돌아오면 그대로이고
+/// 상세에서 마지막으로 본 줄이 보이게 한 번 스크롤한다(`CategoryModel.detailReturn`).
+/// 줄을 누르면 사진 상세로 가고, 그 상세만 기프티콘 정보·사용함 버튼·바코드를 보인다. 상세는 누른 줄의 섹션 안에서 넘긴다.
 /// 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(category:)`).
 public struct GifticonListView: View {
   let model: GifticonListModel
@@ -13,6 +14,8 @@ public struct GifticonListView: View {
 
   @State private var tab: GifticonTab = .unused
   @State private var sort: GifticonSort = .expiry
+  /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이라 돌아올 위치가 이 화면 것인지 가른다.
+  @State private var visit = UUID()
 
   public init(model: GifticonListModel, categoryModel: CategoryModel) {
     self.model = model
@@ -84,6 +87,19 @@ public struct GifticonListView: View {
   }
 
   private func list(_ sections: GifticonListSections) -> some View {
+    ScrollViewReader { proxy in
+      self.listContent(sections)
+        // 상세에서 돌아와 다시 보일 때 이 방문의 돌아올 위치가 있으면 그 줄이 보이게 한 번 스크롤한다(이미 보이면 움직이지 않고,
+        // 지금 탭·정렬의 목록에 없으면 아무것도 하지 않는다).
+        .onAppear {
+          guard let target = self.categoryModel.detailReturn, target.origin.visit == self.visit else { return }
+          self.categoryModel.detailReturnApplied(visit: self.visit)
+          proxy.scrollTo(target.id, anchor: nil)
+        }
+    }
+  }
+
+  private func listContent(_ sections: GifticonListSections) -> some View {
     SnapList {
       switch sections {
       case let .byExpiry(sections):
@@ -110,9 +126,12 @@ public struct GifticonListView: View {
     }
   }
 
+  /// 상세는 이 섹션의 줄들을 보이는 순서대로 넘긴다.
   private func rows(_ items: [GifticonListItem]) -> some View {
-    ForEach(items) { item in
-      NavigationLink(value: PhotoDetailRoute(asset: item.asset, gifticon: item)) {
+    let pages = PhotoPages.pages(gifticons: items)
+    let origin = PhotoDetailOrigin(visit: self.visit, section: 0)
+    return ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+      NavigationLink(value: PhotoDetailRoute(pages: pages, index: index, origin: origin)) {
         GifticonRow(
           categoryModel: self.categoryModel,
           item: item,

@@ -4,13 +4,23 @@ import SwiftUI
 
 /// 보관함 검색 결과 (docs/ARCHITECTURE.md §4 검색). 보관함 화면의 NavigationStack 루트 내용으로, 검색 중에는 카테고리 카드 대신 보인다.
 /// 위에서부터 이름이 맞은 카테고리 줄(카테고리 화면·각 목록으로), 캐시된 장소 이름이 맞은 여행 줄(여행 폴더 상세로),
-/// 사진 줄(최신순, 맞은 곳 한 줄. 주소·번호 행동만 있는 사진 상세로)이다.
+/// 사진 줄(최신순, 맞은 곳 한 줄. 주소·번호 행동만 있는 사진 상세로, 상세는 사진 줄 안에서 넘긴다)이다.
+/// 상세에서 돌아오면 마지막으로 본 사진 줄이 보이게 한 번 스크롤한다(`CategoryModel.detailReturn`).
 /// 썸네일은 카테고리 화면과 같은 보관 규칙을 쓰도록 `CategoryModel` 의 칸을 빌린다(`thumbnailScreenAppeared(scope: .search)`).
 /// 검색어와 맞은 줄(OCR 텍스트)은 화면에만 보이고 로그에 남기지 않는다 (docs/CONVENTIONS.md §4).
 struct SearchResultsView: View {
   let model: SearchModel
   let categoryModel: CategoryModel
   let isLimited: Bool
+
+  /// 이 화면 인스턴스의 방문 값. 사진 상세에서 돌아오면 같은 값이라 돌아올 위치가 이 화면 것인지 가른다.
+  @State private var visit = UUID()
+
+  init(model: SearchModel, categoryModel: CategoryModel, isLimited: Bool) {
+    self.model = model
+    self.categoryModel = categoryModel
+    self.isLimited = isLimited
+  }
 
   var body: some View {
     self.contentView
@@ -61,6 +71,19 @@ struct SearchResultsView: View {
   }
 
   private func list(_ results: SearchResults) -> some View {
+    ScrollViewReader { proxy in
+      self.listContent(results)
+        // 상세에서 돌아와 다시 보일 때 이 방문의 돌아올 위치가 있으면 그 사진 줄이 보이게 한 번 스크롤한다(이미 보이면 움직이지 않고,
+        // 지금 결과에 없으면 아무것도 하지 않는다).
+        .onAppear {
+          guard let target = self.categoryModel.detailReturn, target.origin.visit == self.visit else { return }
+          self.categoryModel.detailReturnApplied(visit: self.visit)
+          proxy.scrollTo(SearchPhotoRowID(image: target.id), anchor: nil)
+        }
+    }
+  }
+
+  private func listContent(_ results: SearchResults) -> some View {
     SnapList {
       if !results.categories.isEmpty {
         Section("카테고리") {
@@ -85,9 +108,11 @@ struct SearchResultsView: View {
         }
       }
       if !results.images.isEmpty {
+        let pages = PhotoPages.pages(results.images.map(\.asset))
+        let origin = PhotoDetailOrigin(visit: self.visit, section: 0)
         Section("사진 \(results.images.count)장") {
-          ForEach(results.images) { hit in
-            NavigationLink(value: PhotoDetailRoute(asset: hit.asset)) {
+          ForEach(Array(results.images.enumerated()), id: \.element.rowID) { index, hit in
+            NavigationLink(value: PhotoDetailRoute(pages: pages, index: index, origin: origin)) {
               SearchImageRow(categoryModel: self.categoryModel, hit: hit, calendar: self.model.calendar)
             }
           }
@@ -162,5 +187,17 @@ private struct SearchImageRow: View {
     case let .line(line): line
     case let .group(title): title
     }
+  }
+}
+
+/// 사진 줄 `ForEach` 의 id. 여행 줄 id(`SearchTripHit.id`)가 그 여행 첫 사진 식별자라, 같은 사진이 사진 줄에도 있으면
+/// 돌아올 위치의 `scrollTo(사진 식별자)` 가 여행 줄로 갈 수 있어 다른 타입으로 둔다(`CleanupView` 의 묶음 `listID` 와 같은 처리).
+private struct SearchPhotoRowID: Hashable {
+  let image: ImageAsset.ID
+}
+
+private extension SearchHit {
+  var rowID: SearchPhotoRowID {
+    SearchPhotoRowID(image: self.id)
   }
 }

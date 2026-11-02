@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Model 은 App 이 소유하고 주입한다. @Observable 이므로 View 는 참조만 들고 있어도 변경을 관찰한다.
 /// 카테고리 카드를 누르면 카테고리 화면(`CategoryView`, 기프티콘은 `GifticonListView`, 영수증은 `ReceiptListView`, 여행은 `TripListView`)을,
-/// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`. 여행 폴더 목록의 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
+/// 그 칸·줄을 누르면 사진 상세(`PhotoDetailView`, 누른 섹션 안 넘기기·확대. 여행 폴더 목록의 줄은 여행 폴더 상세 `TripDetailView` 를 거친다)를 연다.
 /// 검색 필드(`.searchable`)를 누르면 카테고리 카드 대신 검색 결과(`SearchResultsView`)를 보이고, 결과의 카테고리·여행·사진 줄이 같은 화면들을 연다.
 /// 카테고리 위 "정리 도우미" 카드는 정리 화면(`CleanupView`)을, 그 안의 줄은 최근 스크린샷 화면(`CaptureInboxView`)을 연다.
 /// 카드의 대표 썸네일은 `LibraryCoverModel` 이 갖는다(docs/ARCHITECTURE.md §4 카테고리 화면).

@@ -125,8 +125,27 @@ public enum ImageUnavailableReason: Sendable, Equatable {
   case failed
 }
 
-/// 열린 사진 상세.
-public struct PhotoDetail: Sendable {
+/// 사진 상세를 연 화면. 돌아올 위치(`PhotoDetailReturn`)가 그 화면 것인지 가르고, 같은 이미지가 두 섹션에 있는 화면에서 칸을 고른다.
+public struct PhotoDetailOrigin: Hashable, Sendable {
+  /// 연 화면 인스턴스의 방문 값(View `@State` UUID). 새로 연 같은 화면은 새 값이라 지난 상세의 위치를 쓰지 않는다.
+  public let visit: UUID
+  /// 누른 칸의 섹션이 연 때 그 화면에서 몇 번째였는지. 카테고리 격자·여행 상세만 쓰고, 나머지는 0.
+  public let section: Int
+
+  public init(visit: UUID, section: Int) {
+    self.visit = visit
+    self.section = section
+  }
+}
+
+/// 상세에서 돌아올 때 원래 화면이 보이게 할 사진.
+public struct PhotoDetailReturn: Equatable, Sendable {
+  public let origin: PhotoDetailOrigin
+  /// 마지막으로 본(확정된 지금 장) 사진.
   public let id: ImageAsset.ID
-  public let state: ImageLoadState
+
+  public init(origin: PhotoDetailOrigin, id: ImageAsset.ID) {
+    self.origin = origin
+    self.id = id
+  }
 }
