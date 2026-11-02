@@ -96,6 +96,38 @@ struct ImageLoaderTests {
     #expect(ImageLoader.decode(Data("not an image".utf8), maxPixelCount: ImageLoader.largestPixelCount) == nil)
   }
 
+  @Test("취소되지 않았으면 디코딩 결과를 주고, 디코딩하지 못하면 실패다")
+  func decodesUnlessCancelled() throws {
+    let data = try Self.pngData(of: .stub(width: 6, height: 2))
+
+    let image = try ImageLoader.decodeUnlessCancelled(data, maxPixelCount: 12)
+
+    #expect(image.width == 6)
+    #expect(image.height == 2)
+    #expect(throws: ImageLoadError.failed) {
+      try ImageLoader.decodeUnlessCancelled(Data("not an image".utf8), maxPixelCount: ImageLoader.largestPixelCount)
+    }
+  }
+
+  @Test("원본 데이터를 받은 뒤 취소됐으면 디코딩하지 않고 취소로 끝난다")
+  func skipsDecodingWhenCancelled() async throws {
+    let data = try Self.pngData(of: .stub(width: 6, height: 2))
+    let task = Task { () -> Result<CGImage, ImageLoadError> in
+      // 취소될 때까지 기다린 뒤(데이터를 받은 시점을 흉내) 디코딩을 시도한다.
+      while !Task.isCancelled {
+        await Task.yield()
+      }
+      return Result { () throws(ImageLoadError) -> CGImage in
+        try ImageLoader.decodeUnlessCancelled(data, maxPixelCount: 12)
+      }
+    }
+    task.cancel()
+
+    let result = await task.value
+
+    #expect(throws: ImageLoadError.cancelled) { try result.get() }
+  }
+
   @Test(
     "UIImage 방향을 같은 이름의 CGImagePropertyOrientation 으로 옮긴다",
     arguments: [

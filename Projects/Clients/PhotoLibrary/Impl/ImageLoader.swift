@@ -31,10 +31,12 @@ enum ImageLoader {
 
   /// 원본 데이터가 기기에 있으면 픽셀 수를 `largestPixelCount` 이하로 줄여 디코딩한다. 원본이 iCloud 에만 있으면 기기에서 바로 줄 수 있는 버전으로 대신한다.
   /// `.fastFormat` 이라 기기에 더 큰 버전이 있어도 작은 버전이 올 수 있다.
+  /// 원본 데이터를 받은 뒤 그사이 취소됐으면 디코딩하지 않고 `.cancelled` 를 던진다(이미 시작한 디코딩은 끝까지 간다).
+  /// 사진 상세에서 빠르게 넘겨 창 밖으로 나간 읽기가 쓸모없는 12.6MP 디코딩을 하지 않게 한다.
   static func largestAvailable(of asset: PHAsset) async throws(ImageLoadError) -> AnalysisImage {
     try await self.fallingBackWhenInCloud { () async throws(ImageLoadError) -> AnalysisImage in
       let (data, orientation) = try await self.requestImageData(of: asset)
-      guard let cgImage = self.decode(data, maxPixelCount: self.largestPixelCount) else { throw .failed }
+      let cgImage = try self.decodeUnlessCancelled(data, maxPixelCount: self.largestPixelCount)
       return AnalysisImage(cgImage: cgImage, orientation: orientation)
     } to: { () async throws(ImageLoadError) -> AnalysisImage in
       let targetSize = self.largestTargetSize(width: asset.pixelWidth, height: asset.pixelHeight)
@@ -117,6 +119,13 @@ enum ImageLoader {
       kCGImageSourceShouldCacheImmediately: true,
     ] as CFDictionary
     return CGImageSourceCreateThumbnailAtIndex(source, index, options)
+  }
+
+  /// 부른 Task 가 이미 취소됐으면 디코딩하지 않고 `.cancelled` 를 던진다. 아니면 `decode` 결과이고, 디코딩하지 못하면 `.failed` 다.
+  static func decodeUnlessCancelled(_ data: Data, maxPixelCount: Int) throws(ImageLoadError) -> CGImage {
+    guard !Task.isCancelled else { throw .cancelled }
+    guard let cgImage = self.decode(data, maxPixelCount: maxPixelCount) else { throw .failed }
+    return cgImage
   }
 
   static func orientation(_ orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
