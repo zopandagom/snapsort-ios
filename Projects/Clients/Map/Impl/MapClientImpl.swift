@@ -45,7 +45,7 @@ public struct MapClientImpl: MapClient {
   }
 
   public func placeName(near coordinate: RoundedCoordinate, locale: Locale) async throws(PlaceNameError) -> PlaceInfo? {
-    // 정수(×100)에서 만든 좌표만 보낸다.
+    // 좌표는 정수(×100)에서 만든 것만 보낸다(로캘과 함께).
     let addresses = try await self.geocode(coordinate.coordinate, locale)
     guard let first = addresses.first else {
       return nil
