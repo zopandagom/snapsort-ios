@@ -22,3 +22,16 @@ IndexingTiming-*.json
 
 # 팀 구현 설계·지적 기록 (CONVENTIONS §6 "팀 구현")
 .claude/team/
+
+# fastlane 산출물 (Fastfile 이 build/release 에 쓰는 ipa·로그는 build/ 로 이미 무시)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/README.md
+fastlane/test_output/
+*.ipa
+*.dSYM.zip
+# App Store Connect API 키는 레포에 두지 않는다 (CI 는 러너 임시 위치, 로컬은 레포 밖)
+*.p8
+# bundler (CI 는 BUNDLE_PATH=vendor/bundle)
+vendor/bundle/
+.bundle/
