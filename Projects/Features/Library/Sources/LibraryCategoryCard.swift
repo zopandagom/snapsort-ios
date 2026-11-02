@@ -3,6 +3,7 @@ import DesignSystem
 import SwiftUI
 
 /// 보관함 화면의 카테고리 카드: 대표 사진 모자이크 + 아이콘 칸 + 이름 + 개수. 누르면 그 카테고리 화면을 연다.
+/// 누르면 작아졌다 돌아오고(`.snapCard` 버튼 스타일), 카테고리 화면은 이 카드에서 커지며 열린다(`LibraryView` 의 줌 전환).
 /// 카드 하나가 접근성 요소 하나("기프티콘, 24장")이고 모자이크·아이콘은 장식이다.
 /// 대표 썸네일은 `LibraryCoverModel` 이 대표가 바뀔 때 읽어 두므로, 카드가 보일 때는 대체 표시 칸의 다시 시도만 요청한다.
 struct LibraryCategoryCard: View {
@@ -20,6 +21,8 @@ struct LibraryCategoryCard: View {
   /// 가로로 넓은 모자이크(여행 카드, 1열 격자).
   let isWide: Bool
   let titleLines: TitleLines
+  /// 카테고리 화면으로 줌 전환할 때 이 카드를 출발점으로 삼는 이름 공간(`LibraryView.zoomNamespace`).
+  let zoomNamespace: Namespace.ID
 
   @ScaledMetric(relativeTo: .subheadline) private var iconSize: CGFloat = 32
 
@@ -31,10 +34,12 @@ struct LibraryCategoryCard: View {
           IconTile(self.category.glyph, size: self.iconSize, scale: .compact)
           VStack(alignment: .leading, spacing: 0) {
             self.titleText
+            // 분류 중 개수가 늘면 바뀐 자리만 굴러간다(동작 줄이기면 바로 바뀐다).
             Text(self.category.countText(self.count))
               .font(.caption)
               .foregroundStyle(.secondary)
               .lineLimit(self.titleLines == .unlimited ? nil : 1)
+              .snapRollingNumber(self.count)
           }
           Spacer(minLength: 0)
         }
@@ -42,10 +47,12 @@ struct LibraryCategoryCard: View {
         .padding(.bottom, 4)
       }
       .snapCard(padding: 8)
-      .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
       .accessibilityElement(children: .ignore)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.snapCard)
+    .matchedTransitionSource(id: self.category, in: self.zoomNamespace) { source in
+      source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
     .accessibilityLabel("\(self.category.title), \(self.category.countText(self.count))")
     .onAppear { self.coverModel.cardAppeared(ids: self.ids) }
   }

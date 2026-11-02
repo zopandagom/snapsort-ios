@@ -43,6 +43,10 @@ public struct CleanupView: View {
         }
       }
       .cleanupAlert(self.model.alert) { self.model.alertDismissed() }
+      // 끌어 선택하는 동안 줄이 하나 바뀔 때마다 가볍게 톡. 끌기가 바꾼 선택은 같은 런루프 안에서 끝나므로 이 판정 때 아직 끌기 중이다.
+      .sensoryFeedback(trigger: self.model.selectedIDs) { _, _ in
+        self.dragTracker.isDragging ? .selection : nil
+      }
       .task { await self.model.onAppear(visit: self.visit) }
       .task { await self.categoryModel.thumbnailScreenAppeared(scope: .cleanup) }
       .onDisappear {

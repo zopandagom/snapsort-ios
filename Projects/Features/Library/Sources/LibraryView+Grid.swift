@@ -90,9 +90,8 @@ extension LibraryView {
           .foregroundStyle(SnapColor.accent)
       }
       .snapCard(SnapColor.blush)
-      .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.snapCard)
     .accessibilityElement(children: .combine)
   }
 
@@ -144,7 +143,8 @@ extension LibraryView {
       ids: self.model.coverIDs[category] ?? [],
       coverModel: self.coverModel,
       isWide: isWide,
-      titleLines: titleLines
+      titleLines: titleLines,
+      zoomNamespace: self.zoomNamespace
     )
   }
 

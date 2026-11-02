@@ -10,7 +10,7 @@ extension LibraryView {
   /// 분석 중이면 진행률의 `phase` 로 분류 중(1단계) 막대와 글자 읽는 중(2단계) 막대를 나눠 보인다. 모두 카드(`snapCard()`)로 보인다.
   /// 준비 중 카드는 로딩 점(`SnapLoadingDots`, 시스템 진행 표시처럼 읽힌다)과 문구를 보인다.
   /// 1·2단계 카드는 막대(`.snap` 스타일, 시스템 막대처럼 읽힌다) 위에 단계 그림(`SnapProgressArt`)을 둔다. 그림은 장식이라 VoiceOver 에서 읽지 않는다.
-  /// 동작 줄이기면 점·그림·줄무늬가 멈춘다.
+  /// 동작 줄이기면 점·그림·줄무늬가 멈춘다. 진행 수는 바뀐 자리만 굴러간다(`snapRollingNumber`).
   /// 첫 진행률을 받기 전에 멈출 수도 있으므로(저장소 실패 등), 멈춤 안내는 진행률이 없어도 띄운다.
   /// 첫 진행률은 보관함과 저장소 비교를 마친 뒤에 오므로, 그 전에는 준비 중으로 보여 준다.
   /// 1·2단계 카드 아래에는 계속 처리 분류 버튼("홈으로 나가도 계속")과, 눌렀는데 시작하지 못했을 때의 안내 줄을 둔다
@@ -42,6 +42,7 @@ extension LibraryView {
           Text("이미지 분류 중")
         } currentValueLabel: {
           Text("\(doneCount)/\(progress.totalCount)장")
+            .snapRollingNumber(doneCount)
         }
         .progressViewStyle(.snap(.rose))
       } footer: {
@@ -62,6 +63,7 @@ extension LibraryView {
           Text("글자 읽는 중")
         } currentValueLabel: {
           Text("\(doneCount)/\(totalCount)장")
+            .snapRollingNumber(doneCount)
         }
         .progressViewStyle(.snap(.lilac))
       } footer: {

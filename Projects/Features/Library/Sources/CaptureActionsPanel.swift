@@ -43,6 +43,11 @@ struct CaptureActionsPanel: View {
           .transition(.opacity)
       }
     }
+    // 사용 여부를 저장했을 때(`usageRevision` 은 쓰기에 성공했을 때만 오른다)와 복사했을 때 햅틱을 준다.
+    .sensoryFeedback(.success, trigger: self.model.usageRevision)
+    .sensoryFeedback(trigger: self.model.copied) { _, copied in
+      copied == nil ? nil : .selection
+    }
     // 복사할 때마다 잠깐 보인다. 다시 복사하면 처음부터 센다.
     .task(id: self.model.copied) {
       guard self.model.copied != nil else { return }
