@@ -63,6 +63,15 @@ final class CleanupDragTracker {
   }
 
   private(set) var phase: Phase = .idle
+  /// 끌어 선택하는 중. 선택이 바뀔 때 햅틱을 줄지 정한다(탭 토글·전체 선택에는 주지 않는다).
+  var isDragging: Bool {
+    if case .dragging = self.phase {
+      true
+    } else {
+      false
+    }
+  }
+
   /// 보이는 후보 줄의 전역 frame. 사라진 줄은 지운다.
   var rowFrames: [ImageAsset.ID: CGRect] = [:]
   /// 목록의 전역 frame(내비 바·도구 막대 영역은 빠진다). 보이는 영역으로 쓴다.
