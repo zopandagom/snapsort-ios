@@ -1,0 +1,4 @@
+# 앱 번들 ID. 출처는 Tuist/ProjectDescriptionHelpers/Project+Templates.swift 의 Env.bundleIdPrefix
+# (Swift 라 여기서 읽을 수 없어 복제한다). 바꾸면 함께 고친다. 틀리면 ASC 에서 앱을 찾지 못해 출시가 멈춘다.
+# team_id 는 두지 않는다: ASC API 키 인증은 팀이 필요 없고, 서명 팀은 프로젝트의 DEVELOPMENT_TEAM 이다.
+app_identifier("com.zopandagom.snapsort")

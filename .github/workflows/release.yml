@@ -1,0 +1,178 @@
+name: Release
+
+# 태그 push(vX.Y.Z) → 그 버전으로 App Store 업로드·메타데이터·스크린샷·심사 제출 → 통과하면 자동 공개.
+# 흐름·규칙: docs/ARCHITECTURE.md §2 출시, docs/CONVENTIONS.md §5 태그 출시. 태그 push 는 사용자가 직접 한다.
+# 레포가 공개라 로그·아티팩트도 공개다: set -x 금지, 키 내용 출력 금지, ipa·dSYM 아티팩트 업로드 금지.
+on:
+  push:
+    # vX.Y.Z 로 좁히지 않는다. 형식이 틀린 태그(v1.0, 1.0.0)도 시작시켜 check 잡에서 실패로 보이게 한다(판정은 스크립트).
+    tags: ['v*', '[0-9]*']
+  # 리허설: gh workflow run Release --ref main -f version=1.0.0 -f submit=false (업로드까지, 심사 제출 없음)
+  # submit=true 는 태그 ref(--ref vX.Y.Z)에서만 받는다. 태그 push 와 같은 검사를 거친다.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "출시 버전 X.Y.Z"
+        required: true
+        type: string
+      submit:
+        description: "심사 제출 (태그 ref 에서만)"
+        required: false
+        type: boolean
+        default: false
+
+# 출시는 전역 직렬: 빌드 번호 조회 → 업로드 사이에 다른 실행이 끼면 번호가 겹친다.
+# GitHub 은 그룹당 대기 1개만 두므로 세 번째가 오면 대기 중이던 것이 취소된다(취소된 태그는 Re-run).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # macOS 잡을 띄우기 전에 태그 형식·main 포함·Secrets 를 싸게 검사한다.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      build_sha: ${{ steps.decide.outputs.build_sha }}
+      submit: ${{ steps.decide.outputs.submit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # 태그 커밋이 main 의 조상인지 보려면 main 이력 전체가 필요하다
+          persist-credentials: false
+      - name: main 받기
+        # checkout 이 가져오는 ref 에 기대지 않고 origin/main 을 명시적으로 받는다. 공개 레포라 인증이 필요 없다.
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      - name: Secrets 확인
+        # 값은 출력하지 않고 빈 것의 이름만 알린다.
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          missing=()
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [[ -n "${!name}" ]] || missing+=("$name")
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Secrets 가 없습니다: ${missing[*]}"
+            exit 1
+          fi
+      - id: decide
+        # 태그 이름·입력은 ${{ }} 로 스크립트에 직접 넣지 않고 env 로 받는다(스크립트 주입 방지).
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_SUBMIT: ${{ inputs.submit }}
+        run: |
+          check=.github/scripts/check-release-tag.sh
+          case "$EVENT" in
+            push)
+              version=$("$check" version "$GITHUB_REF_NAME")
+              "$check" on-main "$GITHUB_SHA" origin/main
+              submit=true
+              ;;
+            workflow_dispatch)
+              version=$("$check" version "v$INPUT_VERSION")
+              if [[ "$INPUT_SUBMIT" == true ]]; then
+                if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "v$version" ]]; then
+                  echo "::error::심사 제출은 태그 v$version ref 에서만 합니다(--ref v$version). 지금 ref: $GITHUB_REF_TYPE $GITHUB_REF_NAME"
+                  exit 1
+                fi
+                "$check" on-main "$GITHUB_SHA" origin/main
+                submit=true
+              else
+                submit=false # 리허설: ref 제한 없음
+              fi
+              ;;
+            *)
+              echo "::error::지원하지 않는 이벤트: $EVENT"
+              exit 1
+              ;;
+          esac
+          # annotated 태그면 태그 객체가 아니라 커밋을 빌드한다.
+          build_sha=$(git rev-parse --verify "$GITHUB_SHA^{commit}")
+          {
+            echo "version=$version"
+            echo "build_sha=$build_sha"
+            echo "submit=$submit"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  release:
+    needs: check
+    # 로컬 개발·실기기 확인과 같은 Xcode 27.1(27A9275). 이미지는 public preview.
+    runs-on: xcode-27
+    # tuist generate + Release archive(클린) 15~25분, export·업로드 수 분, ASC 처리 대기 10~40분.
+    # 넘으면 실패하고 빌드는 ASC 에 남는다(docs/CONVENTIONS.md §5 태그 출시의 재시도).
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      LC_ALL: en_US.UTF-8 # fastlane 요구
+      LANG: en_US.UTF-8
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_OPT_OUT_USAGE: "YES"
+      BUNDLE_FROZEN: "true" # Gemfile.lock 과 맞지 않으면 설치 실패
+      BUNDLE_PATH: vendor/bundle
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # check 와 release 사이에 태그가 옮겨져도 검사한 커밋을 빌드한다.
+          ref: ${{ needs.check.outputs.build_sha }}
+          persist-credentials: false
+      - run: xcodebuild -version
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        with:
+          version: 2026.10.13 # 로컬과 같은 mise
+      - uses: actions/cache@v6
+        with:
+          path: vendor/bundle
+          key: bundle-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Gemfile.lock', '.mise.toml') }}
+      - name: bundle install
+        run: mise exec -- bundle install
+      - name: API 키 쓰기
+        # 러너 임시 위치에만 두고 마지막 단계에서 지운다. base64 로 푼 값은 GitHub 의 자동 가리기가 보장되지 않아
+        # 키의 각 줄을 add-mask 로 등록한다(내용은 출력하지 않는다).
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          umask 077
+          dir="$RUNNER_TEMP/asc"
+          mkdir -p "$dir"
+          path="$dir/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s' "$ASC_KEY_P8" | base64 --decode > "$path"
+          grep -q -- '-----BEGIN PRIVATE KEY-----' "$path" || { echo "::error::ASC_KEY_P8 를 p8 로 풀지 못했습니다(base64 확인)"; exit 1; }
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            [[ -n "$line" && "$line" != -----* ]] && echo "::add-mask::$line"
+          done < "$path"
+          echo "ASC_KEY_PATH=$path" >> "$GITHUB_ENV"
+      - name: 출시
+        env:
+          RELEASE_VERSION: ${{ needs.check.outputs.version }}
+          RELEASE_SUBMIT: ${{ needs.check.outputs.submit }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: make release
+      - name: API 키 지우기
+        if: ${{ always() }}
+        run: rm -rf "$RUNNER_TEMP/asc"
+      # 실패 원인 확인용 로그만 올린다. ipa·dSYM·DerivedData 는 공개되므로 올리지 않는다.
+      # 로그에 키 ID·발급자 ID 가 들어갈 수 있다(p8 없이는 쓸 수 없는 식별자). p8 파일은 위 단계에서 지운다.
+      - name: 실패 로그
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-logs
+          path: |
+            build/release/logs
+            fastlane/report.xml
+          retention-days: 7
+          if-no-files-found: ignore
