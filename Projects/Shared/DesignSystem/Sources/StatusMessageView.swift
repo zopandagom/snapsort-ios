@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// 빈 화면·불러오기 실패 안내. `ContentUnavailableView` 에 선택적 다시 시도 버튼을 붙인다.
-/// 상태 아이콘은 SF Symbols, 카테고리 빈 화면은 카테고리 아이콘(`SnapGlyph`)을 쓴다.
+/// 상태 아이콘(오류·사진 상태 안내)은 SF Symbols, 보일 것이 없는 '없음' 빈 화면은 사진 더미 그림(`SnapPhotoStack`),
+/// 카테고리를 가리키는 안내는 카테고리 아이콘(`SnapGlyph`)을 쓴다.
 public struct StatusMessageView: View {
   private enum Icon {
     case symbol(String)
     case glyph(SnapGlyph)
+    case photoStack
   }
 
   private let title: String
@@ -21,12 +23,20 @@ public struct StatusMessageView: View {
     self.retry = retry
   }
 
-  /// 카테고리 빈 화면. 아이콘을 색 칸에 그린다.
+  /// 카테고리를 가리키는 안내(예: 여행을 찾을 수 없음). 아이콘을 색 칸에 그린다.
   public init(_ title: String, glyph: SnapGlyph, description: String? = nil, retry: (() -> Void)? = nil) {
     self.title = title
     self.icon = .glyph(glyph)
     self.description = description
     self.retry = retry
+  }
+
+  /// 보일 것이 없는 '없음' 빈 화면. 제목 위에 사진 더미 그림을 그린다(떠 있기·반짝임은 동작 줄이기면 멈춘다).
+  public init(empty title: String, description: String? = nil) {
+    self.title = title
+    self.icon = .photoStack
+    self.description = description
+    self.retry = nil
   }
 
   public var body: some View {
@@ -40,6 +50,8 @@ public struct StatusMessageView: View {
           Image(systemName: name)
         case let .glyph(glyph):
           GlyphHeaderIcon(glyph: glyph)
+        case .photoStack:
+          PhotoStackHeaderIcon()
         }
       }
       .accessibilityElement(children: .ignore)
@@ -65,5 +77,17 @@ private struct GlyphHeaderIcon: View {
 
   var body: some View {
     IconTile(self.glyph, size: self.size)
+  }
+}
+
+/// 빈 화면 제목 위의 사진 더미 그림. 큰 글씨를 따라 커지되 화면을 덮지 않게 `maxSize` 에서 멈춘다.
+private struct PhotoStackHeaderIcon: View {
+  static let maxSize: CGFloat = 180
+
+  @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 120
+
+  var body: some View {
+    SnapPhotoStack(.empty)
+      .frame(width: min(self.size, Self.maxSize), height: min(self.size, Self.maxSize))
   }
 }
