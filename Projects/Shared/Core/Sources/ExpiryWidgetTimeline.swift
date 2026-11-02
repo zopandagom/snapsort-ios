@@ -20,6 +20,7 @@ public struct ExpiryWidgetSummary: Sendable, Hashable {
 }
 
 /// 만료 임박 위젯의 타임라인 규칙. 위젯(Provider)과 갱신 요청 중복 제거(`LibraryModel`)가 같은 요약을 쓴다.
+/// 창 판정(`isInWindow`)은 보관함 홈 곧 만료 띠(`ExpiringGifticons`)도 쓴다.
 /// 문구는 두지 않는다(Core 는 문구를 갖지 않는다).
 public enum ExpiryWidgetTimeline {
   /// 위젯 kind. 바꾸면 사용자가 놓은 위젯이 사라지므로 바꾸지 않는다.
@@ -45,8 +46,8 @@ public enum ExpiryWidgetTimeline {
     return (0 ... Self.horizonDays).map { offset in
       let date = today.addingDays(offset)
       let daysLeft = expiryDates
+        .filter { Self.isInWindow($0, on: date) }
         .map { date.days(until: $0) }
-        .filter { (0 ... Self.windowDays).contains($0) }
       return ExpiryWidgetSummary(
         date: date,
         count: daysLeft.count,
@@ -54,6 +55,12 @@ public enum ExpiryWidgetTimeline {
         isChecking: isChecking
       )
     }
+  }
+
+  /// `expiryDate` 가 `date` ~ `date + windowDays` 안인지(양끝 포함). `date` 만료는 D-day 로 든다(`GifticonDue` 와 같은 경계).
+  /// 위젯 요약과 보관함 곧 만료 띠가 같은 집합을 보이도록 둘 다 이 판정을 쓴다.
+  public static func isInWindow(_ expiryDate: LocalDate, on date: LocalDate) -> Bool {
+    (0 ... self.windowDays).contains(date.days(until: expiryDate))
   }
 
   /// `date` 가 시작하는 시각(`calendar` 의 시간대). 자정이 없는 시간대 전환일은 그날 첫 시각이다.
