@@ -37,8 +37,7 @@ struct LibraryCategoryCard: View {
           VStack(alignment: .leading, spacing: 0) {
             self.titleText
             // 분류 중 개수가 늘면 바뀐 자리만 굴러간다(동작 줄이기면 바로 바뀐다).
-            Text(self.category.countText(self.count))
-              .font(.caption)
+            Text.snapNumbered(self.category.countText(self.count), style: .caption)
               .foregroundStyle(.secondary)
               .lineLimit(self.titleLines == .unlimited ? nil : 1)
               .snapRollingNumber(self.count)
@@ -61,7 +60,7 @@ struct LibraryCategoryCard: View {
 
   @ViewBuilder
   private var titleText: some View {
-    let title = Text(self.category.title).font(.subheadline.bold())
+    let title = Text(self.category.title).font(.snap(.subheadline, weight: .bold))
     switch self.titleLines {
     case .single:
       title.lineLimit(1)

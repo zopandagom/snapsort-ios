@@ -16,7 +16,7 @@ public struct PrivacyPolicyLink: View {
         Label("개인정보 처리방침", systemImage: "arrow.up.right")
           .labelStyle(.titleAndTrailingIcon)
       }
-      .font(.footnote)
+      .font(.snap(.footnote))
       // 루트 `snapTheme()` 의 글자색을 물려받지 않고 링크로 보이게 tint 로 그린다.
       .foregroundStyle(.tint)
     }

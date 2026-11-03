@@ -51,7 +51,7 @@ public struct TripListView: View {
       if self.model.isLimited {
         Section {
           Label(Self.limitedNotice, systemImage: "photo.badge.checkmark")
-            .font(.subheadline)
+            .font(.snap(.subheadline))
         }
       }
       Section {
@@ -95,13 +95,13 @@ struct TripFolderRow: View {
           Text(placeName)
             .lineLimit(1)
           Text("\(TripPeriodText.text(self.item.period, calendar: self.calendar)) · 사진 \(self.item.photoCount)장")
-            .font(.subheadline)
+            .font(.snap(.subheadline))
             .foregroundStyle(.secondary)
         } else {
           TripPeriodText.text(self.item.period, calendar: self.calendar)
             .lineLimit(1)
           Text("사진 \(self.item.photoCount)장")
-            .font(.subheadline)
+            .font(.snap(.subheadline))
             .foregroundStyle(.secondary)
         }
       }

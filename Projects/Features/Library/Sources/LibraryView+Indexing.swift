@@ -28,13 +28,13 @@ extension LibraryView {
     if self.model.isIndexingStopped {
       HStack {
         Label(self.stoppedText, systemImage: "exclamationmark.triangle")
-          .font(.subheadline)
+          .font(.snap(.subheadline))
         Spacer()
         Button("다시 시도") {
           self.model.retryIndexingTapped()
         }
         .buttonStyle(.snapSecondary)
-        .font(.subheadline)
+        .font(.snap(.subheadline))
       }
       .snapCard()
     } else if self.model.indexingCelebration != nil {
@@ -48,7 +48,7 @@ extension LibraryView {
         ProgressView(value: Double(doneCount), total: Double(max(progress.totalCount, 1))) {
           Text("이미지 분류 중")
         } currentValueLabel: {
-          Text("\(doneCount)/\(progress.totalCount)장")
+          Text.snapNumbered("\(doneCount)/\(progress.totalCount)장", style: .subheadline, weight: .bold)
             .snapRollingNumber(doneCount)
         }
         .progressViewStyle(.snap(.rose))
@@ -69,7 +69,7 @@ extension LibraryView {
         ProgressView(value: Double(doneCount), total: Double(max(totalCount, 1))) {
           Text("글자 읽는 중")
         } currentValueLabel: {
-          Text("\(doneCount)/\(totalCount)장")
+          Text.snapNumbered("\(doneCount)/\(totalCount)장", style: .subheadline, weight: .bold)
             .snapRollingNumber(doneCount)
         }
         .progressViewStyle(.snap(.lilac))
@@ -87,7 +87,7 @@ extension LibraryView {
       VStack(spacing: 14) {
         SnapLoadingDots()
         Text("이미지 분류 준비 중")
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
       }
       .frame(maxWidth: .infinity)
       .snapCard()
@@ -98,7 +98,7 @@ extension LibraryView {
           "읽지 못한 \(progress.skippedCount + progress.skippedTextCount)장은 다음에 다시 시도합니다",
           systemImage: "icloud.slash"
         )
-        .font(.subheadline)
+        .font(.snap(.subheadline))
       } footer: {
         Text("iCloud 에만 있거나 읽을 수 없는 사진입니다.")
       }
@@ -111,16 +111,16 @@ extension LibraryView {
   private var celebrationCard: some View {
     HStack(spacing: 12) {
       Image(systemName: "checkmark.circle.fill")
-        .font(.title2)
+        .font(.snap(.title2))
         .foregroundStyle(SnapColor.accent)
         .background {
           SnapSparkleBurst()
         }
       VStack(alignment: .leading, spacing: 2) {
         Text("분류 완료")
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
         Text("새로 분류한 사진을 카테고리에서 볼 수 있습니다.")
-          .font(.footnote)
+          .font(.snap(.footnote))
           .foregroundStyle(SnapColor.accent)
       }
       Spacer(minLength: 0)
@@ -147,7 +147,7 @@ extension LibraryView {
       VStack(alignment: .leading, spacing: 4) {
         footer()
       }
-      .font(.footnote)
+      .font(.snap(.footnote))
       .foregroundStyle(.secondary)
       if continuable, self.model.showsContinueInBackgroundButton {
         Button {
@@ -156,12 +156,12 @@ extension LibraryView {
           Label("홈으로 나가도 계속", systemImage: "house")
         }
         .buttonStyle(.snapSecondary)
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .snapGlow()
         .padding(.top, 4)
       } else if continuable, self.model.showsContinuingInBackgroundNotice {
         Label("홈으로 나가도 이어서 분류합니다", systemImage: "house")
-          .font(.footnote)
+          .font(.snap(.footnote))
           .foregroundStyle(.secondary)
       }
     }

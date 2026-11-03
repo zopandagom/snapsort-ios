@@ -248,14 +248,14 @@ public struct LibraryView: View {
   private var limitedAccessBanner: some View {
     HStack(spacing: 12) {
       Label("선택한 사진만 분류합니다", systemImage: "photo.badge.checkmark")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
       Spacer()
       Button("사진 더 선택") {
         Task { await self.model.selectMorePhotosTapped() }
       }
       .buttonStyle(.snapSecondary)
       .controlSize(.small)
-      .font(.subheadline)
+      .font(.snap(.subheadline))
     }
     .padding()
     .background(SnapColor.card, in: .rect(cornerRadius: 20))
@@ -307,14 +307,14 @@ extension LibraryView {
   var expiryReminderSection: some View {
     HStack {
       Label("기프티콘 만료일이 다가오면 알려 드려요", systemImage: "bell")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
       Spacer()
       Button("만료 알림 받기") {
         Task { await self.model.notificationsTapped() }
       }
       .buttonStyle(.snapSecondary)
       .controlSize(.small)
-      .font(.subheadline)
+      .font(.snap(.subheadline))
     }
     .snapCard()
   }
@@ -323,14 +323,14 @@ extension LibraryView {
   var notificationSettingsSection: some View {
     HStack {
       Label("만료 알림이 꺼져 있어요", systemImage: "bell.slash")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
       Spacer()
       Button("설정에서 알림 켜기") {
         Task { await self.model.notificationSettingsTapped() }
       }
       .buttonStyle(.snapSecondary)
       .controlSize(.small)
-      .font(.subheadline)
+      .font(.snap(.subheadline))
     }
     .snapCard()
   }

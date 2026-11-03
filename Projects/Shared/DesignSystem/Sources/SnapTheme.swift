@@ -2,12 +2,14 @@ import SwiftUI
 import UIKit
 
 public extension View {
-  /// 화면 루트에 한 번 붙인다: rounded 글꼴, 강조색, 본문·보조 글자색. 하위의 `.secondary` 는 `SnapColor.inkSecondary` 가 된다.
+  /// 화면 루트에 한 번 붙인다: 기본 글꼴(둥근 한글 R 본문, `Font.snap`), 강조색, 본문·보조 글자색. 하위의 `.secondary` 는
+  /// `SnapColor.inkSecondary` 가 된다. `.fontDesign` 은 두지 않는다: 안쪽 `Font.snap`(사용자 지정 글꼴)까지 시스템 글꼴로 덮는다
+  /// (`SnapFontTests` 가 지킨다).
   /// 본문 글자색이 버튼 tint 를 덮으므로 색을 정하지 않은 글자 버튼과 툴바 `Menu` 라벨에는 `.foregroundStyle(.tint)` 를 준다
   /// (툴바 Menu 는 물려받은 글자색을 흰색으로 그린다).
   func snapTheme() -> some View {
     self
-      .fontDesign(.rounded)
+      .font(.snap(.body))
       .tint(SnapColor.accent)
       .foregroundStyle(SnapColor.ink, SnapColor.inkSecondary)
   }
@@ -40,24 +42,26 @@ public struct SnapList<Content: View>: View {
   }
 }
 
-/// 내비게이션 바 제목의 rounded 굵은 글꼴과 `SnapColor.ink` 글자색. SwiftUI `.fontDesign`·`.foregroundStyle` 이 닿지 않는 UIKit 바라 appearance
-/// 로 정한다.
-/// SF Pro Rounded 에는 한글 글리프가 없어 한글 제목은 시스템 한글 글꼴로 그려진다(굵기만 따른다).
+/// 내비게이션 바 제목의 둥근 한글 글꼴(`SnapFont`, 큰 제목 EB·작은 제목 B)과 `SnapColor.ink` 글자색, 툴바 글자 버튼·검색창의 R 글꼴. SwiftUI
+/// `.font`·`.foregroundStyle` 이
+/// 닿지 않는 UIKit 바라 appearance 로 정한다.
 public enum SnapNavigationBar {
   /// 앱 시작 때 한 번 부른다. 글자 크기는 부를 때의 Dynamic Type 값이라, 실행 중 크기를 바꾸면 다음 실행부터 반영된다.
   @MainActor
   public static func applyRoundedTitles() {
     let bar = UINavigationBar.appearance()
     let ink = UIColor(SnapColor.ink)
-    bar.largeTitleTextAttributes = [.font: self.roundedFont(.largeTitle, weight: .heavy), .foregroundColor: ink]
-    bar.titleTextAttributes = [.font: self.roundedFont(.headline, weight: .semibold), .foregroundColor: ink]
-  }
-
-  private static func roundedFont(_ style: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
-    let base = UIFont.preferredFont(forTextStyle: style)
-    let weighted = base.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
-    let descriptor = weighted.withDesign(.rounded) ?? weighted
-    return UIFont(descriptor: descriptor, size: base.pointSize)
+    bar.largeTitleTextAttributes = [.font: SnapFont.uiFont(.largeTitle, weight: .extraBold), .foregroundColor: ink]
+    bar.titleTextAttributes = [.font: SnapFont.uiFont(.headline, weight: .bold), .foregroundColor: ink]
+    // 툴바 글자 버튼·뒤로 가기 글자와 검색창 글자도 UIKit 이 그려 루트 `snapTheme()` 의 기본 글꼴이 닿지 않는다. 색은 tint 를 그대로 둔다.
+    let item = UIBarButtonItem.appearance()
+    for state in [UIControl.State.normal, .highlighted, .disabled] {
+      item.setTitleTextAttributes([.font: SnapFont.uiFont(.body, weight: .regular)], for: state)
+    }
+    UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).font = SnapFont.uiFont(
+      .body,
+      weight: .regular
+    )
   }
 }
 

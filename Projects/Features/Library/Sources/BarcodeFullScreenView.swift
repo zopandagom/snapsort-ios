@@ -21,8 +21,9 @@ struct BarcodeFullScreenView: View {
             .scaledToFit()
             .padding(.horizontal, 24)
             .accessibilityLabel(Text("바코드"))
+          // 사람이 옮겨 적는 코드라 0/O·1/l 구분과 고정폭을 위해 시스템 monospaced 글꼴로 둔다(`SnapFont` 예외).
           Text(payload)
-            .font(.title3.monospaced())
+            .font(.system(.title3, design: .monospaced))
             .multilineTextAlignment(.center)
             .padding(.horizontal)
         }

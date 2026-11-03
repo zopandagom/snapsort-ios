@@ -80,7 +80,7 @@ public struct OnboardingView: View {
           .animation(self.introAnimation(.mark), value: self.hasStartedIntro)
 
         Text("사진 보관함, 알아서 정리해 드릴게요")
-          .font(.largeTitle.bold())
+          .font(.snap(.largeTitle, weight: .extraBold))
           .accessibilityAddTraits(.isHeader)
           .modifier(self.rise(.title))
 
@@ -143,7 +143,7 @@ public struct OnboardingView: View {
     PrivacyPolicyLink()
 
     Text("곧 뜨는 권한 창에서 일부 사진만 허용하면 고른 사진만 정리해요.")
-      .font(.footnote)
+      .font(.snap(.footnote))
       .foregroundStyle(.secondary)
   }
 
@@ -282,16 +282,16 @@ private struct FeatureRow: View {
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 14) {
       Image(systemName: self.systemImage)
-        .font(.title3)
+        .font(.snap(.title3))
         .foregroundStyle(.tint)
         .symbolEffect(.bounce, value: self.bounce)
         .frame(minWidth: 28)
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 4) {
         Text(self.title)
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
         Text(self.message)
-          .font(.subheadline)
+          .font(.snap(.subheadline))
           .foregroundStyle(.secondary)
       }
     }
@@ -310,11 +310,11 @@ private struct StatusScreen<Actions: View>: View {
     ScrollView {
       VStack(spacing: 16) {
         Image(systemName: self.systemImage)
-          .font(.largeTitle)
+          .font(.snap(.largeTitle))
           .foregroundStyle(.secondary)
           .accessibilityHidden(true)
         Text(self.title)
-          .font(.title2.bold())
+          .font(.snap(.title2, weight: .extraBold))
           .accessibilityAddTraits(.isHeader)
         Text(self.message)
           .foregroundStyle(.secondary)

@@ -105,26 +105,26 @@ public struct TripDetailView: View {
       switch self.model.placeName {
       case .loading:
         period
-          .font(.title2.bold())
+          .font(.snap(.title2, weight: .extraBold))
         HStack(spacing: 6) {
           ProgressView()
             .controlSize(.small)
           Text("장소 확인 중")
         }
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
       case let .named(name):
         Text(name)
-          .font(.title2.bold())
+          .font(.snap(.title2, weight: .extraBold))
         period
-          .font(.subheadline)
+          .font(.snap(.subheadline))
           .foregroundStyle(.secondary)
       case .unnamed, .unavailable:
         period
-          .font(.title2.bold())
+          .font(.snap(.title2, weight: .extraBold))
       }
       Text("사진 \(detail.trip.assetIDs.count)장")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
     }
   }
@@ -136,7 +136,7 @@ public struct TripDetailView: View {
         self.section("여행 사진", assets: detail.photos, position: 0)
         if detail.missingPhotoCount > 0 {
           Text("보관함에서 지워진 사진 \(detail.missingPhotoCount)장은 보이지 않습니다.")
-            .font(.footnote)
+            .font(.snap(.footnote))
             .foregroundStyle(.secondary)
             .padding(.horizontal)
         }
@@ -150,7 +150,7 @@ public struct TripDetailView: View {
     let origin = PhotoDetailOrigin(visit: self.visit, section: position)
     return VStack(alignment: .leading, spacing: 8) {
       Text(title)
-        .font(.headline)
+        .font(.snap(.headline, weight: .bold))
         .padding(.horizontal)
       LazyVGrid(columns: ThumbnailGrid.columns, spacing: ThumbnailGrid.spacing) {
         ForEach(TripCell.cells(assets, section: position)) { cell in

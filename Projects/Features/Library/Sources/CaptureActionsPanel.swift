@@ -35,7 +35,7 @@ struct CaptureActionsPanel: View {
     .overlay(alignment: .top) {
       if self.isShowingCopied {
         Label("복사했습니다", systemImage: "doc.on.doc")
-          .font(.subheadline)
+          .font(.snap(.subheadline))
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
           .background(SnapColor.card, in: .capsule)
@@ -91,13 +91,13 @@ struct CaptureActionsPanel: View {
             isKnown: info.redemptionPlace != nil,
             isEstimated: gifticon.estimatedFields.contains(.redemptionPlace)
           )
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
           GifticonFieldText(
             info.expiryDate.map { GifticonExpiryText.date($0, calendar: self.model.calendar) } ?? Text("만료일 모름"),
             isKnown: info.expiryDate != nil,
             isEstimated: gifticon.estimatedFields.contains(.expiryDate)
           )
-          .font(.subheadline)
+          .font(.snap(.subheadline))
         }
         Spacer()
         if let expiryDate = info.expiryDate {
@@ -106,7 +106,7 @@ struct CaptureActionsPanel: View {
       }
     } else {
       Text("만료일을 확인하는 중입니다")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
     }
     HStack {
@@ -132,7 +132,7 @@ struct CaptureActionsPanel: View {
           .controlSize(.small)
         Text("바코드 찾는 중")
       }
-      .font(.subheadline)
+      .font(.snap(.subheadline))
       .foregroundStyle(.secondary)
     case .found:
       Button {
@@ -146,18 +146,18 @@ struct CaptureActionsPanel: View {
         Text("바코드를 찾지 못했습니다")
         if isLocalFallback {
           Text("작은 버전이라 찾지 못했을 수 있습니다")
-            .font(.caption)
+            .font(.snap(.caption))
         }
       }
-      .font(.subheadline)
+      .font(.snap(.subheadline))
       .foregroundStyle(.secondary)
     case .failed:
       Label("바코드를 읽지 못했습니다", systemImage: "exclamationmark.triangle")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
     case .imageUnavailable:
       Text("사진을 볼 수 없어 바코드를 찾을 수 없습니다")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
     }
   }
@@ -191,12 +191,12 @@ struct CaptureActionsPanel: View {
   ) -> some View {
     HStack {
       Label(text, systemImage: systemImage)
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .lineLimit(2)
       Spacer()
       Button(buttonTitle, action: action)
         .buttonStyle(.snapSecondary)
-        .font(.subheadline)
+        .font(.snap(.subheadline))
     }
   }
 }

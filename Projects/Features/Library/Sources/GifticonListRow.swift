@@ -36,13 +36,13 @@ struct GifticonRow: View {
             isKnown: info.redemptionPlace != nil,
             isEstimated: self.item.estimatedFields.contains(.redemptionPlace)
           )
-          .font(.body)
+          .font(.snap(.body))
           GifticonFieldText(
             info.expiryDate.map { GifticonExpiryText.date($0, calendar: self.calendar) } ?? Text("만료일 모름"),
             isKnown: info.expiryDate != nil,
             isEstimated: self.item.estimatedFields.contains(.expiryDate)
           )
-          .font(.subheadline)
+          .font(.snap(.subheadline))
           // 줄 오른쪽에 사용함 버튼이 있어 만료일이 잘리지 않게 D-n 배지는 만료일 아래에 둔다.
           if let expiryDate = info.expiryDate {
             GifticonDueBadge(
@@ -86,7 +86,7 @@ struct GifticonFieldText: View {
 struct EstimatedBadge: View {
   var body: some View {
     Text("추정")
-      .font(.caption2.weight(.semibold))
+      .font(.snap(.caption2, weight: .bold))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .foregroundStyle(SnapColor.lilacText)
@@ -103,8 +103,7 @@ struct GifticonDueBadge: View {
   let isUsed: Bool
 
   var body: some View {
-    Text(self.title)
-      .font(.subheadline.weight(.semibold).monospacedDigit())
+    Text.snapNumbered(self.title, style: .subheadline, weight: .bold)
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
       .foregroundStyle(self.style.text)

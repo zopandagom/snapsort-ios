@@ -77,8 +77,7 @@ struct LibraryExpiringStripView: View {
   }
 
   private var title: some View {
-    Text("곧 만료되는 기프티콘 \(self.strip.count)개")
-      .font(.headline)
+    Text.snapNumbered("곧 만료되는 기프티콘 \(self.strip.count)개", style: .headline, weight: .bold)
       .snapRollingNumber(self.strip.count)
       .accessibilityAddTraits(.isHeader)
   }
@@ -91,7 +90,7 @@ struct LibraryExpiringStripView: View {
         Image(systemName: "chevron.right")
           .imageScale(.small)
       }
-      .font(.subheadline)
+      .font(.snap(.subheadline))
       .foregroundStyle(SnapColor.accent)
     }
     .buttonStyle(.plain)
@@ -153,7 +152,7 @@ struct LibraryExpiringStripView: View {
       // 칩에는 날짜 글자가 없어 D-n 이 추정일 수 있음을 따로 보일 곳이 없으므로, 교환처·만료일 어느 쪽이 추정이어도 "추정"을 붙인다.
       VStack(alignment: .leading, spacing: 2) {
         Text(place ?? "교환처 모름")
-          .font(.caption)
+          .font(.snap(.caption))
           .foregroundStyle(place != nil ? .primary : .secondary)
           .lineLimit(self.isAccessibilitySize ? 2 : 1)
         if !chip.item.estimatedFields.isEmpty {
@@ -171,12 +170,12 @@ struct LibraryExpiringStripView: View {
     NavigationLink(value: ImageCategory.gifticon) {
       VStack(alignment: .leading, spacing: 6) {
         Text("+\(count)")
-          .font(.title3.bold().monospacedDigit())
+          .font(.snapNumber(.title3, weight: .extraBold))
           .foregroundStyle(SnapColor.accent)
           .frame(width: self.side, height: self.side)
           .background(SnapColor.blush, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         Text("더 보기")
-          .font(.caption)
+          .font(.snap(.caption))
           .foregroundStyle(.secondary)
           .lineLimit(self.isAccessibilitySize ? 2 : 1)
           .frame(width: self.side, alignment: .leading)

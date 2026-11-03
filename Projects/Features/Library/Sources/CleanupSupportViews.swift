@@ -12,11 +12,11 @@ struct CleanupLimitedSection: View {
     Section {
       HStack {
         Label("선택한 사진 안에서만 정리합니다", systemImage: "photo.badge.checkmark")
-          .font(.subheadline)
+          .font(.snap(.subheadline))
         Spacer()
         Button("사진 더 선택", action: self.selectMore)
           .buttonStyle(.snapSecondary)
-          .font(.subheadline)
+          .font(.snap(.subheadline))
       }
     }
   }
@@ -40,7 +40,7 @@ struct CleanupNoticeSection: View {
           .buttonStyle(.borderless)
           .foregroundStyle(.tint)
       }
-      .font(.subheadline)
+      .font(.snap(.subheadline))
     }
   }
 }
@@ -55,7 +55,7 @@ struct CleanupFootnote: View {
 
   var body: some View {
     Text(self.text)
-      .font(.footnote)
+      .font(.snap(.footnote))
       .foregroundStyle(.secondary)
       .listRowBackground(Color.clear)
   }

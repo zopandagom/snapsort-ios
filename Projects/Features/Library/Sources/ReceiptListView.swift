@@ -154,8 +154,7 @@ private struct ReceiptSectionHeader: View {
     VStack(alignment: .leading, spacing: 2) {
       self.title
       if let totals = self.totals, let text = ReceiptTotalsText.text(totals) {
-        Text(text)
-          .font(.footnote.monospacedDigit())
+        Text.snapNumbered(text, style: .footnote)
       }
     }
     // "US$" 처럼 통화 표시가 대문자로 바뀌지 않게 한다.
@@ -214,10 +213,10 @@ private struct ReceiptRow: View {
             .foregroundStyle(info.storeName == nil ? .secondary : .primary)
             .lineLimit(1)
           self.amountLine(info)
-            .font(.subheadline)
+            .font(.snap(.subheadline))
         }
         self.dateText
-          .font(.caption)
+          .font(.snap(.caption))
           .foregroundStyle(.secondary)
       }
       Spacer()
@@ -228,8 +227,7 @@ private struct ReceiptRow: View {
   private func amountLine(_ info: ReceiptInfo) -> some View {
     if let amount = info.amount {
       HStack(spacing: 6) {
-        Text(ReceiptTotalsText.amount(amount))
-          .monospacedDigit()
+        Text.snapNumbered(ReceiptTotalsText.amount(amount), style: .subheadline)
           .strikethrough(info.isCancelled)
           .foregroundStyle(info.isCancelled ? .secondary : .primary)
         if info.isCancelled {
@@ -257,7 +255,7 @@ private struct ReceiptRow: View {
 private struct ReceiptCancelledBadge: View {
   var body: some View {
     Text("취소")
-      .font(.caption2.weight(.semibold))
+      .font(.snap(.caption2, weight: .bold))
       .padding(.horizontal, 6)
       .padding(.vertical, 2)
       .foregroundStyle(.secondary)
