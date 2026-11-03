@@ -268,7 +268,7 @@ jobs:
           if [[ -f "$f" ]] && grep -q '[^[:space:]]' "$f"; then
             echo "summary_b64=$(base64 -w0 "$f")" >> "$GITHUB_OUTPUT"
           elif [[ "$(cat build/release-notes/prs.tsv 2>/dev/null)" != "" ]]; then
-            msg="요약을 만들지 못했습니다. Release 노트는 PR 목록과 대체 문구로 게시합니다(노트를 고치려면 이 실행의 notes-summary 잡 로그 확인)."
+            msg="요약을 만들지 못했습니다. Release 노트는 PR 목록과 대체 문구로 게시합니다. 원인은 이 잡 로그에 있고, 고친 뒤 이 notes-summary 잡만 Re-run 하면 notes 잡도 함께 다시 돕니다(실행 전체 Re-run 은 release 잡까지 다시 돌리므로 하지 않습니다)."
             echo "::warning::$msg"
             echo "⚠️ $msg" >> "$GITHUB_STEP_SUMMARY"
           fi
