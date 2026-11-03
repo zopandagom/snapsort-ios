@@ -45,7 +45,7 @@ public enum SnapFont {
   }
 
   /// 손쉬운 사용 '굵은 텍스트'. `UIAccessibility.isBoldTextEnabled` 와 같은 값을, 메인 액터 밖(위젯 타임라인·nonisolated 뷰 조각)에서도
-  /// 읽히도록 시스템 본문 글꼴의 굵기로 읽는다(켜면 시스템 본문이 regular 보다 굵어진다).
+  /// 읽히도록 시스템 본문 글꼴 이름이 regular 기준 글꼴 이름과 다른지로 읽는다(아래 `isBoldText(in:)`).
   static var isBoldTextEnabled: Bool {
     self.isBoldText(in: nil)
   }
@@ -55,13 +55,14 @@ public enum SnapFont {
   /// descriptor 속성(`.traits`)은 글자 스타일 descriptor 에 비어 있고, `CTFontCopyTraits` 의 weight 도 두 글꼴 모두 0 이라 쓸 수 없다.
   /// `UIFont.systemFont(ofSize:weight:)` 는 기기의 '굵은 텍스트'를 따를 수 있어 기준으로 쓰지 않는다.
   static func isBoldText(in traits: UITraitCollection?) -> Bool {
-    let current = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits)
-    let regular = UIFont.preferredFont(
-      forTextStyle: .body,
-      compatibleWith: UITraitCollection(legibilityWeight: .regular)
-    )
-    return current.fontName != regular.fontName
+    UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits).fontName != self.regularBodyFontName
   }
+
+  /// 기준 글꼴 이름. 기기 설정·글자 크기와 무관한 고정값이라 한 번만 구한다(`Font.snap` 을 만들 때마다 부르므로).
+  private static let regularBodyFontName = UIFont.preferredFont(
+    forTextStyle: .body,
+    compatibleWith: UITraitCollection(legibilityWeight: .regular)
+  ).fontName
 
   /// 여러 번 불러도 한 번만 등록한다(static let 초기화는 스레드 안전).
   static func registerIfNeeded() {
