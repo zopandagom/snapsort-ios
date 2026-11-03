@@ -20,7 +20,7 @@ public final class CaptureActionsModel {
   /// 열린 상세의 요청 번호. 상세를 열거나 장을 넘길 때마다 바뀌고 닫히면 nil 이다. 같은 사진을 닫았다 바로 다시 열어도(같은 장으로 돌아와도) 바뀌므로,
   /// View 가 바코드 인식 `.task(id:)` 의 키로 써서 새 상세에서 다시 돈다. 닫힌 뒤 끝난 작업이 상태를 바꾸지 않게 하는 데도 쓴다.
   public private(set) var detailRequest: Int?
-  /// 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장만 값이 있다. 장을 열 때마다 저장소에서 한 번 다시 읽어 경로의 옛 값을 고친다.
+  /// 기프티콘 목록·정리 화면의 기프티콘 후보·보관함 곧 만료 띠에서 연 장만 값이 있다. 장을 열 때마다 저장소에서 한 번 다시 읽어 경로의 옛 값을 고친다.
   /// 다시 읽어 기프티콘이 아니게 되면 nil.
   public private(set) var gifticon: GifticonListItem?
   /// 상세의 D-n·만료일 표시 기준. 기기 시간대의 오늘. `detailAppeared`·`dayChanged()` 때 다시 계산한다.
@@ -85,7 +85,7 @@ public final class CaptureActionsModel {
   /// 기프티콘 다시 읽기 신호를 기다린다. 기프티콘 장은 처음에 한 번 다시 읽는다: 경로의 항목은 연 때 값이라, 이 상세에서 사용 여부를 바꾼 장으로
   /// 돌아오거나 닫았다 바로 다시 열면 옛 값이다. 다시 읽기에 실패하면 경로 값을 둔다.
   /// 닫히면 자기 요청일 때만 모든 상태를 지운다(바코드 이미지도 놓는다). 새 장이 먼저 시작했으면 지난 장의 정리는 아무것도 하지 않는다.
-  /// - Parameter gifticon: 기프티콘 목록·정리 화면의 기프티콘 후보에서 연 장이면 그 항목. 이때만 기프티콘 정보·사용함 버튼·바코드를 보인다.
+  /// - Parameter gifticon: 기프티콘 목록·정리 화면의 기프티콘 후보·보관함 곧 만료 띠에서 연 장이면 그 항목. 이때만 기프티콘 정보·사용함 버튼·바코드를 보인다.
   public func detailAppeared(id: ImageAsset.ID, gifticon: GifticonListItem?) async {
     self.detailRequestCount += 1
     let request = self.detailRequestCount

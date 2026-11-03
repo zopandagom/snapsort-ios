@@ -35,8 +35,8 @@ public final class LibraryModel {
   /// 저장소를 읽지 못하면 개수와 함께 지난 값을 둔다. LibraryView 가 바뀔 때마다 `LibraryCoverModel.coversChanged(_:)` 로 넘긴다.
   public private(set) var coverIDs: [ImageCategory: [ImageAsset.ID]] = [:]
   /// 저장소 내용이 바뀌었을 수 있다고 알게 될 때마다 하나씩 오른다: 인덱싱 진행률을 받을 때(소급이 끝날 때 오는 같은 값 진행률 포함)와
-  /// 인덱싱이 멈출 때. 그때마다 이 Model 은 개수와 대표 사진(`coverIDs`)을 다시 읽는다. 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색
-  /// 결과·정리 화면·최근 스크린샷 화면이
+  /// 인덱싱이 멈출 때. 그때마다 이 Model 은 개수와 대표 사진(`coverIDs`)과 곧 만료 띠(`expiringGifticons`)를 다시 읽는다.
+  /// 카테고리 화면·기프티콘 목록·영수증 목록·상세의 기프티콘 정보·여행 폴더 목록·여행 폴더 상세·검색 결과·정리 화면·최근 스크린샷 화면이
   /// 이 변화로 다시 읽는다(LibraryView 가 CategoryModel·GifticonListModel·ReceiptListModel·CaptureActionsModel·TripListModel·
   /// TripDetailModel·SearchModel·CleanupModel·CaptureInboxModel 에 넘긴다).
   /// 같은 값 진행률도 놓치지 않도록 진행률 값이 아니라 번호로 알린다. 장소 이름 미리 받기의 캐시 쓰기는 `placeRevision` 으로 따로 알린다.
@@ -45,7 +45,8 @@ public final class LibraryModel {
   /// 여행 폴더 상세·검색 결과에만 넘긴다(`storeRevision` 은 캐시를 읽지 않는 화면까지 다시 읽게 해 쓰지 않는다).
   /// 앱이 뒤에 있는 동안(BG 작업의 미리 받기 포함)의 쓰기는 모아 두었다가 앞으로 올 때 한 번 올린다(뒤에서 화면들이 저장소를 읽지 않게).
   public private(set) var placeRevision = 0
-  /// 카드마다 보일 대표 사진 수. 보관함 화면 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
+  /// 카드마다 보일 대표 사진 수. 카드 대표 썸네일 상한(카테고리 수 × 이 값 = 48)을 정한다.
+  /// 보관함 화면 전체 상한은 여기에 곧 만료 띠 `expiringLimit`(20)을 더한 68장이다.
   static let coverLimit = 4
 
   /// 개수가 아니라 식별자 집합으로 들고 있어, 처음 조회 결과와 겹치는 변경이 와도 두 번 세지 않는다.
@@ -63,6 +64,8 @@ public final class LibraryModel {
   @ObservationIgnored private let backgroundIndexing: LibraryBackgroundIndexing
   @ObservationIgnored private let reminderSync: LibraryReminderSync
   @ObservationIgnored private let celebration: LibraryIndexingCelebration
+  /// 곧 만료 띠. 공개 면(`expiringGifticons`)이 LibraryModel+Expiring.swift 에 있어 private 이 아니다.
+  @ObservationIgnored let expiringStrip: LibraryExpiringStrip
 
   @ObservationIgnored private let photoLibrary: any PhotoLibraryClient
   @ObservationIgnored private let indexing: (any IndexingClient)?
@@ -83,7 +86,7 @@ public final class LibraryModel {
   ///   (첫 분류는 자동, 그 뒤는 진행 카드 버튼, LibraryModel+ContinuedIndexing.swift). nil 이면 알리지 않고 버튼도 없다(Example 은 Fake 로 버튼·안내를
   /// 본다).
   ///   - calendar: 알림 날짜·시각과 식별자의 달력 체계를 정하는 기기 달력. 알림 Impl 이 트리거에 쓰는 달력과 같아야 한다.
-  ///   - now: 지금 시각. 동기화마다 한 번 읽는다.
+  ///   - now: 지금 시각. 동기화마다, 곧 만료 띠를 계산할 때마다 한 번 읽는다.
   ///   - locale: 장소 이름의 로캘. 미리 받기 회차를 시작할 때 한 번 읽는다.
   ///   - celebrationSleep: 분류 완료 축하가 머무는 시간(`celebrationDwell`)을 재는 수면. 테스트가 언제 깨울지 정하려고 넘긴다.
   public init(
@@ -105,6 +108,9 @@ public final class LibraryModel {
     self.reminderSync = LibraryReminderSync(
       notification: notification, photoStore: photoStore, widgetTimeline: widgetTimeline, calendar: calendar, now: now
     )
+    self.expiringStrip = LibraryExpiringStrip(
+      photoStore: photoStore, calendar: calendar, now: now, limit: Self.expiringLimit
+    )
     self.placePrefetch = LibraryPlacePrefetch(tripPlace: tripPlace, locale: locale)
     self.backgroundIndexing = LibraryBackgroundIndexing(client: backgroundIndexing, access: photoLibrary.accessState())
     self.isLimited = photoLibrary.accessState() == .limited
@@ -115,32 +121,36 @@ public final class LibraryModel {
 
   // MARK: - Events
 
-  /// 이미지 수 관찰, 분류 인덱싱, 만료 알림 동기화, 장소 이름 미리 받기를 함께 시작한다.
+  /// 이미지 수 관찰, 분류 인덱싱, 만료 알림 동기화, 곧 만료 띠 읽기, 장소 이름 미리 받기를 함께 시작한다.
   /// View 의 `.task` 수명 동안 이어지고, 화면이 사라져 Task 가 취소되면 모두 끝난다.
   /// 앱이 처음 앞으로 오기 전이면 다음 `sceneBecameActive()` 까지 시작을 미룬다. BG 작업이 앱을 띄워 화면이 뒤에서 생겨도
   /// 저장소를 읽거나 알림을 바꾸지 않는다(docs/ARCHITECTURE.md §4 인덱싱). 기다리는 동안 화면이 사라지면 아무것도 시작하지 않는다.
   public func onAppear() async {
     if !self.isSceneActive {
-      // 기다리는 동안 "분류된 이미지가 없습니다"·지난 멈춤 안내 대신 분류 중을 보인다(`runIndexing()` 첫 줄과 같은 값).
+      // 기다리는 동안 "아직 나눌 사진이 없어요"·지난 멈춤 안내 대신 분류 중을 보인다(`runIndexing()` 첫 줄과 같은 값).
       if self.indexing != nil {
         self.isIndexingStopped = false
         self.isIndexing = true
       }
       guard await self.sceneActivation.waitUntilActive() else { return }
     }
-    // 그룹을 열기 전에 만들어, 자식 Task 가 어떤 순서로 시작해도 첫 진행률이 축하의 머무는 시간 통로를 찾게 한다.
+    // 그룹을 열기 전에 만들어, 자식 Task 가 어떤 순서로 시작해도 첫 진행률이 축하의 머무는 시간 통로와 곧 만료 띠의 읽기 통로를 찾게 한다.
     let celebrationLoop = self.celebration.begin()
+    let stripLoop = self.expiringStrip.begin()
     await withDiscardingTaskGroup { group in
       group.addTask { await self.celebration.run(celebrationLoop.requests, generation: celebrationLoop.generation) }
+      group.addTask { await self.expiringStrip.run(stripLoop.requests, generation: stripLoop.generation) }
       await withDiscardingTaskGroup { work in
         work.addTask { await self.observeImages() }
         work.addTask { await self.runIndexing() }
         work.addTask { await self.reminderSync.run() }
         work.addTask { await self.placePrefetch.run { self.placeRevision += 1 } }
       }
-      // 다른 일이 모두 끝나면(인덱서가 없을 때 등) 더 올 축하가 없으므로 통로를 닫는다. 보이던 축하는 머무는 시간을 채운 뒤
-      // 접히고 루프가 끝나, 화면 진입이 예전처럼 돌아온다.
+      // 다른 일이 모두 끝나면(인덱서가 없을 때 등) 더 올 축하·읽기 요청이 없으므로 두 통로를 닫는다. 보이던 축하는 머무는 시간을
+      // 채운 뒤 접히고, 띠는 남은 요청(화면 진입 읽기 포함)을 읽은 뒤 루프가 끝나, 화면 진입이 예전처럼 돌아온다.
+      // 앱에서는 알림 동기화가 화면 수명 동안 돌아 여기까지 오지 않으므로 띠도 그동안 신호를 받는다(동기화의 끝남 조건을 바꾸면 띠도 함께 끊긴다).
       self.celebration.end(generation: celebrationLoop.generation)
+      self.expiringStrip.end(generation: stripLoop.generation)
     }
   }
 
@@ -155,7 +165,7 @@ public final class LibraryModel {
     guard self.isIndexingStopped else { return }
     // 다시 시작하기 전에 또 눌러 신호가 남으면, 다음에 멈췄을 때 누르지 않아도 다시 시작하므로 바로 푼다.
     self.isIndexingStopped = false
-    // 다시 시작할 때까지 비는 사이에 "분류된 이미지가 없습니다"가 보이지 않게 바로 켠다.
+    // 다시 시작할 때까지 비는 사이에 "아직 나눌 사진이 없어요"가 보이지 않게 바로 켠다.
     self.isIndexing = true
     self.indexingRetries?.yield()
   }
@@ -173,8 +183,9 @@ public final class LibraryModel {
 
   /// 앱이 앞으로 왔다(scenePhase `.active`). 처음 앞으로 오면 미뤄 둔 화면 진입을 시작한다. 뒤에서 미룬 분류 완료 축하를 보인다. 멈춘 분류를 다시 열고
   /// (인덱서가 둔 최신 진행률이 오면 개수를 다시 읽는다), 뒤에 있는 동안 장소 캐시 쓰기가 있었으면 한 번 알린다.
-  /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다.
-  /// 화면을 떠나 동기화 루프가 끝났으면 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
+  /// 설정에서 알림 권한을 바꿨거나 그사이 날짜가 바뀌었을 수 있어 만료 알림을 다시 맞춘다. 곧 만료 띠는 오늘을 먼저 다시 계산하고(읽기가 실패해도
+  /// 날짜는 맞게) 다시 읽는다(뒤에 있는 동안 BG 분류가 저장소를 바꿨을 수 있다).
+  /// 동기화·띠 루프가 끝났으면(화면을 떠남, 띠는 화면 진입의 다른 일이 모두 끝났을 때도) 신호는 버려지고, 다음 화면 진입이 동기화한다(아래 두 이벤트도 같다).
   /// 오프라인이던 동안 받지 못한 장소 이름을 받도록 미리 받기 회차도 요청한다(1단계를 마치기 전이면 버린다). 계속 처리 분류 상태도 다시 읽는다.
   public func sceneBecameActive() {
     self.backgroundIndexing.sceneBecameActive()
@@ -182,6 +193,8 @@ public final class LibraryModel {
       self.placeRevision += 1
     }
     self.reminderSync.request()
+    self.expiringStrip.dayChanged()
+    self.expiringStrip.request()
     self.celebration.sceneBecameActive()
     // 미뤄 둔 진입의 첫 동기화가 위 요청을 대신한다(루프가 아직 없어 위 요청은 버려진다).
     self.sceneActivation.becameActive()
@@ -201,16 +214,19 @@ public final class LibraryModel {
     self.placePrefetch.localeChanged()
   }
 
-  /// 기프티콘 사용 여부가 바뀌었다. 사용한 기프티콘은 알리지 않으므로 만료 알림을 다시 맞춘다.
+  /// 기프티콘 사용 여부가 바뀌었다. 사용한 기프티콘은 알리지 않으므로 만료 알림을 다시 맞추고, 곧 만료 띠에서 빠지도록 띠를 다시 읽는다.
   public func gifticonUsageChanged() {
     self.reminderSync.request()
+    self.expiringStrip.request()
   }
 
   /// 날짜나 시간대가 바뀌었다(앱이 앞에 있는 동안 자정을 넘김 등). 오늘이 바뀌면 원하는 알림·`hasPlannedReminder` 가 바뀌므로 다시 맞춘다.
+  /// 곧 만료 띠는 저장소를 다시 읽지 않고 지난 읽기로 오늘만 다시 계산한다(저장소 값은 날짜로 바뀌지 않는다).
   /// 앱이 앞에 있지 않으면(BG 작업이 깨운 프로세스 등) 무시한다. 앞으로 올 때 `sceneBecameActive()` 가 동기화를 요청한다.
   public func dayChanged() {
     guard self.isSceneActive else { return }
     self.reminderSync.request()
+    self.expiringStrip.dayChanged()
   }
 
   // MARK: - Private
@@ -254,7 +270,7 @@ public final class LibraryModel {
 
   /// 인덱서는 보관함 변경을 스스로 관찰하므로, 진행률만 받아 상태에 반영한다.
   /// 인덱서는 저장·삭제·여행 교체 뒤와 소급 추출·소급 보강이 끝날 때 진행률을 보내므로, 그때마다 저장소 변경 번호(`storeRevision`)를 올리고
-  /// 개수·대표 사진을 다시 읽고 만료 알림 동기화를 요청한다.
+  /// 개수·대표 사진을 다시 읽고 만료 알림 동기화와 곧 만료 띠 다시 읽기를 요청한다.
   /// 기다린 뒤에는 늘 지금 번호인지 확인해, 지난 Task 가 새 Task 의 상태를 덮지 않게 한다.
   private func index(with indexing: any IndexingClient, generation: Int) async {
     guard self.isCurrent(generation) else { return }
@@ -273,6 +289,7 @@ public final class LibraryModel {
       self.storeRevision += 1
       await self.refreshCategoryCounts(generation: generation)
       self.reminderSync.request()
+      self.expiringStrip.request()
     }
     guard self.isCurrent(generation) else { return }
     self.isIndexing = false
@@ -283,6 +300,7 @@ public final class LibraryModel {
     guard self.isCurrent(generation), !Task.isCancelled else { return }
     self.storeRevision += 1
     self.reminderSync.request()
+    self.expiringStrip.request()
     self.celebration.indexingStopped()
     self.isIndexingStopped = true
   }

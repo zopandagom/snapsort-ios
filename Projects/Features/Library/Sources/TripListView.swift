@@ -35,9 +35,8 @@ public struct TripListView: View {
       }
     case let .loaded(items) where items.isEmpty:
       StatusMessageView(
-        "여행 없음",
-        glyph: ImageCategory.travel.glyph,
-        description: self.model.isLimited ? Self.limitedNotice : "자주 가는 지역 밖에서 찍은 사진을 여행으로 묶습니다."
+        empty: "아직 여행이 없어요",
+        description: self.model.isLimited ? Self.limitedNotice : "자주 가는 지역 밖에서 찍은 사진을 여행으로 묶어 둘게요."
       )
     case .loaded where self.categoryModel.category != .travel:
       // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).

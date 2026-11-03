@@ -75,11 +75,7 @@ public struct TripDetailView: View {
               .padding(.horizontal)
           }
           if detail.photos.isEmpty, detail.captureGroups.isEmpty {
-            StatusMessageView(
-              "보이는 사진이 없습니다",
-              systemImage: "photo.on.rectangle.angled",
-              description: "여행 사진이 보관함에서 지워졌습니다."
-            )
+            StatusMessageView(empty: "보이는 사진이 없어요", description: "여행 사진이 보관함에서 지워졌어요.")
           } else {
             self.photoSection(detail)
             ForEach(Array(detail.captureGroups.enumerated()), id: \.element.id) { offset, group in

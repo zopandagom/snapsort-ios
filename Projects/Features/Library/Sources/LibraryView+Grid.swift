@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - 카테고리 카드 격자
 
 extension LibraryView {
-  /// 카테고리 카드 격자. 위에서부터 인덱싱 → 알림 안내 → 빈 상태 또는 정리 도우미 → 캡처 → 사진 → 기타 → 개인정보 처리방침 링크.
+  /// 카테고리 카드 격자. 위에서부터 인덱싱 → 곧 만료 띠 → 알림 안내 → 빈 상태 또는 정리 도우미 → 캡처 → 사진 → 기타 → 개인정보 처리방침 링크.
   /// 검색 중에는 `SearchResultsView` 가 대신 보인다.
   /// `isRevealed` 는 이 화면 인스턴스에서 카드가 처음 생길 때 한 번 참이 된다(`LibraryView.hasRevealedCards`). 그때 정리 도우미 카드와
   /// 카테고리 카드가 보이는 순서대로 떠오른다(`snapReveal`). 그 뒤 새로 생기는 카드(분류 중 새 카테고리, 상세에서 돌아옴, LazyVStack 이 다시 만듦)는
@@ -13,10 +13,14 @@ extension LibraryView {
   /// 분류 완료 축하 카드는 축하 id 가 바뀔 때만 애니메이션해(진행 카드 사이 전환 같은 다른 변화는 그대로) 아래 카드들이 함께 내려가고 올라온다.
   /// 축하가 나타날 때 성공 햅틱을 한 번 내고(사라질 때는 없음), 2.5초 뒤 접히는 카드를 찾아가기 어려워 VoiceOver 로 알린다.
   /// 다른 화면(push)이나 검색을 보는 동안 축하가 생기면 카드는 보이지 않은 채 접힌다. 검색 중이면 이 격자가 계층에 없어 햅틱도 없다.
+  /// 곧 만료 띠(`LibraryView+ExpiringStrip.swift`)는 숨김 ↔ 보임이 바뀔 때만 애니메이션해 위에서 내려오며 나타나고(아래 카드들이 함께 내려감)
+  /// 같은 길로 접힌다(동작 줄이기면 투명도만). 칩이 하나 빠지거나 더해지는 변화는 바로 바뀐다.
   func homeGrid(isRevealed: Bool) -> some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 20) {
         self.indexingSection
+        // 만료 알림 받기 안내가 바로 아래에 와 같은 주제끼리 붙는다.
+        self.expiringStripSection
         if self.model.showsExpiryReminderButton {
           self.expiryReminderSection
         }
@@ -40,6 +44,7 @@ extension LibraryView {
       .padding(.horizontal, 16)
       .padding(.bottom, 16)
       .animation(self.celebrationAnimation, value: self.model.indexingCelebration?.id)
+      .animation(self.expiringStripAnimation, value: self.showsExpiringStrip)
     }
     .sensoryFeedback(trigger: self.model.indexingCelebration?.id) { _, new in
       new == nil ? nil : .success
@@ -81,11 +86,11 @@ extension LibraryView {
     }
   }
 
+  /// 분류된 카테고리가 없을 때의 카드. 분류 중이면 이미지 수와 분류 중임을, 아니면 사진이 들어오면 나눠 둔다고 알린다.
   private var emptyCard: some View {
-    ContentUnavailableView(
-      "이미지 \(self.model.imageCount)장",
-      systemImage: "photo.stack",
-      description: Text(self.emptyDescription)
+    StatusMessageView(
+      empty: self.model.isIndexing ? "이미지 \(self.model.imageCount)장" : "아직 나눌 사진이 없어요",
+      description: self.emptyDescription
     )
     .frame(maxWidth: .infinity)
     .snapCard()
@@ -93,9 +98,9 @@ extension LibraryView {
 
   private var emptyDescription: String {
     if self.model.isIndexing {
-      "이미지를 분류하는 중입니다."
+      "이미지를 분류하는 중이에요."
     } else {
-      "분류된 이미지가 없습니다."
+      "사진이 들어오면 알아서 나눠 둘게요."
     }
   }
 

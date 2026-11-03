@@ -65,11 +65,7 @@ public struct CategoryView: View {
     case .loading:
       SnapLoadingDots()
     case let .loaded(sections) where sections.isEmpty:
-      StatusMessageView(
-        "이미지 없음",
-        glyph: self.category.glyph,
-        description: "이 카테고리에 분류된 이미지가 없습니다."
-      )
+      StatusMessageView(empty: "아직 사진이 없어요", description: "이 카테고리로 나눠진 사진이 아직 없어요.")
     case let .loaded(sections):
       self.grid(self.gridSections(sections))
         // 묶기를 바꾸면 ScrollView 를 새로 만들어 맨 위부터 보인다.

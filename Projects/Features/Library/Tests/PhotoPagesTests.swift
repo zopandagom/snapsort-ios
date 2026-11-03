@@ -47,6 +47,25 @@ struct PhotoPagesTests {
     #expect(pages.map(\.gifticon) == [item, nil, nil])
   }
 
+  @Test("곧 만료 띠는 칩 순서대로 장마다 그 기프티콘을 싣고, 상한 밖(\"+k\" 몫)은 장이 아니다")
+  func expiringPagesCarryChips() throws {
+    let today = try #require(LocalDate(year: 2026, month: 10, day: 19))
+    let items = self.assets.enumerated().map { offset, asset in
+      GifticonListItem(
+        asset: asset,
+        status: .extracted(GifticonInfo(expiryDate: today.addingDays(2 - offset), redemptionPlace: nil)),
+        isUsed: false
+      )
+    }
+    let strip = ExpiringGifticons.make(from: items, today: today, limit: 2)
+
+    let pages = PhotoPages.pages(expiring: strip)
+
+    #expect(strip.count == 3)
+    #expect(pages.map(\.asset.id) == ["image-2", "image-1"])
+    #expect(pages.map(\.gifticon) == [items[2], items[1]])
+  }
+
   @Test("연 섹션에 그 사진이 있으면 다른 섹션에도 있어도 연 섹션으로 돌아온다")
   func returnSectionPrefersOpenedSection() {
     let sections = [["a", "b"], ["c"], ["b", "d"]]

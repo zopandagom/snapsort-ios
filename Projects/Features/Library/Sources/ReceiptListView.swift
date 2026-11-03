@@ -59,7 +59,7 @@ public struct ReceiptListView: View {
     case let .loaded(items):
       let sections = ReceiptListSections.sections(of: items, grouping: self.grouping, calendar: self.model.calendar)
       if sections.isEmpty {
-        StatusMessageView("영수증이 없습니다", glyph: ImageCategory.receipt.glyph)
+        StatusMessageView(empty: "영수증이 없어요")
       } else if self.categoryModel.category != .receipt {
         // 지난 카테고리의 썸네일 칸이 이 화면 칸을 막지 않게, 썸네일 칸을 넘겨받은 뒤에 줄을 그린다(`CategoryView.content` 와 같은 이유).
         SnapLoadingDots()

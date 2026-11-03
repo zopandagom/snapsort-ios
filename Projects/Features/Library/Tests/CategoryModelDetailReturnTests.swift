@@ -109,6 +109,35 @@ struct CategoryModelDetailReturnTests {
     await cancelAndWait(reopened)
   }
 
+  @Test("곧 만료 띠 칩으로 연 상세(홈 방문, 섹션 0)에서 넘기면 마지막 장으로 돌아오고, 홈 방문으로만 비운다")
+  func expiringStripReturn() async throws {
+    let model = Self.model()
+    let today = try #require(LocalDate(year: 2026, month: 10, day: 19))
+    let items = Self.ids.enumerated().map { offset, id in
+      GifticonListItem(
+        asset: .stub(id: id),
+        status: .extracted(GifticonInfo(expiryDate: today.addingDays(offset), redemptionPlace: nil)),
+        isUsed: false
+      )
+    }
+    let strip = ExpiringGifticons.make(from: items, today: today, limit: 20)
+    let ids = PhotoPages.pages(expiring: strip).map(\.asset.id)
+    let homeVisit = UUID()
+    let origin = PhotoDetailOrigin(visit: homeVisit, section: 0)
+    let detail = Task { await model.detailAppeared(ids: ids, index: 0, origin: origin) }
+    await waitUntil { model.detailReturn != nil }
+
+    model.detailPageChanged(index: 2, id: ids[2])
+    await cancelAndWait(detail)
+    #expect(model.detailReturn == PhotoDetailReturn(origin: origin, id: "p2"))
+
+    model.detailReturnApplied(visit: UUID())
+    #expect(model.detailReturn == PhotoDetailReturn(origin: origin, id: "p2"))
+
+    model.detailReturnApplied(visit: homeVisit)
+    #expect(model.detailReturn == nil)
+  }
+
   // MARK: - Helpers
 
   static func model() -> CategoryModel {

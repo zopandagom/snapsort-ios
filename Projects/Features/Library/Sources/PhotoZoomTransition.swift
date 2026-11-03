@@ -12,7 +12,7 @@ struct PhotoZoomSourceID: Hashable {
 extension EnvironmentValues {
   /// 사진 상세 줌 전환의 이름 공간. 보관함 NavigationStack 이 넣는다. 없으면(Example 미리보기) 상세는 보통 push 다.
   @Entry var photoZoomNamespace: Namespace.ID?
-  /// 칸·줄이 속한 연 곳. 상세로 가는 링크가 자기 `PhotoDetailRoute.origin` 을 넣는다.
+  /// 칸·줄·칩이 속한 연 곳. 상세로 가는 링크가 자기 `PhotoDetailRoute.origin` 을 넣는다.
   @Entry var photoDetailOrigin: PhotoDetailOrigin?
 }
 
