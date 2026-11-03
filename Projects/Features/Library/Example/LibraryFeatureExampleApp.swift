@@ -46,6 +46,11 @@ import TripPlaceTesting
 /// 보관함 맨 위 "곧 만료" 띠는 `PreviewGifticons.demos` 중 오늘~7일 안에 만료되는 미사용 기프티콘을 보인다(D-3 이내 배지는 숨 쉰다).
 /// 칩을 누르면 띠의 칩만 넘기는 상세가 열리고, 상세에서 "사용함"을 누르고 돌아오면 그 칩이 빠진다.
 /// 시나리오는 실행 인자 `-scenario <이름>` 으로 고른다(`ExampleScenario`).
+/// 스토어 스크린샷 시나리오 `-scenario storeScreenshots -storeScreen <화면>`(`StoreScreen`: home·gifticons·gifticonDetail·trip·
+/// search·cleanup)는 위 데모 데이터(실제 브랜드 이름이 든 것)를 쓰지 않고 스토어 전용 데이터(`StoreScreenshotData`: 지어낸 교환처·가게·번호,
+/// 코드로 그린 그림, 공공 명소 부근 좌표, 고정 "지금" 2026-11-03 09:41 서울)로 실제 앱과 같은 Feature View 를 띄운다. 디버그 줄·데모 버튼이 없다.
+/// 홈·검색은 `LibraryView` 그대로(검색은 Model 이벤트로 "제주"를 넣는다)이고, 기프티콘 목록·상세·여행 상세·정리는 Example 스택의 처음 경로로 연다
+/// (홈에서 줌 전환으로 들어온 상태가 아니며 그 화면 안을 눌러도 이동하지 않는다). `scripts/store-screenshots.sh` 가 화면마다 띄워 찍는다.
 @main
 struct LibraryFeatureExampleApp: App {
   private static let scenario = ExampleScenario.current
@@ -166,7 +171,10 @@ struct LibraryFeatureExampleApp: App {
   var body: some Scene {
     WindowGroup {
       Group {
-        if Self.scenario == .receiptEmpty {
+        if Self.scenario == .storeScreenshots {
+          // 스토어 스크린샷: 아래 데모 대역·Model 과 디버그 줄을 쓰지 않는다.
+          StoreScreenshotRoot()
+        } else if Self.scenario == .receiptEmpty {
           // 보관함은 영수증이 없으면 영수증 카드를 숨겨 빈 목록에 갈 수 없으므로 루트로 띄운다.
           NavigationStack {
             ReceiptListView(model: self.receiptListModel, categoryModel: self.categoryModel)
