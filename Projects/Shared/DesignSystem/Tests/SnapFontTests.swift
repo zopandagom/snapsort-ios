@@ -1,8 +1,8 @@
 import CoreText
-import DesignSystem
 import SwiftUI
 import Testing
 import UIKit
+@testable import DesignSystem
 
 @MainActor
 struct SnapFontTests {
@@ -39,6 +39,19 @@ struct SnapFontTests {
     for weight in SnapFont.Weight.allCases {
       #expect(weight.resolved(boldText: false) == weight)
     }
+  }
+
+  @Test("'굵은 텍스트' 감지는 legibilityWeight 가 bold 일 때만 참이다")
+  func detectsBoldText() {
+    #expect(SnapFont.isBoldText(in: UITraitCollection(legibilityWeight: .bold)))
+    #expect(!SnapFont.isBoldText(in: UITraitCollection(legibilityWeight: .regular)))
+    // 큰 글자 크기에서도 같은 판정(기준 글꼴이 같은 크기라 이름 비교가 크기에 흔들리지 않게).
+    let large = UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
+    #expect(SnapFont.isBoldText(in: UITraitCollection(traitsFrom: [large, UITraitCollection(legibilityWeight: .bold)])))
+    #expect(!SnapFont.isBoldText(in: UITraitCollection(traitsFrom: [
+      large,
+      UITraitCollection(legibilityWeight: .regular),
+    ])))
   }
 
   @Test("툴바 글자 버튼과 검색창 글자는 R 이다")
