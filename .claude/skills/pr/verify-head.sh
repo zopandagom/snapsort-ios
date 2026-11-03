@@ -8,7 +8,7 @@
 #   - scripts/, 가리기 스크립트가 읽는 ClassificationRules.swift·픽스처, 스토어 검사가 읽는 fastlane/metadata·screenshots·site/support, 화면 키 대조 테스트가 읽는 Example StoreScreenshots.swift, 합성 테스트가 읽는 캡션 글꼴(DesignSystem Resources/Fonts),
 #     타깃이 있는 Makefile: make test-scripts
 #   - Gemfile·Gemfile.lock·fastlane/Fastfile·Appfile, Ruby 버전이 있는 .mise.toml, 타깃이 있는 Makefile: make lanes (make bootstrap 의 bundle install 전제)
-#   - 출시 태그 검사 스크립트(.github/scripts/check-release-tag.sh·테스트), 타깃이 있는 Makefile: make test-release-tag
+#   - 출시 스크립트(.github/scripts/check-release-tag.sh·release-notes.sh·테스트), 타깃이 있는 Makefile: make test-release-tag
 #   - .claude/settings.json: JSON 문법
 #   - .github 의 YAML 파일(워크플로·dependabot): YAML 문법
 #   - 그 외(문서 등)만 바뀌었으면: SKIP
@@ -31,7 +31,7 @@ grep -q '^\.githooks/' <<<"$files" && checks+=("make test-hooks")
 grep -Eq '^(scripts/|Makefile$|fastlane/(metadata|screenshots)/|site/support/|Projects/Features/Library/Example/StoreScreenshots\.swift$|Projects/Shared/DesignSystem/Resources/Fonts/|Projects/Shared/Core/Sources/ClassificationRules\.swift$|Projects/Shared/Core/Tests/Fixtures/ClassificationSamples\.json$)' <<<"$files" &&
   checks+=("make test-scripts")
 grep -Eq '^(Gemfile|Gemfile\.lock|fastlane/(Fastfile|Appfile)|\.mise\.toml|Makefile)$' <<<"$files" && checks+=("make lanes")
-grep -Eq '^(\.github/scripts/(check|test-check)-release-tag\.sh|Makefile)$' <<<"$files" && checks+=("make test-release-tag")
+grep -Eq '^(\.github/scripts/((check|test-check)-release-tag|(test-)?release-notes)\.sh|Makefile)$' <<<"$files" && checks+=("make test-release-tag")
 grep -q '^\.claude/settings\.json$' <<<"$files" && checks+=("jq empty .claude/settings.json")
 grep -Eq '^\.github/.*\.ya?ml$' <<<"$files" &&
   checks+=("ruby -ryaml -e 'Dir[\".github/**/*.y*ml\"].each { |f| YAML.load_file(f) }'")
