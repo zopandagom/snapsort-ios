@@ -70,9 +70,19 @@ enum CleanupText {
     return formatter.string(fromByteCount: bytes)
   }
 
-  /// 비슷한 사진의 촬영 시각(초까지). 기기 달력(`CleanupModel.calendar`)의 달력 체계·시간대로 쓴다. 로캘은 화면 환경 로캘이다.
+  /// 비슷한 사진 한 줄의 촬영 시각: 시각만 초까지(연속 촬영을 구별한다). 날짜는 묶음 머리말(`photoGroupTimeStyle`)이 보인다.
+  /// 기기 달력(`CleanupModel.calendar`)의 달력 체계·시간대로 쓴다. 로캘은 화면 환경 로캘이다.
   static func photoTimeStyle(calendar: Calendar) -> Date.FormatStyle {
-    var style = Date.FormatStyle.dateTime.year().month().day().hour().minute().second()
+    self.style(.dateTime.hour().minute().second(), calendar: calendar)
+  }
+
+  /// 비슷한 사진 묶음 머리말의 첫 장 촬영 시각: 날짜와 분까지. 달력·시간대·로캘은 `photoTimeStyle` 과 같다.
+  static func photoGroupTimeStyle(calendar: Calendar) -> Date.FormatStyle {
+    self.style(.dateTime.year().month().day().hour().minute(), calendar: calendar)
+  }
+
+  private static func style(_ base: Date.FormatStyle, calendar: Calendar) -> Date.FormatStyle {
+    var style = base
     style.calendar = calendar
     style.timeZone = calendar.timeZone
     return style
