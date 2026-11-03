@@ -16,12 +16,12 @@ Debug 빌드 전용 개발 도구는 CONVENTIONS §4.
 | `make bootstrap` | 최초 1회: mise 도구(Ruby 포함) 설치, fastlane(`bundle install`) 설치, git 훅 연결. `.mise.toml`·`Gemfile` 이 바뀐 뒤에도 다시 돌린다(fastlane 추가 전에 만든 환경 포함. `/pr` 의 `make lanes` 검사가 `bundle install` 을 전제) |
 | `make generate` | Tuist 로 워크스페이스 생성 후 Xcode 로 열기 (`.xcodeproj` 는 커밋하지 않는다). 열지 않으려면 `make project` |
 | `make lint` / `make format` | SwiftFormat + SwiftLint (아키텍처 규칙 포함) |
-| `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) + git 훅 테스트 + 출시 태그 검사 테스트 |
+| `make test` | 전체 모듈 빌드 + 테스트 (`SnapSort-Workspace` 스킴, iPhone 17 시뮬레이터) + git 훅 테스트 + 출시 스크립트 테스트 |
 | `make test-hooks` | git 훅 동작 테스트: 임시 레포에서 main 커밋·머지 커밋·push 차단과 기능 브랜치 통과 확인 |
-| `make test-release-tag` | 출시 태그 검사 스크립트 테스트: `vX.Y.Z` 형식과 태그 커밋이 main 에 있는지 |
+| `make test-release-tag` | 출시 스크립트 테스트: 태그 검사(`vX.Y.Z` 형식과 태그 커밋이 main 에 있는지)와 Release 노트 PR 목록 |
 | `make lanes` | fastlane lane 목록 (`Gemfile`·`Fastfile` 이 읽히는지 확인) |
 | `make release-ipa` | 출시 빌드의 archive + export 만 (`RELEASE_VERSION=1.0.0 RELEASE_BUILD_NUMBER=1 make release-ipa`, 업로드 없음) |
-| 출시 | **사용자가 지시할 때만.** `vX.Y.Z` 태그 push → `release.yml` 이 `make release` 로 업로드·심사 제출 (CONVENTIONS §5 태그 출시) |
+| 출시 | **사용자가 지시할 때만.** `vX.Y.Z` 태그 push → `release.yml` 이 `make release` 로 업로드·심사 제출하고 GitHub Release 노트(AI 요약 + PR 목록)를 게시 (CONVENTIONS §5 태그 출시) |
 | `make test-scripts` | `scripts/` 개발 스크립트 테스트, 레포의 스토어 메타데이터·스크린샷 검사 포함 (`make test`·CI 에는 들지 않는다) |
 | `make store-screenshots` | 스토어 스크린샷 6장을 만든다: Library Example 스토어 시나리오를 iPhone 17 Pro Max 시뮬레이터로 찍고 캡션을 합성해 `fastlane/screenshots/ko/` 에 쓴다 (시뮬레이터 필요, `make test`·CI 에는 들지 않는다. UI 가 바뀌면 태그 전 PR 에서 다시: CONVENTIONS §5 태그 출시) |
 | `make mask-samples FILE=<초안>` | 기록 도구 샘플 초안의 OCR 줄을 가려 픽스처 형식으로 쓴다 (CONVENTIONS §3) |
