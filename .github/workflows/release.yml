@@ -200,11 +200,12 @@ jobs:
       - id: prs
         name: PR 목록
         env:
+          VERSION: ${{ needs.check.outputs.version }}
           BUILD_SHA: ${{ needs.check.outputs.build_sha }}
         run: |
           set -o pipefail # tee 뒤에서 스크립트 실패를 놓치지 않게(기본 셸 bash -e 에는 pipefail 이 없다)
           mkdir -p build/release-notes
-          .github/scripts/release-notes.sh prs "$BUILD_SHA" | tee build/release-notes/prs.tsv
+          .github/scripts/release-notes.sh prs "v$VERSION" "$BUILD_SHA" | tee build/release-notes/prs.tsv
           echo "count=$(wc -l < build/release-notes/prs.tsv | tr -d ' ')" >> "$GITHUB_OUTPUT"
       - id: bodies
         name: PR 본문 받기
@@ -308,7 +309,7 @@ jobs:
           dir="$RUNNER_TEMP/release-notes"
           mkdir -p "$dir"
           [[ -z "$SUMMARY_B64" ]] || printf '%s' "$SUMMARY_B64" | base64 --decode > "$dir/summary.md"
-          .github/scripts/release-notes.sh body "$BUILD_SHA" "$dir/summary.md" > "$dir/body.md"
+          .github/scripts/release-notes.sh body "$tag" "$BUILD_SHA" "$dir/summary.md" > "$dir/body.md"
           cat "$dir/body.md"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release edit "$tag" --draft=false --title "$title" --notes-file "$dir/body.md"
