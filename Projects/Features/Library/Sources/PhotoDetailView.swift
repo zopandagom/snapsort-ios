@@ -216,7 +216,7 @@ private struct PhotoPageView: View {
         if image.isLocalFallback {
           // 확대 영역 밖(장 아래쪽)에 둔다.
           Label("iCloud 원본 대신 기기에 있는 작은 버전입니다", systemImage: "icloud")
-            .font(.footnote)
+            .font(.snap(.footnote))
             .foregroundStyle(.secondary)
             .padding(.horizontal)
         }

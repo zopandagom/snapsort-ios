@@ -16,7 +16,8 @@ public struct ExpiryWidgetEntryView: View {
 
   public var body: some View {
     self.content
-      .fontDesign(.rounded)
+      // `.fontDesign` 은 두지 않는다: 안쪽 `Font.snap`(사용자 지정 글꼴)을 시스템 글꼴로 덮는다(`snapTheme()` 와 같음).
+      .font(.snap(.body))
   }
 
   @ViewBuilder
@@ -75,35 +76,33 @@ private struct SmallView: View {
       } icon: {
         GiftIcon(size: 14, relativeTo: .caption)
       }
-      .font(.caption.weight(.semibold))
+      .font(.snap(.caption, weight: .bold))
       .foregroundStyle(.secondary)
       Spacer(minLength: 0)
       switch self.content {
       case .unavailable:
         Text(Copy.unavailable)
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
       case let .summary(summary):
         if let nearest = summary.nearestDaysLeft {
           // 숫자만 크게 두면 남은 날로 읽힐 수 있어 "개"를 붙인다.
-          Text("\(summary.count)개")
-            .font(.system(size: 44, weight: .bold, design: .rounded))
+          Text.snapNumbered("\(summary.count)개", fixedSize: 44, weight: .extraBold)
             .minimumScaleFactor(0.5)
             // 아래 본문 글자처럼 색을 쓰는 홈 화면에서만 기준값 색을 쓴다(vibrant 에서 밝기가 불투명도로 바뀌어 흐려지지 않게).
             .foregroundStyle(self
               .renderingMode == .fullColor ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.primary))
             .widgetAccentable()
-          Text(Copy.nearest(nearest))
-            .font(.subheadline)
+          Text.snapNumbered(Copy.nearest(nearest), style: .subheadline)
         } else if summary.isChecking {
           Text(Copy.checking)
-            .font(.headline)
+            .font(.snap(.headline, weight: .bold))
         } else {
           Text(Copy.none)
-            .font(.subheadline)
+            .font(.snap(.subheadline))
         }
         if summary.isChecking, summary.nearestDaysLeft != nil {
           Text(Copy.checking)
-            .font(.caption2)
+            .font(.snap(.caption2))
             .foregroundStyle(.secondary)
         }
       }
@@ -128,18 +127,18 @@ private struct CircularView: View {
         case .unavailable:
           GiftIcon(size: 18, relativeTo: .body)
           Text("앱 열기")
-            .font(.system(size: 9))
+            .font(.snap(fixedSize: 9))
         case let .summary(summary):
           Text("\(summary.count)")
-            .font(.title3.weight(.bold))
+            .font(.snapNumber(.title3, weight: .extraBold))
             .widgetAccentable()
           // 칸이 좁아 D-day 는 넣지 않는다. 숫자 아래에 추출 대기면 "확인 중"(개수가 바뀔 수 있다), 아니면 1개 이상은 "개"·0개는 선물 아이콘.
           if summary.isChecking {
             Text(Copy.checking)
-              .font(.system(size: 9))
+              .font(.snap(fixedSize: 9))
           } else if summary.nearestDaysLeft != nil {
             Text("개")
-              .font(.system(size: 10))
+              .font(.snap(fixedSize: 10))
           } else {
             GiftIcon(size: 12, relativeTo: .caption2)
           }
@@ -159,14 +158,14 @@ private struct RectangularView: View {
       } icon: {
         GiftIcon(size: 17, relativeTo: .headline)
       }
-      .font(.headline)
+      .font(.snap(.headline, weight: .bold))
       .widgetAccentable()
       switch self.content {
       case .unavailable:
         Text(Copy.unavailable)
       case let .summary(summary):
         if let nearest = summary.nearestDaysLeft {
-          Text("\(summary.count)개 · \(Copy.nearest(nearest))")
+          Text.snapNumbered("\(summary.count)개 · \(Copy.nearest(nearest))", style: .caption)
         } else if !summary.isChecking {
           Text("7일 안에 없어요")
         }
@@ -176,7 +175,7 @@ private struct RectangularView: View {
         }
       }
     }
-    .font(.caption)
+    .font(.snap(.caption))
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }

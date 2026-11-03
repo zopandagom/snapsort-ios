@@ -136,7 +136,7 @@ struct SearchResultsView: View {
       Text(hit.placeName)
         .lineLimit(1)
       Text("\(TripPeriodText.text(hit.period, calendar: self.model.calendar)) · 사진 \(hit.trip.assetIDs.count)장")
-        .font(.subheadline)
+        .font(.snap(.subheadline))
         .foregroundStyle(.secondary)
     }
   }
@@ -154,7 +154,7 @@ struct SearchResultsView: View {
           Text("선택한 사진에서만 찾습니다.")
         }
       }
-      .font(.footnote)
+      .font(.snap(.footnote))
       .foregroundStyle(.secondary)
     }
   }
@@ -176,9 +176,9 @@ private struct SearchImageRow: View {
         .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 4) {
         self.dateText
-          .font(.subheadline)
+          .font(.snap(.subheadline))
         Text(self.matchedText)
-          .font(.caption)
+          .font(.snap(.caption))
           .foregroundStyle(.secondary)
           .lineLimit(1)
       }

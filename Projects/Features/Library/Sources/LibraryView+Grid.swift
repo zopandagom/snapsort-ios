@@ -109,13 +109,13 @@ extension LibraryView {
     NavigationLink(value: CleanupRoute.cleanup) {
       HStack(spacing: 12) {
         Image(systemName: "sparkles")
-          .font(.title2)
+          .font(.snap(.title2))
           .foregroundStyle(SnapColor.rose)
         VStack(alignment: .leading, spacing: 2) {
           Text("정리 도우미")
-            .font(.headline)
+            .font(.snap(.headline, weight: .bold))
           Text("지난 기프티콘·비슷한 사진 정리")
-            .font(.footnote)
+            .font(.snap(.footnote))
             .foregroundStyle(SnapColor.accent)
         }
         Spacer(minLength: 0)
@@ -139,7 +139,7 @@ extension LibraryView {
     if !rows.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
         Text(title)
-          .font(.title3.bold())
+          .font(.snap(.title3, weight: .extraBold))
           .accessibilityAddTraits(.isHeader)
         if let travel = rows.first(where: { $0.category == .travel }) {
           self.card(travel.category, count: travel.count, isWide: true, titleLines: .unlimited, isRevealed: isRevealed)
@@ -191,7 +191,7 @@ extension LibraryView {
 
   private func footnote(_ text: LocalizedStringKey) -> some View {
     Text(text)
-      .font(.footnote)
+      .font(.snap(.footnote))
       .foregroundStyle(.secondary)
   }
 }

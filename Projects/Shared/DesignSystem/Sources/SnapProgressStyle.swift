@@ -62,12 +62,12 @@ private struct SnapProgressBody: View {
     VStack(alignment: .leading, spacing: 8) {
       layout {
         self.configuration.label
-          .font(.headline)
+          .font(.snap(.headline, weight: .bold))
         if !self.dynamicTypeSize.isAccessibilitySize {
           Spacer(minLength: 0)
         }
         self.configuration.currentValueLabel
-          .font(.subheadline.bold())
+          .font(.snap(.subheadline, weight: .bold))
           .foregroundStyle(SnapColor.inkSecondary)
       }
       StripedBar(fraction: self.configuration.fractionCompleted ?? 0, tint: self.tint)

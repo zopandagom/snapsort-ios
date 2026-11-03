@@ -231,7 +231,7 @@ public struct GifticonListView: View {
     }
     .buttonStyle(.snapSecondary)
     .controlSize(.small)
-    .font(.subheadline.weight(.semibold))
+    .font(.snap(.subheadline, weight: .bold))
     .fixedSize()
     .accessibilityLabel(Text(self.usageButtonAccessibilityLabel(item)))
   }

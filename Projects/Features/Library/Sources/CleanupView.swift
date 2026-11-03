@@ -142,7 +142,7 @@ public struct CleanupView: View {
             VStack(alignment: .leading, spacing: 2) {
               Text("최근 스크린샷")
               Text("30일 안에 찍은 것을 한 장씩 보관·삭제")
-                .font(.footnote)
+                .font(.snap(.footnote))
                 .foregroundStyle(.secondary)
             }
           } icon: {
@@ -259,7 +259,7 @@ extension CleanupView {
         self.model.candidateToggled(id: candidate.id)
       } label: {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-          .font(.title3)
+          .font(.snap(.title3))
           .foregroundStyle(isSelected ? AnyShapeStyle(SnapColor.accent) : AnyShapeStyle(.secondary))
           .frame(minWidth: 44, minHeight: 44)
           .contentShape(.rect)
@@ -340,13 +340,13 @@ private struct CleanupCandidateRow: View {
             isKnown: info.redemptionPlace != nil,
             isEstimated: self.item.estimatedFields.contains(.redemptionPlace)
           )
-          .font(.body)
+          .font(.snap(.body))
           GifticonFieldText(
             info.expiryDate.map { GifticonExpiryText.date($0, calendar: self.calendar) } ?? Text("만료일 모름"),
             isKnown: info.expiryDate != nil,
             isEstimated: self.item.estimatedFields.contains(.expiryDate)
           )
-          .font(.subheadline)
+          .font(.snap(.subheadline))
         }
         Spacer()
         if let expiryDate = info.expiryDate {
@@ -371,12 +371,12 @@ private struct CleanupSimilarPhotoRow: View {
         .photoZoomSource(self.candidate.asset.id, cornerRadius: 8)
       if let date = self.candidate.asset.creationDate {
         Text(date, format: CleanupText.photoTimeStyle(calendar: self.calendar))
-          .font(.subheadline)
+          .font(.snap(.subheadline))
       }
       Spacer()
       if self.candidate.isKept {
         Text("남김")
-          .font(.caption.weight(.semibold))
+          .font(.snap(.caption, weight: .bold))
           .padding(.horizontal, 8)
           .padding(.vertical, 2)
           .background(SnapColor.neutral, in: .capsule)

@@ -36,7 +36,8 @@ private struct PillButton: View {
 
   var body: some View {
     self.sized(self.configuration.label)
-      .fontWeight(.semibold)
+      // 굵기만 덧붙여 크기는 바깥 글꼴을 따른다(B). '굵은 텍스트'는 사용자 지정 글꼴에 자동 적용되지 않아 한 단계(EB) 올린다.
+      .fontWeight(SnapFont.isBoldTextEnabled ? .heavy : .semibold)
       .multilineTextAlignment(.center)
       .foregroundStyle(self.foreground)
       .background(self.fill, in: .capsule)
@@ -50,7 +51,7 @@ private struct PillButton: View {
     case .mini, .small:
       label.padding(.vertical, 6).padding(.horizontal, 12)
     case .large, .extraLarge:
-      label.font(.headline).padding(.vertical, 13).padding(.horizontal, 22).frame(minHeight: 48)
+      label.font(.snap(.headline, weight: .bold)).padding(.vertical, 13).padding(.horizontal, 22).frame(minHeight: 48)
     default:
       label.padding(.vertical, 9).padding(.horizontal, 16).frame(minHeight: 36)
     }

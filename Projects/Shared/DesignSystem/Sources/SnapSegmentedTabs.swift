@@ -65,11 +65,11 @@ public struct SnapSegmentedTabs<Value: Hashable>: View {
         Text(tab.title)
         if let count = tab.count {
           Text("\(count)")
-            .monospacedDigit()
+            .font(.snapNumber(.subheadline, weight: isSelected ? .bold : .regular))
             .snapRollingNumber(count)
         }
       }
-      .font(.subheadline.weight(isSelected ? .semibold : .regular))
+      .font(.snap(.subheadline, weight: isSelected ? .bold : .regular))
       .foregroundStyle(isSelected ? SnapColor.ink : SnapColor.inkSecondary)
       .padding(.horizontal, 12)
       .padding(.vertical, 6)

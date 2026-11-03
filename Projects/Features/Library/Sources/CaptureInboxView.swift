@@ -138,10 +138,10 @@ public struct CaptureInboxView: View {
         Spacer()
         if let position = self.model.position {
           Text("\(position.index) / \(position.total)")
-            .monospacedDigit()
+            .font(.snapNumber(.subheadline))
         }
       }
-      .font(.subheadline)
+      .font(.snap(.subheadline))
       .foregroundStyle(.secondary)
       HStack(spacing: 12) {
         Button {
@@ -249,7 +249,7 @@ private struct CaptureInboxPhoto: View {
           Label("iCloud 원본 대신 기기에 있는 작은 버전입니다", systemImage: "icloud")
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("iCloud 원본 대신 기기에 있는 작은 버전입니다"))
-            .font(.footnote)
+            .font(.snap(.footnote))
             .foregroundStyle(.secondary)
         }
       }

@@ -122,7 +122,7 @@ public struct CategoryView: View {
             } footer: {
               if section.showsCheckingFooter {
                 Text("글자를 읽으면 묶습니다. iCloud 에만 있는 사진은 기기에 내려받은 뒤 확인합니다.")
-                  .font(.footnote)
+                  .font(.snap(.footnote))
                   .foregroundStyle(.secondary)
                   .padding(.horizontal)
                   .padding(.vertical, 8)
@@ -157,7 +157,7 @@ public struct CategoryView: View {
 
   private func header(_ title: Text) -> some View {
     title
-      .font(.headline)
+      .font(.snap(.headline, weight: .bold))
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal)
       .padding(.vertical, 8)

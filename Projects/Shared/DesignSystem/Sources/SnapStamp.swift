@@ -107,7 +107,7 @@ public struct SnapStamp: View {
   private nonisolated func label(_ pose: Pose) -> some View {
     let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
     return Text(self.text)
-      .font(.caption.weight(.heavy))
+      .font(.snap(.caption, weight: .extraBold))
       .foregroundStyle(SnapColor.accent)
       .padding(.horizontal, 8)
       .padding(.vertical, 3)

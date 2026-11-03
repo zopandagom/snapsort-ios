@@ -45,7 +45,7 @@ struct TripMapView: View {
       }
     } label: {
       Image(systemName: "scope")
-        .font(.body.weight(.semibold))
+        .font(.snap(.body, weight: .bold))
         .foregroundStyle(SnapColor.accent)
         .frame(width: 44, height: 44)
         .background(.regularMaterial, in: .circle)
