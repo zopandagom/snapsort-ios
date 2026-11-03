@@ -5,12 +5,13 @@
 # 사용: verify-head.sh [base]   (기본: origin/main)
 #   - 빌드에 영향을 주는 파일: make lint && make test
 #   - .githooks/: make test-hooks
-#   - scripts/, 가리기 스크립트가 읽는 ClassificationRules.swift·픽스처, 타깃이 있는 Makefile: make test-scripts
+#   - scripts/, 가리기 스크립트가 읽는 ClassificationRules.swift·픽스처, 스토어 검사가 읽는 fastlane/metadata·screenshots·site/support, 화면 키 대조 테스트가 읽는 Example StoreScreenshots.swift, 합성 테스트가 읽는 캡션 글꼴(DesignSystem Resources/Fonts),
+#     타깃이 있는 Makefile: make test-scripts
 #   - Gemfile·Gemfile.lock·fastlane/Fastfile·Appfile, Ruby 버전이 있는 .mise.toml, 타깃이 있는 Makefile: make lanes (make bootstrap 의 bundle install 전제)
 #   - 출시 태그 검사 스크립트(.github/scripts/check-release-tag.sh·테스트), 타깃이 있는 Makefile: make test-release-tag
 #   - .claude/settings.json: JSON 문법
 #   - .github 의 YAML 파일(워크플로·dependabot): YAML 문법
-#   - 그 외(문서, fastlane/metadata·screenshots 등)만 바뀌었으면: SKIP
+#   - 그 외(문서 등)만 바뀌었으면: SKIP
 # 작업 트리에서 그대로 실행하므로 커밋되지 않은 변경이 없어야 HEAD 를 검사한 것이 된다.
 set -uo pipefail
 
@@ -27,7 +28,7 @@ build_paths='^(Projects/|Tuist/|Workspace\.swift|Tuist\.swift|Makefile|\.mise\.t
 checks=()
 grep -Eq "$build_paths" <<<"$files" && checks+=("make lint" "make test")
 grep -q '^\.githooks/' <<<"$files" && checks+=("make test-hooks")
-grep -Eq '^(scripts/|Makefile$|Projects/Shared/Core/Sources/ClassificationRules\.swift$|Projects/Shared/Core/Tests/Fixtures/ClassificationSamples\.json$)' <<<"$files" &&
+grep -Eq '^(scripts/|Makefile$|fastlane/(metadata|screenshots)/|site/support/|Projects/Features/Library/Example/StoreScreenshots\.swift$|Projects/Shared/DesignSystem/Resources/Fonts/|Projects/Shared/Core/Sources/ClassificationRules\.swift$|Projects/Shared/Core/Tests/Fixtures/ClassificationSamples\.json$)' <<<"$files" &&
   checks+=("make test-scripts")
 grep -Eq '^(Gemfile|Gemfile\.lock|fastlane/(Fastfile|Appfile)|\.mise\.toml|Makefile)$' <<<"$files" && checks+=("make lanes")
 grep -Eq '^(\.github/scripts/(check|test-check)-release-tag\.sh|Makefile)$' <<<"$files" && checks+=("make test-release-tag")

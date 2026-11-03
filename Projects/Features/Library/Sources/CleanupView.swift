@@ -31,6 +31,7 @@ public struct CleanupView: View {
 
   public var body: some View {
     self.contentView
+      .scrollEdgeEffectStyle(.hard, for: .bottom) // 아래 삭제 단추와 목록 글자가 겹쳐 읽히지 않게
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("정리 도우미")
       .snapScreenBackground()
@@ -238,11 +239,11 @@ extension CleanupView {
     }
   }
 
-  /// 묶음 머리말: 장수와 첫 장 촬영 시각.
+  /// 묶음 머리말: 장수와 첫 장 촬영 시각(날짜와 분까지. 초는 줄이 보인다).
   private func groupTitle(_ group: CleanupCandidateGroup) -> String {
     let count = "\(group.candidates.count)장"
     guard let date = group.candidates.first?.asset.creationDate else { return count }
-    return "\(count) · \(date.formatted(CleanupText.photoTimeStyle(calendar: self.model.calendar)))"
+    return "\(count) · \(date.formatted(CleanupText.photoGroupTimeStyle(calendar: self.model.calendar)))"
   }
 
   /// 상세는 누른 줄의 섹션(비슷한 사진은 묶음 하나) 안에서 넘긴다.
@@ -347,17 +348,18 @@ private struct CleanupCandidateRow: View {
             isEstimated: self.item.estimatedFields.contains(.expiryDate)
           )
           .font(.snap(.subheadline))
+          if let expiryDate = info.expiryDate {
+            GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.today), isUsed: self.item.isUsed)
+              .padding(.top, 2)
+          }
         }
-        Spacer()
-        if let expiryDate = info.expiryDate {
-          GifticonDueBadge(due: GifticonDue(expiryDate: expiryDate, today: self.today), isUsed: self.item.isUsed)
-        }
+        Spacer(minLength: 0)
       }
     }
   }
 }
 
-/// 비슷한 사진 한 줄의 사진 쪽: 썸네일·촬영 시각(초까지)·남길 장이면 "남김".
+/// 비슷한 사진 한 줄의 사진 쪽: 썸네일·촬영 시각(시각만 초까지. 날짜는 묶음 머리말이 보인다)·남길 장이면 "남김".
 private struct CleanupSimilarPhotoRow: View {
   let categoryModel: CategoryModel
   let candidate: CleanupCandidate

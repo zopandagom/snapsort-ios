@@ -75,6 +75,9 @@ enum ExampleScenario: String {
   case gifticonUsageFailing
   /// 기프티콘 목록 줄 버튼·줄 밀기의 쓰기가 1.5초 걸린다. 쓰는 동안 그 줄의 버튼은 막히고 밀기 단추가 없으며, 다른 줄은 함께 바꿀 수 있다.
   case gifticonUsageSlow
+  /// 스토어 스크린샷 데이터(`StoreScreenshotData`, 지어낸 교환처·번호와 코드로 그린 그림)로 `-storeScreen <화면>` 하나를 띄운다
+  /// (`StoreScreenshotRoot`). 디버그 줄·데모 버튼이 없고, "지금"은 2026-11-03 09:41(서울) 고정이다. `scripts/store-screenshots.sh` 가 쓴다.
+  case storeScreenshots
 
   static var current: ExampleScenario {
     UserDefaults.standard.string(forKey: "scenario").flatMap(ExampleScenario.init(rawValue:)) ?? .standard

@@ -64,7 +64,7 @@ iOS 사진 앱도 기기 안에서 "여행", "음식" 검색과 여행 추억을
 | 가격 정책 결정: 무료(인앱 결제 없음), 2026-10-26 결정 | W5 전 | ☑ |
 | `PrivacyInfo.xcprivacy` 작성, 개인정보 처리방침 페이지 (위치 좌표의 Apple 시스템 서비스 사용, 분류 결과 저장 파일의 기기 백업 제외 명시). 매니페스트·본문(`site/privacy/index.html`)·Pages 워크플로·앱 안 링크는 레포에 있다(ARCHITECTURE §2·§4 개인정보 처리방침). 레포 설정에서 Pages(Source: GitHub Actions)를 켜고(워크플로 첫 머지 전에. 머지 뒤에 켰으면 Actions → Pages → Run workflow 로 한 번 돌린다) 게시 URL 이 열리며 App Store Connect 에 처리방침 URL·개인정보 라벨("데이터를 수집하지 않음")을 넣은 뒤 ☑ | W6 | ☐ |
 | 사진 권한 문구(`NSPhotoLibraryUsageDescription`)를 전체 이미지 분류·정리(삭제) 용도로 수정 | 전체 이미지 조회 PR | ☑ |
-| 스토어 스크린샷·설명·키워드 (ASO) | W6 | ☐ |
+| 스토어 스크린샷·설명·키워드 (ASO): 문구는 `fastlane/metadata/`(`ko/` 의 이름·부제·키워드·홍보 문구·설명·지원 URL, 루트의 `copyright.txt`·`primary_category.txt`), 스크린샷은 `make store-screenshots` 로 만든 `fastlane/screenshots/ko/` 6장(6.9인치), 지원 페이지는 `site/support/`(ARCHITECTURE §2 빌드 설정 출시·§4 개인정보 처리방침). 리허설도 업로드까지 하므로 App Store Connect 의 ko 스크린샷을 레포 세트로 바꾼다. 리허설에서 메타데이터·스크린샷 업로드가 지나고 App Store Connect 에 반영된 것을 확인한 뒤 ☑ | W6 | ☐ |
 
 ## 위험과 대응
 | 위험 | 대응 |

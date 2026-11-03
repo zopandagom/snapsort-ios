@@ -12,7 +12,7 @@ export FASTLANE_SKIP_UPDATE_CHECK := 1
 export FASTLANE_OPT_OUT_USAGE := YES
 
 .PHONY: bootstrap generate project build test test-hooks test-release-tag test-scripts mask-samples lint format clean \
-	lanes release release-ipa
+	lanes release release-ipa store-screenshots
 
 ## 최초 1회: 도구 설치(Ruby 포함) + fastlane gem 설치(출시 도구) + git 훅 연결
 bootstrap:
@@ -50,7 +50,7 @@ test-hooks:
 test-release-tag:
 	./.github/scripts/test-check-release-tag.sh
 
-## scripts/ 의 개발 스크립트 테스트 (scripts/·Makefile 이나 스크립트가 읽는 파일이 바뀌면 /pr 이 실행. make test·CI 에는 들지 않는다)
+## scripts/ 의 개발 스크립트 테스트 (scripts/·Makefile 이나 스크립트가 읽는 파일 — 분류 규칙·픽스처, 스토어 메타데이터·스크린샷·지원 페이지, Example 스토어 화면 표, 캡션 글꼴 — 이 바뀌면 /pr 이 실행. make test·CI 에는 들지 않는다)
 ## 시스템 python3(3.9)는 찾은 테스트가 0개여도 성공으로 끝나므로, 0개면 실패로 본다.
 test-scripts:
 	@out=$$(python3 -I -m unittest discover -s scripts -p 'test_*.py' 2>&1); status=$$?; echo "$$out"; \
@@ -61,6 +61,10 @@ test-scripts:
 mask-samples:
 	$(if $(FILE),,$(error FILE=<초안.json> 이 필요합니다))
 	python3 -I scripts/mask-samples.py "$(FILE)"
+
+## 스토어 스크린샷 6장을 만든다 (iPhone 17 Pro Max 시뮬레이터, docs/CONVENTIONS.md §5). make test·CI 에는 들지 않는다
+store-screenshots: project
+	./scripts/store-screenshots.sh
 
 ## 출시 lane 목록 (Gemfile·Fastfile 이 읽히는지 확인. make bootstrap 의 bundle install 전제)
 lanes:

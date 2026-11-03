@@ -22,7 +22,8 @@ Debug 빌드 전용 개발 도구는 CONVENTIONS §4.
 | `make lanes` | fastlane lane 목록 (`Gemfile`·`Fastfile` 이 읽히는지 확인) |
 | `make release-ipa` | 출시 빌드의 archive + export 만 (`RELEASE_VERSION=1.0.0 RELEASE_BUILD_NUMBER=1 make release-ipa`, 업로드 없음) |
 | 출시 | **사용자가 지시할 때만.** `vX.Y.Z` 태그 push → `release.yml` 이 `make release` 로 업로드·심사 제출 (CONVENTIONS §5 태그 출시) |
-| `make test-scripts` | `scripts/` 개발 스크립트 테스트 (`make test`·CI 에는 들지 않는다) |
+| `make test-scripts` | `scripts/` 개발 스크립트 테스트, 레포의 스토어 메타데이터·스크린샷 검사 포함 (`make test`·CI 에는 들지 않는다) |
+| `make store-screenshots` | 스토어 스크린샷 6장을 만든다: Library Example 스토어 시나리오를 iPhone 17 Pro Max 시뮬레이터로 찍고 캡션을 합성해 `fastlane/screenshots/ko/` 에 쓴다 (시뮬레이터 필요, `make test`·CI 에는 들지 않는다. UI 가 바뀌면 태그 전 PR 에서 다시: CONVENTIONS §5 태그 출시) |
 | `make mask-samples FILE=<초안>` | 기록 도구 샘플 초안의 OCR 줄을 가려 픽스처 형식으로 쓴다 (CONVENTIONS §3) |
 
 ## 작업 흐름 (`/verify`·`/arch-review`·`/micro-commit` 은 서브에이전트로 실행되어 요약만 돌려주고, `/pr` 은 현재 대화에서 실행된다)
@@ -43,7 +44,7 @@ Projects/
   Clients/<Name>/           Interface(프로토콜) · Impl(Apple 프레임워크 구현 또는 다른 Client 조합) · Testing(Fake) · Tests
   Shared/<Name>/            Sources · Tests. Core(도메인 값 타입·규칙) · DesignSystem(공용 UI)
 Tuist/ProjectDescriptionHelpers/   모듈 이름(Module.swift)과 타깃 템플릿
-fastlane/                   출시 자동화(개발 도구, 앱에 들어가지 않음). Fastfile·Appfile · metadata/ko · screenshots/ko (Ruby gem 은 Gemfile)
+fastlane/                   출시 자동화(개발 도구, 앱에 들어가지 않음). Fastfile·Appfile · metadata(ko 언어별 문구·루트 copyright·카테고리) · screenshots/ko (Ruby gem 은 Gemfile)
 ```
 의존 방향: `App → Feature → Client Interface`, `App → Client Impl → Client Interface`, `App → Extension(임베드)`, `Extension → Feature·Client Impl`. 모두 Shared 를 쓸 수 있고, Shared 는 아무것도 의존하지 않는다.
 

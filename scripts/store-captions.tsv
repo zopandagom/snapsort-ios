@@ -1,0 +1,10 @@
+# 스토어 스크린샷 캡션 (docs/CONVENTIONS.md §5). 한 줄 = 한 장, 줄 순서 = 스토어 순서.
+# <파일 이름 줄기>\t<첫 줄>\t<둘째 줄(선택, 강조색)>. 줄기는 fastlane/screenshots/ko/<줄기>.png 이름이다.
+# 줄기를 바꾸거나 더하면 scripts/store-screenshots.sh 의 화면 표와 check-store-screenshots.sh 의 장 수도 함께 바꾼다.
+# 스토어 문구라 '기프티콘'을 쓰지 않는다 (scripts/check-store-metadata.py 가 검사).
+01-home	사진이 알아서	제자리를 찾아요
+02-gifticons	모바일 쿠폰 만료,	잊기 전에 알려 드려요
+03-gifticon-detail	바코드는 크게,	교환처는 한눈에
+04-trip	여행 사진과 영수증을	한 폴더에
+05-search	사진 속 글자까지	찾아 줘요
+06-cleanup	지난 쿠폰·비슷한 사진	한 번에 정리

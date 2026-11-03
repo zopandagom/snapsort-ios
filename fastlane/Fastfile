@@ -2,6 +2,8 @@
 # 흐름·규칙: docs/ARCHITECTURE.md §2 출시, docs/CONVENTIONS.md §5 태그 출시.
 #   ios release   : 태그 push 로 시작한 release.yml 이 make release 로 부른다. 로컬은 RELEASE_SUBMIT=false 리허설만.
 #   ios build_ipa : archive + export 만 (make release-ipa). 업로드·ASC 조회 없음.
+# 스크린샷은 덮어쓰기(ASC 의 ko 스크린샷을 레포 세트로 바꿈)라, release 는 ASC 조회·빌드 전에
+# scripts/check-store-screenshots.sh 로 레포 세트(6장·1320×2868·알파 없음)를 검사한다. 세트는 make store-screenshots 로 만든다.
 # 공개 레포라 로그가 공개된다: 키 내용·경로 밖의 비밀값을 출력하지 않는다.
 require "open3"
 require "shellwords"
@@ -19,6 +21,10 @@ APP_NAME = "SnapSort"
 # 태그 형식 정규식의 단일 출처. release.yml check 잡도 같은 스크립트를 쓴다.
 TAG_CHECK = File.join(ROOT, ".github/scripts/check-release-tag.sh")
 UI.user_error!("태그 검사 스크립트가 없습니다: #{TAG_CHECK}") unless File.executable?(TAG_CHECK)
+# 업로드 전 스크린샷 세트 검사. 장 수·이름의 단일 출처는 scripts/store-captions.tsv.
+SCREENSHOTS_DIR = File.join(ROOT, "fastlane/screenshots")
+SCREENSHOT_CHECK = File.join(ROOT, "scripts/check-store-screenshots.sh")
+UI.user_error!("스크린샷 검사 스크립트가 없습니다: #{SCREENSHOT_CHECK}") unless File.executable?(SCREENSHOT_CHECK)
 
 # RELEASE_VERSION(X.Y.Z)을 태그 검사 스크립트로 검사해 돌려준다.
 def release_version
@@ -143,6 +149,11 @@ platform :ios do
       UI.user_error!("심사 제출은 태그 push 로 시작한 GitHub Actions 에서만 합니다 (로컬은 RELEASE_SUBMIT=false)")
     end
 
+    # 덮어쓰기 업로드가 불완전한 세트로 ASC 스크린샷을 바꾸지 않게, ASC 조회·빌드 전에 싸게 실패한다.
+    out, status = Open3.capture2e(SCREENSHOT_CHECK, SCREENSHOTS_DIR)
+    UI.user_error!("스토어 스크린샷 검사 실패: #{out.strip}") unless status.success?
+    UI.message(out.strip)
+
     key = asc_api_key(required: true)
     app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
     app = Spaceship::ConnectAPI::App.find(app_identifier)
@@ -168,8 +179,10 @@ platform :ios do
       ipa: ipa,
       app_version: version,
       metadata_path: File.join(ROOT, "fastlane/metadata"),
-      screenshots_path: File.join(ROOT, "fastlane/screenshots"),
-      overwrite_screenshots: false,
+      screenshots_path: SCREENSHOTS_DIR,
+      # ko 의 모든 스크린샷 세트(모든 기기 크기)를 지우고 레포 세트로 바꾼다. 불완전한 세트는 위 검사가 빌드 전에 막는다.
+      # 끄면 체크섬이 다른 장이 기존 세트 뒤에 더해져 옛 장과 새 장이 섞인다.
+      overwrite_screenshots: true,
       force: true, # CI 에 HTML 미리보기를 확인할 사람이 없다
       submit_for_review: submit,
       automatic_release: true,

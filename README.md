@@ -34,13 +34,14 @@ make test-hooks  # git 훅 동작 테스트만 (임시 레포에서 main 커밋�
 make test-release-tag # 출시 태그 검사 스크립트 테스트만 (vX.Y.Z 형식, 태그 커밋이 main 에 있는지)
 make lint        # 포맷·아키텍처 규칙 검사 (make format 으로 자동 수정)
 make lanes       # fastlane lane 목록 (Gemfile·Fastfile 이 읽히는지 확인)
-make test-scripts                 # scripts/ 개발 스크립트 테스트
+make test-scripts                 # scripts/ 개발 스크립트 테스트 (스토어 메타데이터·스크린샷 검사 포함)
+make store-screenshots            # 스토어 스크린샷 6장 촬영·캡션 합성 → fastlane/screenshots/ko (iPhone 17 Pro Max 시뮬레이터)
 make mask-samples FILE=<초안.json> # 분류 샘플 초안의 OCR 줄 가리기 (docs/CONVENTIONS.md §3)
 RELEASE_VERSION=1.0.0 RELEASE_BUILD_NUMBER=1 make release-ipa # 출시 빌드 archive + export 만 (업로드 없음)
 ```
 
 ## 출시
-main 에 머지된 커밋에 `vX.Y.Z` 태그를 push 하면 GitHub Actions(`.github/workflows/release.yml`)가 fastlane 으로 App Store Connect 에 빌드·메타데이터(`fastlane/metadata/ko`)를 올리고 심사 제출하며, 통과하면 자동 공개한다. 레포 Secrets `ASC_KEY_ID`·`ASC_ISSUER_ID`·`ASC_KEY_P8`(App Store Connect API 키 `.p8` 의 base64)이 필요하다. 규칙·리허설·실패 시 다시 시도는 [CONVENTIONS §5 태그 출시](docs/CONVENTIONS.md), 서명·버전은 [ARCHITECTURE §2 빌드 설정](docs/ARCHITECTURE.md).
+main 에 머지된 커밋에 `vX.Y.Z` 태그를 push 하면 GitHub Actions(`.github/workflows/release.yml`)가 fastlane 으로 App Store Connect 에 빌드·메타데이터(`fastlane/metadata`)·스크린샷(`fastlane/screenshots/ko`, `make store-screenshots` 로 만든다)을 올리고 심사 제출하며, 통과하면 자동 공개한다. 레포 Secrets `ASC_KEY_ID`·`ASC_ISSUER_ID`·`ASC_KEY_P8`(App Store Connect API 키 `.p8` 의 base64)이 필요하다. 규칙·리허설·실패 시 다시 시도는 [CONVENTIONS §5 태그 출시](docs/CONVENTIONS.md), 서명·버전은 [ARCHITECTURE §2 빌드 설정](docs/ARCHITECTURE.md).
 
 ## 문서
 - [아키텍처](docs/ARCHITECTURE.md)
