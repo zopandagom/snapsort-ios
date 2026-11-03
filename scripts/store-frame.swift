@@ -13,7 +13,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-/// 기준값. 근거는 2026-11-03 실측(.claude/team/design.md 수정 라운드 1 R1.1).
+/// 기준값. 근거는 2026-11-03 iPhone 17 Pro Max 시뮬레이터 실측(각 상수 주석).
 enum Threshold {
   static let width = 1320
   static let height = 2868
