@@ -36,4 +36,12 @@ struct SnapNumberRunsTests {
     #expect(SnapNumberRuns.runs("확인 중 - 잠시만") == [self.run("확인 중 - 잠시만", false)])
     #expect(SnapNumberRuns.runs("").isEmpty)
   }
+
+  @Test("지역 금액 형식의 특수 공백은 숫자 조각을 가르지 않는다")
+  func regionalCurrencySpacesStayInNumber() {
+    let german = "12.000,50\u{00A0}€ · 금액 모름 1장"
+    #expect(SnapNumberRuns.runs(german).first == self.run("12.000,50\u{00A0}€", true))
+    let french = "12\u{202F}000,50\u{00A0}$US · 확인 중 2장"
+    #expect(SnapNumberRuns.runs(french).first == self.run("12\u{202F}000,50\u{00A0}$US", true))
+  }
 }

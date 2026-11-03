@@ -49,7 +49,8 @@ enum SnapNumberRuns {
     let isNumber: Bool
   }
 
-  private static let numberCharacters = Set("0123456789,.:/+-%$€£¥₩")
+  /// U+00A0·U+202F 는 일부 지역 금액 형식이 기호와 숫자, 천 단위 사이에 넣는 공백이다(예: "12.000,50 €", "12 000,50 $US").
+  private static let numberCharacters = Set("0123456789,.:/+-%$€£¥₩\u{00A0}\u{202F}")
 
   static func runs(_ string: String) -> [Run] {
     guard !string.isEmpty else { return [] }
