@@ -45,7 +45,7 @@ struct SnapFontTests {
   func detectsBoldText() {
     #expect(SnapFont.isBoldText(in: UITraitCollection(legibilityWeight: .bold)))
     #expect(!SnapFont.isBoldText(in: UITraitCollection(legibilityWeight: .regular)))
-    // 큰 글자 크기에서도 같은 판정(기준 글꼴이 같은 크기라 이름 비교가 크기에 흔들리지 않게).
+    // 큰 글자 크기에서도 같은 판정(기준 글꼴은 기본 크기라, 이름이 크기에 흔들리지 않아야 한다).
     let large = UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
     #expect(SnapFont.isBoldText(in: UITraitCollection(traitsFrom: [large, UITraitCollection(legibilityWeight: .bold)])))
     #expect(!SnapFont.isBoldText(in: UITraitCollection(traitsFrom: [

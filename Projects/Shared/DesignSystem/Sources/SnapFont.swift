@@ -50,12 +50,17 @@ public enum SnapFont {
     self.isBoldText(in: nil)
   }
 
-  /// `traits` 가 nil 이면 현재 설정. '굵은 텍스트'면 시스템 본문 글꼴이 다른 굵기의 글꼴(예: .SFUI-Semibold)로 바뀌므로, 같은 크기의
-  /// 시스템 regular 글꼴과 이름을 비교한다. descriptor 속성(`.traits`)은 글자 스타일 descriptor 에 비어 있고, 해석된 글꼴의
-  /// weight 특성(`CTFontCopyTraits`)도 이 시스템 UI 글꼴에서는 0 으로 같아 쓸 수 없다(실험 확인).
+  /// `traits` 가 nil 이면 현재 설정. '굵은 텍스트'면 시스템 본문 글꼴이 다른 글꼴(.SFUI-Regular → .SFUI-Semibold)로 바뀌므로,
+  /// regular 를 명시해 기기 설정과 무관하게 만든 기준 글꼴과 이름을 비교한다(이름은 글자 크기와 무관함을 실험으로 확인).
+  /// descriptor 속성(`.traits`)은 글자 스타일 descriptor 에 비어 있고, `CTFontCopyTraits` 의 weight 도 두 글꼴 모두 0 이라 쓸 수 없다.
+  /// `UIFont.systemFont(ofSize:weight:)` 는 기기의 '굵은 텍스트'를 따를 수 있어 기준으로 쓰지 않는다.
   static func isBoldText(in traits: UITraitCollection?) -> Bool {
     let current = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits)
-    return current.fontName != UIFont.systemFont(ofSize: current.pointSize, weight: .regular).fontName
+    let regular = UIFont.preferredFont(
+      forTextStyle: .body,
+      compatibleWith: UITraitCollection(legibilityWeight: .regular)
+    )
+    return current.fontName != regular.fontName
   }
 
   /// 여러 번 불러도 한 번만 등록한다(static let 초기화는 스레드 안전).
