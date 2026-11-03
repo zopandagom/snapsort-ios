@@ -12,7 +12,7 @@
 #   release-notes.sh previous <commit>
 #     위의 이전 출시 태그 이름을 stdout 에 쓴다. 없으면 아무것도 쓰지 않고 0.
 #   release-notes.sh body <commit> [요약 파일]
-#     Release 본문 markdown 을 stdout 에 쓴다: "## 요약"(요약 파일 내용, 없거나 비면 대체 문구) + "## 포함된 PR"(prs 목록).
+#     Release 본문 markdown 을 stdout 에 쓴다: "## 요약"(요약 파일 내용, 없거나 비면 대체 문구, PR 이 없으면 그렇다는 문구) + "## 포함된 PR"(prs 목록).
 #     얕은 체크아웃은 이전 태그·PR 을 놓치므로 실패로 본다.
 set -euo pipefail
 
@@ -69,7 +69,9 @@ case "$cmd" in
     prs=$(list_prs "$commit")
 
     echo "## 요약"
-    if [[ -n "$summary_file" && -s "$summary_file" ]] && grep -q '[^[:space:]]' "$summary_file"; then
+    if [[ -z "$prs" ]]; then
+      echo "이번 버전에 머지된 PR 이 없습니다." # 요약할 것이 없는 것이지 실패가 아니다
+    elif [[ -n "$summary_file" && -s "$summary_file" ]] && grep -q '[^[:space:]]' "$summary_file"; then
       cat "$summary_file"
     else
       echo "_요약을 만들지 못했습니다. 아래 PR 목록을 보세요._"
