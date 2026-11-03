@@ -180,6 +180,8 @@ public extension Project {
     let shared = shared.map { TargetDependency.shared($0) }
     return Project(
       name: feature.name,
+      // App 과 같은 개발 언어. Example 앱의 Locale.current·시스템 날짜 서식이 실제 앱처럼 한국어가 된다.
+      options: .options(defaultKnownRegions: ["ko", "en"], developmentRegion: "ko"),
       settings: .settings(base: Env.baseSettings),
       targets: [
         .module(
