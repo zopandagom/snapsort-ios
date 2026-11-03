@@ -46,9 +46,10 @@ test: project
 test-hooks:
 	./.githooks/test-hooks.sh
 
-## 출시 태그 검사 스크립트 테스트 (make test 가 포함)
+## 출시 스크립트 테스트: 태그 검사·Release 노트 PR 목록 (make test 가 포함)
 test-release-tag:
 	./.github/scripts/test-check-release-tag.sh
+	./.github/scripts/test-release-notes.sh
 
 ## scripts/ 의 개발 스크립트 테스트 (scripts/·Makefile 이나 스크립트가 읽는 파일 — 분류 규칙·픽스처, 스토어 메타데이터·스크린샷·지원 페이지, Example 스토어 화면 표, 캡션 글꼴 — 이 바뀌면 /pr 이 실행. make test·CI 에는 들지 않는다)
 ## 시스템 python3(3.9)는 찾은 테스트가 0개여도 성공으로 끝나므로, 0개면 실패로 본다.
