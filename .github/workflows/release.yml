@@ -262,7 +262,7 @@ jobs:
       - id: encode
         name: 요약 넘기기
         if: ${{ always() }}
-        # 잡 사이에는 출력으로 넘긴다(base64 한 줄). 요약이 없으면 빈 값이고 notes 잡이 대체 문구를 쓴다.
+        # 잡 사이에는 출력으로 넘긴다(base64 한 줄). 요약이 없으면 빈 값이고 notes 잡이 대체 문구(머지된 PR 이 없으면 PR 없음 안내)를 쓴다.
         run: |
           f=build/release-notes/summary.md
           if [[ -f "$f" ]] && grep -q '[^[:space:]]' "$f"; then
