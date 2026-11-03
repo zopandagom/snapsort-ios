@@ -20,7 +20,7 @@ struct SnapNumberRunsTests {
       self.run("곧 만료되는 기프티콘 ", false), self.run("3", true), self.run("개", false),
     ])
     #expect(SnapNumberRuns.runs("3일 지남") == [self.run("3", true), self.run("일 지남", false)])
-    #expect(SnapNumberRuns.runs("₩12,000") == [self.run("₩", false), self.run("12,000", true)])
+    #expect(SnapNumberRuns.runs("₩12,000") == [self.run("₩12,000", true)])
   }
 
   @Test("숫자가 든 영문·숫자 연속은 한 조각, 숫자 없는 영문·기호는 글자 조각")
@@ -29,6 +29,10 @@ struct SnapNumberRunsTests {
       self.run("3", true), self.run("개 · 가장 가까운 ", false), self.run("D-2", true),
     ])
     #expect(SnapNumberRuns.runs("OCR 결과") == [self.run("OCR 결과", false)])
+    // 같은 금액이 영숫자만 있는 줄("US$45.20", 통째로 숫자)과 한글이 섞인 합계 줄에서 같은 글꼴이 되게.
+    #expect(SnapNumberRuns.runs("US$45.20 · 금액 모름 1장") == [
+      self.run("US$45.20", true), self.run(" · 금액 모름 ", false), self.run("1", true), self.run("장", false),
+    ])
     #expect(SnapNumberRuns.runs("확인 중 - 잠시만") == [self.run("확인 중 - 잠시만", false)])
     #expect(SnapNumberRuns.runs("").isEmpty)
   }

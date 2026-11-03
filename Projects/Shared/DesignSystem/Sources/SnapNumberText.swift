@@ -41,14 +41,15 @@ public extension Text {
   }
 }
 
-/// 글자를 숫자 조각과 나머지 조각으로 나눈다. 숫자 조각은 숫자가 하나 이상 든 [영문·숫자 , . : / + - %] 의 연속이다("D-2" 가 갈라지지 않게).
+/// 글자를 숫자 조각과 나머지 조각으로 나눈다. 숫자 조각은 숫자가 하나 이상 든 [영문·숫자 , . : / + - % 통화 기호] 의 연속이다("D-2"·"US$45.20" 이 갈라지지 않아,
+/// 한글이 섞인 줄에서도 영숫자만 있는 줄과 같은 글꼴로 나온다).
 enum SnapNumberRuns {
   struct Run: Equatable {
     let text: String
     let isNumber: Bool
   }
 
-  private static let numberCharacters = Set("0123456789,.:/+-%")
+  private static let numberCharacters = Set("0123456789,.:/+-%$€£¥₩")
 
   static func runs(_ string: String) -> [Run] {
     guard !string.isEmpty else { return [] }
