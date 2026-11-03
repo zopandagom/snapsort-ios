@@ -50,6 +50,15 @@ public enum Env {
   /// Impl 이 `*` 자리에 고정 접미사를 붙인 구체 식별자로 등록·제출한다(와일드카드 그대로는 등록되지 않는다).
   public static let continuedIndexingTaskIdentifierPattern = "com.zopandagom.snapsort.continuedIndexing.*"
 
+  /// DesignSystem 리소스 번들의 글꼴 파일(`Projects/Shared/DesignSystem/Resources/Fonts`). 위젯 Extension 은 시스템이 렌더링 전에 등록하도록
+  /// Info.plist `UIAppFonts` 에 번들 안 경로로 둔다(앱은 `SnapFont` 의 실행 중 등록만 쓴다). 글꼴 파일을 바꾸면 여기도 고친다.
+  static let designSystemFontPaths: [Plist.Value] = [
+    "NanumSquareRoundOTFR",
+    "NanumSquareRoundOTFB",
+    "NanumSquareRoundOTFEB",
+  ]
+  .map { .string("DesignSystem_DesignSystem.bundle/\($0).otf") }
+
   static func bundleId(_ name: String) -> String {
     "\(self.bundleIdPrefix).\(name.lowercased())"
   }
@@ -109,6 +118,7 @@ public extension Project {
               "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
             ],
             Env.appGroupInfoKey: .string(Env.appGroupIdentifier),
+            "UIAppFonts": .array(Env.designSystemFontPaths),
           ]) { $1 }),
           buildableFolders: ["Sources"],
           entitlements: Env.appGroupEntitlements,
@@ -193,12 +203,14 @@ public extension Project {
   }
 
   /// Shared 모듈: 모듈 / Tests. 다른 모듈에 의존하지 않는다.
-  static func shared(_ shared: Shared) -> Project {
+  /// - Parameter hasResources: `Resources` 폴더(글꼴 등)를 함께 넣는다. 정적 프레임워크라 Tuist 가 리소스 번들과
+  ///   `Bundle.module` 을 만들고, 이 모듈을 쓰는 앱·위젯·Example 에 번들을 담는다.
+  static func shared(_ shared: Shared, hasResources: Bool = false) -> Project {
     Project(
       name: shared.name,
       settings: .settings(base: Env.baseSettings),
       targets: [
-        .module(name: shared.name, sources: "Sources", dependencies: []),
+        .module(name: shared.name, sources: "Sources", resources: hasResources ? "Resources" : nil, dependencies: []),
         .tests(name: shared.tests, dependencies: [.target(name: shared.name)]),
       ]
     )
@@ -206,14 +218,19 @@ public extension Project {
 }
 
 extension Target {
-  static func module(name: String, sources: String, dependencies: [TargetDependency]) -> Target {
+  static func module(
+    name: String,
+    sources: String,
+    resources: String? = nil,
+    dependencies: [TargetDependency]
+  ) -> Target {
     .target(
       name: name,
       destinations: Env.destinations,
       product: .staticFramework,
       bundleId: Env.bundleId(name),
       deploymentTargets: Env.deploymentTargets,
-      buildableFolders: [.folder(.relativeToManifest(sources))],
+      buildableFolders: ([sources] + (resources.map { [$0] } ?? [])).map { .folder(.relativeToManifest($0)) },
       dependencies: dependencies
     )
   }
